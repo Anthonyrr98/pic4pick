@@ -206,24 +206,26 @@ export function AdminPage() {
               alignItems: 'center',
               justifyContent: 'center',
               padding: '24px',
+              background:
+                'radial-gradient(circle at top, #f5f7fb 0, #e8edf6 32%, #dde3f0 60%, #d7dee9 100%)',
             }}
           >
             <div
               style={{
                 maxWidth: 420,
                 width: '100%',
-                background: 'rgba(15, 16, 20, 0.96)',
+                background: 'rgba(255, 255, 255, 0.98)',
                 borderRadius: 24,
                 padding: '28px 24px 24px',
-                boxShadow: '0 24px 60px rgba(0,0,0,0.65)',
-                border: '1px solid rgba(255,255,255,0.08)',
+                boxShadow: '0 24px 60px rgba(15, 23, 42, 0.22)',
+                border: '1px solid rgba(15, 23, 42, 0.04)',
               }}
             >
               <h1
                 style={{
                   fontSize: '1.4rem',
                   marginBottom: 8,
-                  color: 'var(--text)',
+                  color: '#111827',
                 }}
               >
                 管理后台访问
@@ -231,7 +233,7 @@ export function AdminPage() {
               <p
                 style={{
                   fontSize: '0.9rem',
-                  color: 'var(--muted)',
+                  color: '#6b7280',
                   marginBottom: 18,
                 }}
               >
@@ -250,9 +252,9 @@ export function AdminPage() {
                     width: '100%',
                     padding: '12px 14px',
                     borderRadius: 10,
-                    border: '1px solid rgba(255,255,255,0.14)',
-                    background: 'rgba(0,0,0,0.35)',
-                    color: 'var(--text)',
+                    border: '1px solid rgba(148, 163, 184, 0.5)',
+                    background: 'rgba(255,255,255,0.9)',
+                    color: '#111827',
                     fontSize: '0.95rem',
                     outline: 'none',
                   }}
