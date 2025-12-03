@@ -52,6 +52,7 @@ const mapSupabaseRowToGalleryPhoto = (row) => ({
   hidden: row.hidden ?? false,
   shotDate: row.shot_date || null,
   rating: typeof row.rating === 'number' ? row.rating : null,
+  likes: typeof row.likes === 'number' ? row.likes : 0,
 });
 
 // 预置示例照片（目前不再用于展示，仅保留为模板）
@@ -564,6 +565,63 @@ export function GalleryPage() {
   const [activeCitySelection, setActiveCitySelection] = useState(null); // { provinceId, cityId }
   const [brandLogo, setBrandLogo] = useState(() => getStoredBrandLogo());
   const [brandText, setBrandText] = useState(() => getStoredBrandText());
+
+  // 点赞记录（保存在本地，防止同一浏览器无限刷赞）
+  const [likedPhotoIds, setLikedPhotoIds] = useState(() => {
+    if (typeof window === 'undefined') return [];
+    try {
+      const stored = window.localStorage.getItem('camarts_liked_photos');
+      if (!stored) return [];
+      const parsed = JSON.parse(stored);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  });
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      window.localStorage.setItem('camarts_liked_photos', JSON.stringify(likedPhotoIds));
+    } catch {
+      // 忽略本地存储错误
+    }
+  }, [likedPhotoIds]);
+
+  const handleToggleLike = useCallback(
+    async (photo) => {
+      if (!photo?.id || !supabase) return;
+
+      const alreadyLiked = likedPhotoIds.includes(photo.id);
+      const delta = alreadyLiked ? -1 : 1;
+
+      // 本地乐观更新
+      setApprovedPhotos((prev) =>
+        prev.map((p) =>
+          p.id === photo.id ? { ...p, likes: Math.max(0, (p.likes || 0) + delta) } : p,
+        ),
+      );
+
+      setLikedPhotoIds((prev) =>
+        alreadyLiked ? prev.filter((id) => id !== photo.id) : [...prev, photo.id],
+      );
+
+      try {
+        const newLikes = Math.max(0, (photo.likes || 0) + delta);
+        const { error } = await supabase
+          .from('photos')
+          .update({ likes: newLikes })
+          .eq('id', photo.id);
+
+        if (error) {
+          console.error('更新点赞失败:', error);
+        }
+      } catch (error) {
+        console.error('更新点赞失败:', error);
+      }
+    },
+    [likedPhotoIds, supabase, setApprovedPhotos],
+  );
 
   const cityPhotoMap = useMemo(() => {
     const map = new Map();
@@ -1738,8 +1796,15 @@ export function GalleryPage() {
             ))}
           </div>
           <div className="gallery-grid">
-                {displayedPhotos.map((item) => (
-                  <article key={item.id} className="photo-card" onClick={() => setLightboxPhoto(item)}>
+                {displayedPhotos.map((item) => {
+                  const liked = likedPhotoIds.includes(item.id);
+                  const likeCount = typeof item.likes === 'number' ? item.likes : 0;
+                  return (
+                  <article
+                    key={item.id}
+                    className="photo-card"
+                    onClick={() => setLightboxPhoto(item)}
+                  >
                     {item.image ? (
                       <img 
                         src={item.thumbnail || item.image} 
@@ -1769,9 +1834,28 @@ export function GalleryPage() {
                       <span>
                         {item.country || ''} {item.country && item.location ? '·' : ''} {item.location || ''}
                       </span>
+                      <button
+                        type="button"
+                        className={`like-badge ${liked ? 'liked' : ''}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleToggleLike(item);
+                        }}
+                        aria-label={liked ? '取消点赞' : '点赞'}
+                      >
+                        <span className="like-badge-heart" aria-hidden="true">
+                          <svg viewBox="0 0 24 24">
+                            <path
+                              d="M12 20.5c-.3 0-.6-.1-.9-.3-2.2-1.6-3.9-3-5.2-4.3C3.4 14 2.5 12.6 2.5 10.8 2.5 8.2 4.4 6.3 7 6.3c1.4 0 2.7.7 3.5 1.9.8-1.2 2.1-1.9 3.5-1.9 2.6 0 4.5 1.9 4.5 4.5 0 1.8-.9 3.2-3.4 5.1-1.3 1.1-3 2.4-5.2 4-.3.2-.6.3-.9.3z"
+                            />
+                          </svg>
+                        </span>
+                        <span className="like-badge-count">{likeCount}</span>
+                      </button>
                     </div>
                   </article>
-                ))}
+                );
+              })}
                 {/* 无限滚动触发器 */}
                 {hasMore && (
                   <div 

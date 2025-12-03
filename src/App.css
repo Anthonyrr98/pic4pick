@@ -464,6 +464,136 @@ main {
   opacity: 0.8;
 }
 
+.like-badge {
+  position: absolute;
+  right: 20px;
+  bottom: 18px;
+  display: inline-flex;
+  align-items: center;
+  gap: 0; /* 心形和数字更贴近 */
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  background: rgba(0, 0, 0, 0.5);
+  color: #fff;
+  font-size: 0.78rem;
+  cursor: pointer;
+  outline: none;
+  backdrop-filter: blur(8px);
+  transition: background 0.2s ease, border-color 0.2s ease, transform 0.15s ease;
+}
+
+.like-badge:hover {
+  background: rgba(0, 0, 0, 0.7);
+  border-color: rgba(255, 143, 178, 0.9);
+  transform: translateY(-1px);
+}
+
+.like-badge.liked {
+  background: rgba(255, 75, 106, 0.95);
+  border-color: rgba(255, 205, 220, 1);
+  box-shadow: 0 0 12px rgba(255, 75, 106, 0.65);
+}
+
+.like-badge-heart svg {
+  width: 13px;
+  height: 13px;
+  display: block;
+  fill: transparent;
+  stroke: rgba(255, 255, 255, 0.95);
+  stroke-width: 1.7;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.8));
+  transition: transform 0.18s ease, fill 0.18s ease, stroke 0.18s ease;
+}
+
+.like-badge.liked .like-badge-heart svg {
+  fill: #ff4b6a;
+  stroke: #ffe5ee;
+  transform: scale(1.12);
+  animation: like-pop 0.25s ease-out;
+}
+
+.like-badge-count {
+  min-width: auto;
+  text-align: left;
+  margin-left: 2px; /* 让数字紧贴在心形后面 */
+}
+
+@keyframes like-pop {
+  0% {
+    transform: scale(0.7);
+    opacity: 0.3;
+  }
+  60% {
+    transform: scale(1.15);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1.0);
+  }
+}
+
+/* 点赞小礼花效果 */
+.like-badge::before,
+.like-badge::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+}
+
+.like-badge.liked::before {
+  opacity: 1;
+  background:
+    radial-gradient(circle at 20% 0%, rgba(255, 255, 255, 0.8) 0, transparent 45%),
+    radial-gradient(circle at 80% 0%, rgba(255, 227, 252, 0.9) 0, transparent 55%),
+    radial-gradient(circle at 0% 60%, rgba(255, 182, 193, 0.85) 0, transparent 55%),
+    radial-gradient(circle at 100% 70%, rgba(255, 255, 255, 0.9) 0, transparent 55%);
+  mix-blend-mode: screen;
+  animation: like-burst 0.45s ease-out forwards;
+}
+
+.like-badge.liked::after {
+  opacity: 1;
+  background:
+    radial-gradient(circle at 10% 20%, rgba(255, 255, 255, 0.9) 0, transparent 35%),
+    radial-gradient(circle at 90% 30%, rgba(255, 215, 235, 0.9) 0, transparent 40%);
+  mix-blend-mode: screen;
+  animation: like-burst-soft 0.5s ease-out forwards;
+}
+
+@keyframes like-burst {
+  0% {
+    transform: scale(0.5);
+    opacity: 0;
+  }
+  40% {
+    transform: scale(1.2);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1.4);
+    opacity: 0;
+  }
+}
+
+@keyframes like-burst-soft {
+  0% {
+    transform: scale(0.6);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.1);
+    opacity: 0.8;
+  }
+  100% {
+    transform: scale(1.3);
+    opacity: 0;
+  }
+}
+
 #explore-view {
   position: relative;
   min-height: 620px;
