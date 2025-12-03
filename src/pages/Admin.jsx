@@ -101,29 +101,39 @@ export function AdminPage() {
     reject_reason: row.reject_reason || null,
   });
 
-  const buildSupabasePayloadFromPhoto = (photo, statusOverride) => ({
-    id: photo.id,
-    title: photo.title || '',
-    location: photo.location || '',
-    country: photo.country || '',
-    category: photo.category || 'featured',
-    tags: photo.tags || '',
-    image_url: photo.image || photo.preview || '',
-    latitude: photo.latitude,
-    longitude: photo.longitude,
-    altitude: photo.altitude,
-    focal: photo.focal || null,
-    aperture: photo.aperture || null,
-    shutter: photo.shutter || null,
-    iso: photo.iso || null,
-    camera: photo.camera || null,
-    lens: photo.lens || null,
-    rating: typeof photo.rating === 'number' ? photo.rating : null,
-    shot_date: photo.shotDate || null,
-    thumbnail_url: photo.thumbnail || null,
-    hidden: photo.hidden ?? false,
-    status: statusOverride ?? photo.status ?? 'pending',
-  });
+  const buildSupabasePayloadFromPhoto = (photo, statusOverride) => {
+    const payload = {
+      id: photo.id,
+      title: photo.title || '',
+      location: photo.location || '',
+      country: photo.country || '',
+      category: photo.category || 'featured',
+      tags: photo.tags || '',
+      image_url: photo.image || photo.preview || '',
+      // 确保经纬度是数字类型或 null
+      latitude: photo.latitude != null && !isNaN(photo.latitude) ? Number(photo.latitude) : null,
+      longitude: photo.longitude != null && !isNaN(photo.longitude) ? Number(photo.longitude) : null,
+      altitude: photo.altitude != null && !isNaN(photo.altitude) ? Number(photo.altitude) : null,
+      focal: photo.focal || null,
+      aperture: photo.aperture || null,
+      shutter: photo.shutter || null,
+      iso: photo.iso || null,
+      camera: photo.camera || null,
+      lens: photo.lens || null,
+      rating: typeof photo.rating === 'number' ? photo.rating : null,
+      shot_date: photo.shotDate || null,
+      thumbnail_url: photo.thumbnail || null,
+      hidden: photo.hidden ?? false,
+      status: statusOverride ?? photo.status ?? 'pending',
+    };
+    
+    // 只在有 reject_reason 字段时才添加（避免数据库字段不存在导致的错误）
+    if (photo.reject_reason !== undefined) {
+      payload.reject_reason = photo.reject_reason || null;
+    }
+    
+    return payload;
+  };
 
   const supabase = getSupabaseClient();
   const [envConfigForm, setEnvConfigForm] = useState(() => ({
@@ -1433,9 +1443,16 @@ export function AdminPage() {
       const preview = reader.result?.toString() || '';
       setUploadForm((prev) => ({ ...prev, file, preview, imageUrl: '' }));
       
-      // 读取EXIF数据获取地理位置和相机参数
+        // 读取EXIF数据获取地理位置和相机参数
       try {
-        // 使用更完整的配置来读取EXIF数据
+        // 先尝试使用 gps: true 和 translateKeys: false 来获取GPS数据
+        // 因为GPS字段在不同配置下可能有不同的命名
+        const exifWithGPS = await exifr.parse(file, {
+          gps: true,
+          translateKeys: false, // 不使用翻译，使用原始字段名
+        });
+        
+        // 再读取其他EXIF数据
         const exif = await exifr.parse(file, {
           gps: true,
           translateKeys: true, // 使用翻译后的键名（更统一）
@@ -1452,24 +1469,102 @@ export function AdminPage() {
         });
         
         // 调试：在控制台输出读取到的EXIF数据
-        console.log('读取到的EXIF数据:', exif);
+        console.log('读取到的EXIF数据 (translateKeys=true):', exif);
+        console.log('读取到的EXIF数据 (translateKeys=false):', exifWithGPS);
         
         // 准备更新的表单数据
         const updates = {};
         let hasUpdates = false;
         let successMessages = [];
         
-        // 读取地理位置信息
-        if (exif?.GPSLatitude && exif?.GPSLongitude) {
-          updates.latitude = exif.GPSLatitude;
-          updates.longitude = exif.GPSLongitude;
-          updates.altitude = exif.GPSAltitude || null;
+        // 读取地理位置信息 - 尝试多种可能的字段名
+        let latitude = null;
+        let longitude = null;
+        let altitude = null;
+        
+        // 尝试从 translateKeys=false 的结果中获取（原始字段名）
+        if (exifWithGPS) {
+          latitude = exifWithGPS.latitude || exifWithGPS.Latitude || exifWithGPS.GPSLatitude || exifWithGPS.gpsLatitude;
+          longitude = exifWithGPS.longitude || exifWithGPS.Longitude || exifWithGPS.GPSLongitude || exifWithGPS.gpsLongitude;
+          altitude = exifWithGPS.altitude || exifWithGPS.Altitude || exifWithGPS.GPSAltitude || exifWithGPS.gpsAltitude;
+        }
+        
+        // 如果上面没找到，尝试从 translateKeys=true 的结果中获取
+        if (!latitude || !longitude) {
+          latitude = exif?.latitude || exif?.Latitude || exif?.GPSLatitude || exif?.gpsLatitude;
+          longitude = exif?.longitude || exif?.Longitude || exif?.GPSLongitude || exif?.gpsLongitude;
+          altitude = altitude || exif?.altitude || exif?.Altitude || exif?.GPSAltitude || exif?.gpsAltitude;
+        }
+        
+        // 如果还是没找到，尝试从 exifWithGPS 的其他可能字段获取
+        if (!latitude || !longitude) {
+          // exifr 可能返回的字段名
+          const gpsData = exifWithGPS?.gps || exifWithGPS?.GPS || {};
+          latitude = latitude || gpsData.latitude || gpsData.Latitude || gpsData.GPSLatitude;
+          longitude = longitude || gpsData.longitude || gpsData.Longitude || gpsData.GPSLongitude;
+          altitude = altitude || gpsData.altitude || gpsData.Altitude || gpsData.GPSAltitude;
+        }
+        
+        console.log('提取的GPS数据:', { latitude, longitude, altitude });
+        
+        if (latitude != null && longitude != null && !isNaN(latitude) && !isNaN(longitude)) {
+          updates.latitude = Number(latitude);
+          updates.longitude = Number(longitude);
+          updates.altitude = altitude != null && !isNaN(altitude) ? Number(altitude) : null;
           setSelectedLocation({
-            lat: exif.GPSLatitude,
-            lon: exif.GPSLongitude,
+            lat: Number(latitude),
+            lon: Number(longitude),
           });
           successMessages.push('地理位置信息');
           hasUpdates = true;
+
+          // 尝试通过反向地理编码获取地址信息
+          try {
+            const amapKey = getEnvValue('VITE_AMAP_KEY', '');
+            if (amapKey) {
+              const reverseGeocodeUrl = `/amap-api/v3/geocode/regeo?key=${amapKey}&location=${updates.longitude},${updates.latitude}&radius=1000&extensions=all`;
+              
+              const response = await fetch(reverseGeocodeUrl);
+              if (response.ok) {
+                const data = await response.json();
+                if (data.status === '1' && data.regeocode) {
+                  const addressComponent = data.regeocode.addressComponent;
+                  const formattedAddress = data.regeocode.formatted_address;
+                  
+                  // 提取国家/地区信息
+                  if (addressComponent.country) {
+                    updates.country = addressComponent.country;
+                    hasUpdates = true;
+                  }
+                  
+                  // 提取详细地址信息（优先使用区县+街道，如果没有则使用格式化地址）
+                  let locationText = '';
+                  if (addressComponent.district && addressComponent.street) {
+                    locationText = `${addressComponent.district}${addressComponent.street}`;
+                  } else if (addressComponent.district) {
+                    locationText = addressComponent.district;
+                  } else if (addressComponent.city) {
+                    locationText = addressComponent.city;
+                  } else if (formattedAddress) {
+                    // 使用格式化地址，但去掉国家信息
+                    locationText = formattedAddress.replace(/^中国\s*/, '').trim();
+                  }
+                  
+                  if (locationText) {
+                    updates.location = locationText;
+                    hasUpdates = true;
+                  }
+                  
+                  console.log('反向地理编码成功:', { country: updates.country, location: updates.location });
+                }
+              }
+            } else {
+              console.log('未配置高德地图API Key，无法进行反向地理编码');
+            }
+          } catch (error) {
+            console.log('反向地理编码失败，将仅使用经纬度:', error);
+            // 反向地理编码失败不影响其他功能，继续执行
+          }
         } else {
           updates.latitude = null;
           updates.longitude = null;
@@ -1794,11 +1889,19 @@ export function AdminPage() {
 
     if (supabase) {
       try {
-        await supabase.from('photos').upsert(buildSupabasePayloadFromPhoto(newUpload, 'pending'));
+        const payload = buildSupabasePayloadFromPhoto(newUpload, 'pending');
+        console.log('准备上传到 Supabase，payload:', payload);
+        const { data, error } = await supabase.from('photos').upsert(payload);
+        if (error) {
+          console.error('Supabase 保存失败:', error);
+          console.error('错误详情:', error);
+          throw error;
+        }
+        console.log('Supabase 保存成功:', data);
         await refreshSupabaseData();
       } catch (error) {
         console.error('Supabase 保存失败:', error);
-        setSubmitMessage({ type: 'error', text: `上传到云端失败：${error.message}` });
+        setSubmitMessage({ type: 'error', text: `上传到云端失败：${error.message || '未知错误'}` });
       }
     }
       setSubmitMessage({ type: 'success', text: '提交成功！作品已添加到待审核列表' });
@@ -3501,7 +3604,7 @@ export function AdminPage() {
                       {uploadForm.latitude != null && uploadForm.longitude != null ? (
                         <>
                           <span style={{ fontSize: '0.9rem', color: 'var(--muted)' }}>
-                            纬度: {uploadForm.latitude.toFixed(6)}, 经度: {uploadForm.longitude.toFixed(6)}
+                            纬度: {Number(uploadForm.latitude).toFixed(6)}, 经度: {Number(uploadForm.longitude).toFixed(6)}
                             {uploadForm.altitude != null && `, 海拔: ${uploadForm.altitude}m`}
                           </span>
                           <button
@@ -4968,7 +5071,7 @@ export function AdminPage() {
                       {editForm.latitude != null && editForm.longitude != null ? (
                         <>
                           <span style={{ fontSize: '0.9rem', color: 'var(--muted)' }}>
-                            纬度: {editForm.latitude.toFixed(6)}, 经度: {editForm.longitude.toFixed(6)}
+                            纬度: {Number(editForm.latitude).toFixed(6)}, 经度: {Number(editForm.longitude).toFixed(6)}
                             {editForm.altitude != null && `, 海拔: ${editForm.altitude}m`}
                           </span>
                           <button
