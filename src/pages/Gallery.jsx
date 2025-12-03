@@ -1792,7 +1792,7 @@ export function GalleryPage() {
         )}
         <section id="gallery-view" className={`screen ${activeView === 'gallery-view' ? 'active' : ''}`}>
           {filteredPhotos.length > 0 && (
-            <>
+          <>
           <div className="tab-strip">
             {tabs.map((tab) => (
               <button
@@ -1800,7 +1800,7 @@ export function GalleryPage() {
                 className={`tab ${activeFilter === tab.id ? 'active' : ''}`}
                 onClick={() => setActiveFilter(tab.id)}
               >
-                {tab.label}
+                <span className="tab-label">{tab.label}</span>
               </button>
             ))}
           </div>
