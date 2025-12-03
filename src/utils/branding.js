@@ -9,10 +9,34 @@ const BRAND_TEXT_STORAGE_KEY = 'camarts_brand_text';
 const isBrowserEnvironment = () =>
   typeof window !== 'undefined' && typeof localStorage !== 'undefined';
 
+// 动态更新浏览器标签上的小图标（favicon）
+const applyFavicon = (dataUrl) => {
+  if (typeof document === 'undefined') return;
+
+  try {
+    let link = document.querySelector('link[rel="icon"]');
+    if (!link) {
+      link = document.createElement('link');
+      link.rel = 'icon';
+      document.head.appendChild(link);
+    }
+
+    if (dataUrl) {
+      // 使用后台 / Supabase 配置的品牌 Logo 作为 favicon
+      link.href = dataUrl;
+    }
+    // 如果传入空值，则保留 HTML 里配置的默认 favicon
+  } catch (error) {
+    console.error('Failed to apply favicon:', error);
+  }
+};
+
 const dispatchLogoChange = (value) => {
   if (typeof window !== 'undefined' && typeof CustomEvent !== 'undefined') {
     window.dispatchEvent(new CustomEvent(BRAND_LOGO_EVENT, { detail: value || '' }));
   }
+  // 同步更新 favicon
+  applyFavicon(value || '');
 };
 
 // ===== Logo 存取 =====
@@ -38,6 +62,19 @@ export const saveBrandLogo = (dataUrl) => {
     dispatchLogoChange(dataUrl);
   } catch (error) {
     console.error('Failed to save brand logo:', error);
+  }
+};
+
+// 在应用初始化时，根据本地 / 远端已保存的品牌 Logo 应用 favicon
+export const applyFaviconFromStoredLogo = () => {
+  if (!isBrowserEnvironment()) return;
+  try {
+    const logo = getStoredBrandLogo();
+    if (logo) {
+      applyFavicon(logo);
+    }
+  } catch (error) {
+    console.error('Failed to init favicon from stored logo:', error);
   }
 };
 
