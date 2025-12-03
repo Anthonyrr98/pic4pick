@@ -1663,11 +1663,11 @@ export function AdminPage() {
         // 文件上传模式
         const fileExtension = uploadForm.file.name.split('.').pop();
         const filename = `${crypto.randomUUID()}.${fileExtension}`;
-
+        
         // 使用通用上传函数
         imageURL = uploadForm.preview; // 默认使用预览（base64）
         thumbnailURL = uploadForm.preview;
-
+        
         try {
           console.log('开始上传，上传类型:', uploadType, '文件名:', filename);
           const { url, thumbnailUrl: returnedThumb } = await uploadImage(uploadForm.file, filename);

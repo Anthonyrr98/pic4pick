@@ -38,29 +38,29 @@ export const uploadImage = async (file, filename) => {
   };
 
   let rawResult;
-
+  
   switch (uploadType) {
     case UPLOAD_TYPES.WEBDAV:
       rawResult = await uploadToWebDAV(file, filename);
       break;
-
+    
     case UPLOAD_TYPES.API:
       rawResult = await uploadToAPI(file, filename);
       break;
-
+    
     case UPLOAD_TYPES.CLOUDINARY:
       rawResult = await uploadToCloudinary(file, filename);
       break;
-
+    
     case UPLOAD_TYPES.SUPABASE:
       rawResult = await uploadToSupabase(file, filename);
       break;
-
+    
     case UPLOAD_TYPES.ALIYUN_OSS:
       console.log('[uploadImage] 使用阿里云 OSS 上传');
       rawResult = await uploadToAliyunOSS(file, filename);
       break;
-
+    
     case UPLOAD_TYPES.BASE64:
     default:
       console.log('[uploadImage] 使用 Base64 本地存储');
@@ -286,7 +286,7 @@ const uploadToAliyunOSS = async (file, filename) => {
       if (!data.success && !data.url) {
         throw new Error(data.error || '上传失败：服务器未返回有效的 URL');
       }
-
+      
       // 返回包含原图和缩略图的对象，供上层统一处理
       return {
         url: data.url || data.imageUrl || data.fileUrl || '',
