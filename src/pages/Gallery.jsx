@@ -18,37 +18,50 @@ import {
 } from '../utils/branding';
 import { Storage, StorageString, STORAGE_KEYS } from '../utils/storage';
 import { handleError, formatErrorMessage, safeAsync, safeSync, ErrorType } from '../utils/errorHandler';
+import { ensureHttps } from '../utils/urlUtils';
 
 // 从localStorage加载审核通过的作品
 const loadApprovedPhotos = () => {
-  return Storage.get(STORAGE_KEYS.APPROVED_PHOTOS, []);
+  const photos = Storage.get(STORAGE_KEYS.APPROVED_PHOTOS, []);
+  // 确保所有 URL 都使用 HTTPS
+  return photos.map(photo => ({
+    ...photo,
+    image: ensureHttps(photo.image || ''),
+    thumbnail: ensureHttps(photo.thumbnail || photo.preview || ''),
+    preview: ensureHttps(photo.preview || photo.thumbnail || ''),
+  }));
 };
 
-const mapSupabaseRowToGalleryPhoto = (row) => ({
-  id: row.id,
-  title: row.title || '',
-  country: row.country || '',
-  location: row.location || '',
-  category: row.category || 'featured',
-  image: row.image_url || '',
-  focal: row.focal || '50mm',
-  aperture: row.aperture || 'f/2.8',
-  shutter: row.shutter || '1/125s',
-  iso: row.iso || '200',
-  camera: row.camera || 'Unknown',
-  lens: row.lens || 'Unknown',
-  mood: row.tags?.split(',')[0]?.trim() || '原创作品',
-  latitude: row.latitude ?? null,
-  longitude: row.longitude ?? null,
-  altitude: row.altitude ?? null,
-  tags: row.tags || '',
-  createdAt: row.created_at || row.createdAt || null,
-  thumbnail: row.thumbnail_url || row.thumbnail || '',
-  hidden: row.hidden ?? false,
-  shotDate: row.shot_date || null,
-  rating: typeof row.rating === 'number' ? row.rating : null,
-  likes: typeof row.likes === 'number' ? row.likes : 0,
-});
+const mapSupabaseRowToGalleryPhoto = (row) => {
+  const imageUrl = row.image_url || '';
+  const thumbnailUrl = row.thumbnail_url || row.thumbnail || '';
+  
+  return {
+    id: row.id,
+    title: row.title || '',
+    country: row.country || '',
+    location: row.location || '',
+    category: row.category || 'featured',
+    image: ensureHttps(imageUrl),
+    focal: row.focal || '50mm',
+    aperture: row.aperture || 'f/2.8',
+    shutter: row.shutter || '1/125s',
+    iso: row.iso || '200',
+    camera: row.camera || 'Unknown',
+    lens: row.lens || 'Unknown',
+    mood: row.tags?.split(',')[0]?.trim() || '原创作品',
+    latitude: row.latitude ?? null,
+    longitude: row.longitude ?? null,
+    altitude: row.altitude ?? null,
+    tags: row.tags || '',
+    createdAt: row.created_at || row.createdAt || null,
+    thumbnail: ensureHttps(thumbnailUrl),
+    hidden: row.hidden ?? false,
+    shotDate: row.shot_date || null,
+    rating: typeof row.rating === 'number' ? row.rating : null,
+    likes: typeof row.likes === 'number' ? row.likes : 0,
+  };
+};
 
 // 预置示例照片（目前不再用于展示，仅保留为模板）
 const photos = [

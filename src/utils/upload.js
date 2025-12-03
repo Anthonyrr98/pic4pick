@@ -2,6 +2,7 @@
 
 import { StorageString, STORAGE_KEYS } from './storage';
 import { handleError, ErrorType, safeSync } from './errorHandler';
+import { ensureHttps } from './urlUtils';
 
 // 上传方式类型
 export const UPLOAD_TYPES = {
@@ -30,12 +31,12 @@ export const uploadImage = async (file, filename, onProgress) => {
       return { url: '', thumbnailUrl: null };
     }
     if (typeof result === 'string') {
-      return { url: result, thumbnailUrl: null };
+      return { url: ensureHttps(result), thumbnailUrl: null };
     }
     // 已经是带 url / thumbnailUrl 的对象
     return {
-      url: result.url || result.imageUrl || result.fileUrl || '',
-      thumbnailUrl: result.thumbnailUrl ?? result.thumbnail_url ?? null,
+      url: ensureHttps(result.url || result.imageUrl || result.fileUrl || ''),
+      thumbnailUrl: result.thumbnailUrl ?? result.thumbnail_url ? ensureHttps(result.thumbnailUrl ?? result.thumbnail_url) : null,
     };
   };
 

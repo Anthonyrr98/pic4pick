@@ -7,6 +7,7 @@ import { useState, useCallback } from 'react';
 import { Storage, STORAGE_KEYS } from '../utils/storage';
 import { mapSupabaseRowToPhoto, buildSupabasePayloadFromPhoto, deleteOSSFile } from '../utils/adminUtils';
 import { handleError, formatErrorMessage, ErrorType } from '../utils/errorHandler';
+import { ensureHttps } from '../utils/urlUtils';
 
 const STORAGE_KEY = STORAGE_KEYS.ADMIN_UPLOADS;
 const APPROVED_STORAGE_KEY = STORAGE_KEYS.APPROVED_PHOTOS;
@@ -14,15 +15,36 @@ const REJECTED_STORAGE_KEY = STORAGE_KEYS.REJECTED_PHOTOS;
 
 export const usePhotoManagement = (supabase, refreshSupabaseData, setSubmitMessage) => {
   const [adminUploads, setAdminUploads] = useState(() => {
-    return Storage.get(STORAGE_KEY, []);
+    const photos = Storage.get(STORAGE_KEY, []);
+    // 确保所有 URL 都使用 HTTPS
+    return photos.map(photo => ({
+      ...photo,
+      image: ensureHttps(photo.image || ''),
+      thumbnail: ensureHttps(photo.thumbnail || photo.preview || ''),
+      preview: ensureHttps(photo.preview || photo.thumbnail || ''),
+    }));
   });
 
   const [approvedPhotos, setApprovedPhotos] = useState(() => {
-    return Storage.get(APPROVED_STORAGE_KEY, []);
+    const photos = Storage.get(APPROVED_STORAGE_KEY, []);
+    // 确保所有 URL 都使用 HTTPS
+    return photos.map(photo => ({
+      ...photo,
+      image: ensureHttps(photo.image || ''),
+      thumbnail: ensureHttps(photo.thumbnail || photo.preview || ''),
+      preview: ensureHttps(photo.preview || photo.thumbnail || ''),
+    }));
   });
 
   const [rejectedPhotos, setRejectedPhotos] = useState(() => {
-    return Storage.get(REJECTED_STORAGE_KEY, []);
+    const photos = Storage.get(REJECTED_STORAGE_KEY, []);
+    // 确保所有 URL 都使用 HTTPS
+    return photos.map(photo => ({
+      ...photo,
+      image: ensureHttps(photo.image || ''),
+      thumbnail: ensureHttps(photo.thumbnail || photo.preview || ''),
+      preview: ensureHttps(photo.preview || photo.thumbnail || ''),
+    }));
   });
 
   /**

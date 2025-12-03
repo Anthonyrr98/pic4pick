@@ -25,6 +25,7 @@ import {
 import { Storage, StorageString, STORAGE_KEYS } from '../utils/storage';
 import { handleError, formatErrorMessage, safeAsync, safeSync, ErrorType } from '../utils/errorHandler';
 import { mapSupabaseRowToPhoto, buildSupabasePayloadFromPhoto, getUploadTypeName, extractOSSFileInfo, deleteOSSFile, getAmapApiUrl } from '../utils/adminUtils';
+import { ensureHttps } from '../utils/urlUtils';
 import { usePhotoManagement } from '../hooks/usePhotoManagement';
 import { useLocationPicker } from '../hooks/useLocationPicker';
 import { useGearOptions } from '../hooks/useGearOptions';
@@ -214,7 +215,14 @@ export function AdminPage() {
 
   // 加载已审核通过的作品（已移至 usePhotoManagement hook）
   const loadApprovedPhotos = () => {
-    return Storage.get(APPROVED_STORAGE_KEY, []);
+    const photos = Storage.get(APPROVED_STORAGE_KEY, []);
+    // 确保所有 URL 都使用 HTTPS
+    return photos.map(photo => ({
+      ...photo,
+      image: ensureHttps(photo.image || ''),
+      thumbnail: ensureHttps(photo.thumbnail || photo.preview || ''),
+      preview: ensureHttps(photo.preview || photo.thumbnail || ''),
+    }));
   };
 
   const approvedCount = useMemo(() => approvedPhotos.length, [approvedPhotos]);

@@ -5,36 +5,42 @@
 import { StorageString, STORAGE_KEYS } from './storage';
 import { UPLOAD_TYPES } from './upload';
 import { handleError, ErrorType } from './errorHandler';
+import { ensureHttps } from './urlUtils';
 
 /**
  * 映射 Supabase 行数据到照片对象
  */
-export const mapSupabaseRowToPhoto = (row) => ({
-  id: row.id,
-  title: row.title || '',
-  location: row.location || '',
-  country: row.country || '',
-  category: row.category || 'featured',
-  tags: row.tags || '',
-  preview: row.thumbnail_url || row.image_url || '',
-  image: row.image_url || '',
-  latitude: row.latitude,
-  longitude: row.longitude,
-  altitude: row.altitude,
-  focal: row.focal || '',
-  aperture: row.aperture || '',
-  shutter: row.shutter || '',
-  iso: row.iso || '',
-  camera: row.camera || '',
-  lens: row.lens || '',
-  rating: typeof row.rating === 'number' ? row.rating : null,
-  shotDate: row.shot_date || null,
-  createdAt: row.created_at,
-  status: row.status || 'pending',
-  hidden: row.hidden ?? false,
-  thumbnail: row.thumbnail_url || null,
-  reject_reason: row.reject_reason || null,
-});
+export const mapSupabaseRowToPhoto = (row) => {
+  const imageUrl = row.image_url || '';
+  const thumbnailUrl = row.thumbnail_url || null;
+  
+  return {
+    id: row.id,
+    title: row.title || '',
+    location: row.location || '',
+    country: row.country || '',
+    category: row.category || 'featured',
+    tags: row.tags || '',
+    preview: ensureHttps(thumbnailUrl || imageUrl),
+    image: ensureHttps(imageUrl),
+    latitude: row.latitude,
+    longitude: row.longitude,
+    altitude: row.altitude,
+    focal: row.focal || '',
+    aperture: row.aperture || '',
+    shutter: row.shutter || '',
+    iso: row.iso || '',
+    camera: row.camera || '',
+    lens: row.lens || '',
+    rating: typeof row.rating === 'number' ? row.rating : null,
+    shotDate: row.shot_date || null,
+    createdAt: row.created_at,
+    status: row.status || 'pending',
+    hidden: row.hidden ?? false,
+    thumbnail: thumbnailUrl ? ensureHttps(thumbnailUrl) : null,
+    reject_reason: row.reject_reason || null,
+  };
+};
 
 /**
  * 从照片对象构建 Supabase payload
