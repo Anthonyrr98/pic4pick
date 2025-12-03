@@ -50,12 +50,12 @@ export const getStoredBrandLogo = () => {
 };
 
 export const saveBrandLogo = (dataUrl) => {
-  if (dataUrl) {
+    if (dataUrl) {
     StorageString.set(BRAND_LOGO_STORAGE_KEY, dataUrl);
-  } else {
+    } else {
     Storage.remove(BRAND_LOGO_STORAGE_KEY);
-  }
-  dispatchLogoChange(dataUrl);
+    }
+    dispatchLogoChange(dataUrl);
 };
 
 // 在应用初始化时，根据本地 / 远端已保存的品牌 Logo 应用 favicon
@@ -73,7 +73,7 @@ export const applyFaviconFromStoredLogo = () => {
 
 export const removeBrandLogo = () => {
   Storage.remove(BRAND_LOGO_STORAGE_KEY);
-  dispatchLogoChange('');
+    dispatchLogoChange('');
 };
 
 // ===== 标题文案存取 =====
@@ -88,11 +88,11 @@ const DEFAULT_BRAND_TEXT = {
 export const getStoredBrandText = () => {
   const parsed = Storage.get(BRAND_TEXT_STORAGE_KEY, null);
   if (!parsed) return { ...DEFAULT_BRAND_TEXT };
-  return { ...DEFAULT_BRAND_TEXT, ...parsed };
+    return { ...DEFAULT_BRAND_TEXT, ...parsed };
 };
 
 export const saveBrandText = (textConfig) => {
-  const merged = { ...DEFAULT_BRAND_TEXT, ...(textConfig || {}) };
+    const merged = { ...DEFAULT_BRAND_TEXT, ...(textConfig || {}) };
   Storage.set(BRAND_TEXT_STORAGE_KEY, merged);
 };
 
