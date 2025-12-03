@@ -132,6 +132,10 @@ export function AdminPage() {
     uploadBytes,
     uploadFile,
     resetUploadState,
+    setIsUploading,
+    setUploadProgress,
+    setUploadingFileName,
+    setUploadBytes,
   } = useFileUpload();
   // 默认使用阿里云 OSS
   const [uploadType, setUploadTypeState] = useState(() => {
@@ -1163,7 +1167,7 @@ export function AdminPage() {
       const preview = reader.result?.toString() || '';
       setUploadForm((prev) => ({ ...prev, file, preview, imageUrl: '' }));
       
-        // 读取EXIF数据获取地理位置和相机参数
+      // 读取EXIF数据获取地理位置和相机参数
       try {
         // 先尝试使用 gps: true 和 translateKeys: false 来获取GPS数据
         // 因为GPS字段在不同配置下可能有不同的命名
@@ -1719,7 +1723,7 @@ export function AdminPage() {
   // 包装函数：添加切换标签页的功能
   const handleApproveWithTabSwitch = async (id) => {
     await handleApprove(id);
-    setActiveTab('approved'); // 切换到已审核标签
+      setActiveTab('approved'); // 切换到已审核标签
   };
 
   const handleRejectWithTabSwitch = async (id) => {
@@ -1966,7 +1970,7 @@ export function AdminPage() {
       }
       
     // 删除数据库记录
-    if (supabase) {
+      if (supabase) {
         try {
           await supabase.from('photos').delete().eq('id', editingPhotoId);
           await refreshSupabaseData();
@@ -1985,10 +1989,10 @@ export function AdminPage() {
           return;
         }
       }
-      
-    try {
+
+      try {
       // 从已审核列表删除
-      const approved = loadApprovedPhotos();
+        const approved = loadApprovedPhotos();
       const approvedFiltered = approved.filter((p) => p.id !== editingPhotoId);
       
       if (approvedFiltered.length !== approved.length) {
@@ -2005,18 +2009,18 @@ export function AdminPage() {
         setRejectedPhotos([...rejectedFiltered]);
       }
 
-      setEditingPhotoId(null);
-      setSubmitMessage({ type: 'success', text: '删除成功！' });
-      setTimeout(() => {
-        setSubmitMessage({ type: '', text: '' });
-      }, 2000);
-    } catch (error) {
+        setEditingPhotoId(null);
+        setSubmitMessage({ type: 'success', text: '删除成功！' });
+        setTimeout(() => {
+          setSubmitMessage({ type: '', text: '' });
+        }, 2000);
+      } catch (error) {
       handleError(error, {
         context: 'handleDelete.localStorage',
         type: ErrorType.STORAGE,
         silent: true,
       });
-      setSubmitMessage({ type: 'error', text: '删除失败，请重试' });
+        setSubmitMessage({ type: 'error', text: '删除失败，请重试' });
     }
   };
 
@@ -2344,7 +2348,7 @@ export function AdminPage() {
             </svg>
             <span>已审核 ({approvedCount})</span>
           </button>
-          <button
+              <button
             className={`admin-tab ${activeTab === 'rejected' ? 'active' : ''}`}
             onClick={() => setActiveTab('rejected')}
           >
@@ -2354,8 +2358,8 @@ export function AdminPage() {
               <path d="M9 9L15 15" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
             </svg>
             <span>已拒绝 ({rejectedCount})</span>
-          </button>
-          <button
+              </button>
+              <button
             className={`admin-tab ${activeTab === 'config' ? 'active' : ''}`}
             onClick={() => setActiveTab('config')}
           >
@@ -2376,8 +2380,8 @@ export function AdminPage() {
               />
             </svg>
             <span>配置</span>
-          </button>
-          <button
+            </button>
+            <button
             className={`admin-tab ${activeTab === 'tools' ? 'active' : ''}`}
             onClick={() => setActiveTab('tools')}
           >
@@ -2399,8 +2403,8 @@ export function AdminPage() {
               />
             </svg>
             <span>工具</span>
-          </button>
-        </div>
+                    </button>
+              </div>
 
         {/* 内容区域 / 配置区域 */}
         {activeTab === 'config' ? (
@@ -2423,7 +2427,7 @@ export function AdminPage() {
               onImportPhotos={handleImportPhotos}
               importFileInputRef={importFileInputRef}
             />
-          </div>
+                </div>
         ) : (
         <div className="admin-content-wrapper">
             {activeTab === 'tools' && <ToolsPanel />}
@@ -2440,8 +2444,8 @@ export function AdminPage() {
                 </h2>
                 
                 {/* 上传目标存储（仅阿里云 OSS） */}
-                <div
-                  style={{
+              <div
+                style={{
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
@@ -2450,13 +2454,13 @@ export function AdminPage() {
                     padding: '8px 12px',
                     background: 'rgba(255, 255, 255, 0.03)',
                     borderRadius: '8px',
-                    border: '1px solid var(--border)',
+                      border: '1px solid var(--border)',
                   }}
                 >
                   <div style={{ fontSize: '0.9rem', color: 'var(--muted)' }}>
                     当前上传目标：<strong>阿里云 OSS</strong>
                   </div>
-                </div>
+              </div>
 
                 {/* 上传方式切换（文件 / 直链） */}
                 <div style={{ 
@@ -2467,8 +2471,8 @@ export function AdminPage() {
                   background: 'rgba(255, 255, 255, 0.05)',
                   borderRadius: '8px'
                 }}>
-                  <button
-                    type="button"
+          <button
+                  type="button"
                     onClick={() => handleUploadModeChange('file')}
                     style={{
                       flex: 1,
@@ -2484,9 +2488,9 @@ export function AdminPage() {
                     }}
                   >
                     文件上传
-                  </button>
-                  <button
-                    type="button"
+          </button>
+          <button
+                  type="button"
                     onClick={() => handleUploadModeChange('url')}
                     style={{
                       flex: 1,
@@ -2502,8 +2506,8 @@ export function AdminPage() {
                     }}
                   >
                     直链上传
-                  </button>
-                </div>
+                </button>
+        </div>
 
                 {uploadForm.uploadMode === 'file' ? (
                   <div className="upload-dropzone-new">
@@ -2524,7 +2528,7 @@ export function AdminPage() {
                           >
                             ✕
                           </button>
-                        </div>
+                          </div>
                       ) : (
                         <div className="dropzone-placeholder">
                           <div className="dropzone-icon">
@@ -2536,14 +2540,14 @@ export function AdminPage() {
                               <path d="M21 15V17C21 17.5304 20.7893 18.0391 20.4142 18.4142C20.0391 18.7893 19.5304 19 19 19H17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                               <path d="M3 12H21" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                             </svg>
-                          </div>
+                        </div>
                           <p className="dropzone-text">点击或拖拽上传照片</p>
                           <p className="dropzone-hint">支持 JPG、PNG 格式，推荐不超过 20MB</p>
-                        </div>
-                      )}
+                          </div>
+                        )}
                     </label>
-                  </div>
-                ) : (
+                      </div>
+                    ) : (
                   <div className="form-grid">
                     <div className="form-group">
                       <label>缩略图直链地址 <span className="required">*</span></label>
@@ -2566,10 +2570,10 @@ export function AdminPage() {
                         onChange={handleFormChange}
                         required={uploadForm.uploadMode === 'url'}
                       />
-                    </div>
-                  </div>
-                )}
-              </div>
+                        </div>
+                      </div>
+                    )}
+                </div>
 
               <div className="form-section">
                 <h2 className="form-section-title">
@@ -3518,7 +3522,7 @@ export function AdminPage() {
                                 try {
                                   await supabase
                                     .from('photos')
-                                    .update({ status: 'pending', reject_reason: null })
+                                    .update({ status: 'pending' })
                                     .eq('id', item.id);
                                   await refreshSupabaseData();
                                 } catch (error) {
@@ -3549,7 +3553,7 @@ export function AdminPage() {
                           </button>
                         </div>
                       </div>
-                    </article>
+                  </article>
                   ))
                 )}
               </div>

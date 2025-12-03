@@ -54,24 +54,63 @@ export const usePhotoManagement = (supabase, refreshSupabaseData, setSubmitMessa
     if (supabase) {
       try {
         const payload = buildSupabasePayloadFromPhoto(approvedItem, 'approved');
-        const { error } = await supabase
+        
+        // 使用完整的 payload 更新，确保所有字段都正确
+        // 移除 reject_reason 字段（如果数据库中没有该字段）
+        const { reject_reason, ...updatePayload } = payload;
+        const { error, data } = await supabase
           .from('photos')
-          .update({ status: 'approved', reject_reason: null })
-          .eq('id', id);
+          .update({
+            ...updatePayload,
+            status: 'approved',
+            // 只在字段存在时更新 reject_reason
+            // reject_reason: null, // 暂时注释，如果数据库没有该字段会报错
+          })
+          .eq('id', id)
+          .select();
         
         if (error) {
-          throw handleError(error, {
+          // 提取 Supabase 错误信息
+          const errorMessage = error.message || error.details || '更新失败';
+          const errorDetails = error.hint ? ` (${error.hint})` : '';
+          throw handleError(new Error(`${errorMessage}${errorDetails}`), {
             context: 'handleApprove.supabase',
             type: ErrorType.NETWORK,
           });
         }
+        
+        // 验证更新是否成功
+        if (!data || data.length === 0) {
+          throw handleError(new Error('未找到要审核的照片'), {
+            context: 'handleApprove.supabase',
+            type: ErrorType.VALIDATION,
+          });
+        }
+        
         await refreshSupabaseData();
       } catch (error) {
-        handleError(error, {
+        // 记录详细错误信息
+        console.error('审核失败详情:', error);
+        
+        const appError = handleError(error, {
           context: 'handleApprove',
           type: ErrorType.NETWORK,
         });
-        setSubmitMessage({ type: 'error', text: `云端审核失败：${formatErrorMessage(error)}` });
+        
+        // 显示更详细的错误信息
+        let errorText = formatErrorMessage(appError);
+        if (error.originalError) {
+          const originalMessage = error.originalError.message || '';
+          if (originalMessage && originalMessage !== errorText) {
+            errorText = `${errorText}: ${originalMessage}`;
+          }
+        }
+        
+        setSubmitMessage({ type: 'error', text: `云端审核失败：${errorText}` });
+        
+        // 回滚本地状态更改
+        setApprovedPhotos((prev) => prev.filter((item) => item.id !== id));
+        
         return;
       }
     }
@@ -111,17 +150,51 @@ export const usePhotoManagement = (supabase, refreshSupabaseData, setSubmitMessa
 
     if (supabase) {
       try {
-        await supabase
+        // 更新状态为 rejected，不包含 reject_reason（如果数据库没有该字段）
+        const { error, data } = await supabase
           .from('photos')
           .update({ status: 'rejected' })
-          .eq('id', id);
+          .eq('id', id)
+          .select();
+        
+        if (error) {
+          const errorMessage = error.message || error.details || '更新失败';
+          const errorDetails = error.hint ? ` (${error.hint})` : '';
+          throw handleError(new Error(`${errorMessage}${errorDetails}`), {
+            context: 'handleReject.supabase',
+            type: ErrorType.NETWORK,
+          });
+        }
+        
+        if (!data || data.length === 0) {
+          throw handleError(new Error('未找到要拒绝的照片'), {
+            context: 'handleReject.supabase',
+            type: ErrorType.VALIDATION,
+          });
+        }
+        
         await refreshSupabaseData();
       } catch (error) {
-        handleError(error, {
+        console.error('拒绝失败详情:', error);
+        
+        const appError = handleError(error, {
           context: 'handleReject',
           type: ErrorType.NETWORK,
         });
-        setSubmitMessage({ type: 'error', text: `拒绝作品失败：${formatErrorMessage(error)}` });
+        
+        let errorText = formatErrorMessage(appError);
+        if (error.originalError) {
+          const originalMessage = error.originalError.message || '';
+          if (originalMessage && originalMessage !== errorText) {
+            errorText = `${errorText}: ${originalMessage}`;
+          }
+        }
+        
+        setSubmitMessage({ type: 'error', text: `拒绝作品失败：${errorText}` });
+        
+        // 回滚本地状态更改
+        setRejectedPhotos((prev) => prev.filter((item) => item.id !== id));
+        setAdminUploads((prev) => [...prev, itemToReject]);
       }
     }
   }, [adminUploads, supabase, refreshSupabaseData, setSubmitMessage]);
@@ -258,9 +331,10 @@ export const usePhotoManagement = (supabase, refreshSupabaseData, setSubmitMessa
 
     if (supabase) {
       try {
+        // 更新状态为 pending，不包含 reject_reason（如果数据库没有该字段）
         await supabase
           .from('photos')
-          .update({ status: 'pending', reject_reason: null })
+          .update({ status: 'pending' })
           .eq('id', id);
         await refreshSupabaseData();
       } catch (error) {

@@ -234,6 +234,32 @@ export const formatErrorMessage = (error, defaultMessage = '操作失败，请�
     return error.getUserMessage();
   }
   
+  // 处理 Supabase 错误对象（有 message、details、hint 属性）
+  if (error && typeof error === 'object' && 'message' in error) {
+    const supabaseError = error;
+    if (supabaseError.message) {
+      // Supabase 常见错误消息映射
+      if (supabaseError.message.includes('permission denied') || supabaseError.message.includes('row-level security')) {
+        return '权限不足，请检查数据库权限设置';
+      }
+      if (supabaseError.message.includes('duplicate key') || supabaseError.message.includes('unique constraint')) {
+        return '数据已存在，无法重复添加';
+      }
+      if (supabaseError.message.includes('foreign key') || supabaseError.message.includes('constraint')) {
+        return '数据关联错误，请检查数据完整性';
+      }
+      if (supabaseError.message.includes('null value') || supabaseError.message.includes('not null')) {
+        return '缺少必填字段，请检查数据';
+      }
+      
+      // 返回 Supabase 错误消息（如果看起来是用户友好的）
+      const message = supabaseError.message;
+      if (message.length < 150 && !message.includes('at ') && !message.includes('Error:')) {
+        return message;
+      }
+    }
+  }
+  
   if (error instanceof Error) {
     // 过滤掉技术性错误消息
     const message = error.message || '';

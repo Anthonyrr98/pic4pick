@@ -62,8 +62,15 @@ export const buildSupabasePayloadFromPhoto = (photo, statusOverride) => {
     shot_date: photo.shotDate || null,
     status: statusOverride || photo.status || 'pending',
     hidden: photo.hidden ?? false,
-    reject_reason: photo.reject_reason || null,
+    // reject_reason 字段可选，如果数据库中没有该字段，会在更新时移除
+    // reject_reason: photo.reject_reason || null,
   };
+  
+  // 只在有 reject_reason 值时才添加到 payload
+  if (photo.reject_reason !== undefined && photo.reject_reason !== null) {
+    payload.reject_reason = photo.reject_reason;
+  }
+  
   return payload;
 };
 

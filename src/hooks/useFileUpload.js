@@ -73,6 +73,11 @@ export const useFileUpload = () => {
     uploadBytes,
     uploadFile,
     resetUploadState,
+    // 导出 setter 函数，供外部手动控制状态
+    setIsUploading,
+    setUploadProgress,
+    setUploadingFileName,
+    setUploadBytes,
   };
 };
 
