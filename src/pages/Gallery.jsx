@@ -1083,29 +1083,34 @@ export function GalleryPage() {
     if (!allPhotos || allPhotos.length === 0) return [];
 
     // 帮助函数：按时间从新到旧排序（优先拍摄日期，其次创建时间，最后按 id 兜底）
-    const sortByLatest = (list) =>
-      [...list].sort((a, b) => {
-        const getTime = (p) => {
-          if (p.shotDate) {
-            const t = new Date(p.shotDate).getTime();
-            if (!Number.isNaN(t)) return t;
-          }
-          if (p.createdAt) {
-            const t = new Date(p.createdAt).getTime();
-            if (!Number.isNaN(t)) return t;
-          }
-          // 如果没有时间，就尝试用数字 id 作为大致顺序
-          if (typeof p.id === 'number') return p.id;
-          if (typeof p.id === 'string') {
-            const n = Number(p.id);
-            if (!Number.isNaN(n)) return n;
-          }
-          return 0;
-        };
+    const getTimeValue = (p) => {
+      if (p.shotDate) {
+        const t = new Date(p.shotDate).getTime();
+        if (!Number.isNaN(t)) return t;
+      }
+      if (p.createdAt) {
+        const t = new Date(p.createdAt).getTime();
+        if (!Number.isNaN(t)) return t;
+      }
+      // 如果没有时间，就尝试用数字 id 作为大致顺序
+      if (typeof p.id === 'number') return p.id;
+      if (typeof p.id === 'string') {
+        const n = Number(p.id);
+        if (!Number.isNaN(n)) return n;
+      }
+      return 0;
+    };
 
-        const aTime = getTime(a);
-        const bTime = getTime(b);
-        return bTime - aTime;
+    const sortByLatest = (list) =>
+      [...list].sort((a, b) => getTimeValue(b) - getTimeValue(a));
+
+    // 帮助函数：精选排序——按星级从高到低，相同星级再按时间从新到旧
+    const sortByFeatured = (list) =>
+      [...list].sort((a, b) => {
+        const aRating = typeof a.rating === 'number' ? a.rating : 0;
+        const bRating = typeof b.rating === 'number' ? b.rating : 0;
+        if (bRating !== aRating) return bRating - aRating;
+        return getTimeValue(b) - getTimeValue(a);
       });
 
     // 帮助函数：带距离信息的列表
@@ -1126,8 +1131,8 @@ export function GalleryPage() {
 
     switch (activeFilter) {
       case 'featured': {
-        // 精选：所有作品，按最新排序
-        return sortByLatest(allPhotos);
+        // 精选：先按星级从高到低，再按时间从新到旧
+        return sortByFeatured(allPhotos);
       }
       case 'latest': {
         // 最新：同样按日期从新到旧
