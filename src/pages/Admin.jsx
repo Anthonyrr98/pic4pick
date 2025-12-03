@@ -22,6 +22,7 @@ import {
   resetBrandText,
 } from '../utils/branding';
 import { Storage, StorageString, STORAGE_KEYS } from '../utils/storage';
+import { handleError, formatErrorMessage, safeAsync, safeSync, ErrorType } from '../utils/errorHandler';
 
 const tabs = [
   { id: 'featured', label: '精选' },
@@ -189,10 +190,18 @@ export function AdminPage() {
                 { onConflict: 'type,name', ignoreDuplicates: true }
               );
             if (error && error.code !== '23505') {
-              console.error('保存常用相机到 Supabase 失败:', error);
+              handleError(error, {
+                context: 'addCameraOption.supabase',
+                type: ErrorType.NETWORK,
+                silent: true, // 保存预设失败不影响主要功能
+              });
             }
           } catch (e) {
-            console.error('保存常用相机到 Supabase 异常:', e);
+            handleError(e, {
+              context: 'addCameraOption',
+              type: ErrorType.UNKNOWN,
+              silent: true,
+            });
           }
         })();
       }
@@ -216,10 +225,18 @@ export function AdminPage() {
                 { onConflict: 'type,name', ignoreDuplicates: true }
               );
             if (error && error.code !== '23505') {
-              console.error('保存常用镜头到 Supabase 失败:', error);
+              handleError(error, {
+                context: 'addLensOption.supabase',
+                type: ErrorType.NETWORK,
+                silent: true,
+              });
             }
           } catch (e) {
-            console.error('保存常用镜头到 Supabase 异常:', e);
+            handleError(e, {
+              context: 'addLensOption',
+              type: ErrorType.UNKNOWN,
+              silent: true,
+            });
           }
         })();
       }
@@ -295,7 +312,11 @@ export function AdminPage() {
           .select('type, name')
           .order('name', { ascending: true });
         if (error) {
-          console.error('加载常用相机/镜头失败:', error);
+          handleError(error, {
+            context: 'loadGearPresets.supabase',
+            type: ErrorType.NETWORK,
+            silent: true,
+          });
           return;
         }
         const cameras = [];
@@ -323,7 +344,11 @@ export function AdminPage() {
           });
         }
       } catch (e) {
-        console.error('加载常用相机/镜头异常:', e);
+        handleError(e, {
+          context: 'loadGearPresets',
+          type: ErrorType.NETWORK,
+          silent: true,
+        });
       }
     };
     loadGearPresets();
@@ -338,7 +363,11 @@ export function AdminPage() {
         .eq('id', BRAND_LOGO_SUPABASE_ID)
         .limit(1);
       if (error) {
-        console.error('加载云端 Logo 失败:', error);
+        handleError(error, {
+          context: 'loadRemoteBrandLogo',
+          type: ErrorType.NETWORK,
+          silent: true,
+        });
         return;
       }
       const record = Array.isArray(data) ? data[0] : null;
@@ -351,7 +380,11 @@ export function AdminPage() {
       }
       setBrandLogo(normalized);
     } catch (error) {
-      console.error('加载云端 Logo 失败:', error);
+      handleError(error, {
+        context: 'loadRemoteBrandLogo',
+        type: ErrorType.NETWORK,
+        silent: true,
+      });
     }
   }, [supabase]);
 
@@ -364,7 +397,11 @@ export function AdminPage() {
         .eq('id', BRAND_LOGO_SUPABASE_ID)
         .limit(1);
       if (error) {
-        console.error('加载云端品牌标题失败:', error);
+        handleError(error, {
+          context: 'loadRemoteBrandText',
+          type: ErrorType.NETWORK,
+          silent: true,
+        });
         return;
       }
       const record = Array.isArray(data) ? data[0] : null;
@@ -381,7 +418,11 @@ export function AdminPage() {
       saveBrandText(remoteText);
       setBrandText(remoteText);
     } catch (error) {
-      console.error('加载云端品牌标题失败:', error);
+      handleError(error, {
+        context: 'loadRemoteBrandText',
+        type: ErrorType.NETWORK,
+        silent: true,
+      });
     }
   }, [supabase]);
 
@@ -582,8 +623,11 @@ export function AdminPage() {
         setBrandLogo(dataUrl);
         setLogoMessage({ type: 'success', text: supabase ? 'Logo 已上传并同步到云端' : 'Logo 已更新' });
       } catch (error) {
-        console.error('保存 Logo 失败:', error);
-        setLogoMessage({ type: 'error', text: `保存失败：${error.message}` });
+        const appError = handleError(error, {
+          context: 'handleLogoUpload',
+          type: ErrorType.STORAGE,
+        });
+        setLogoMessage({ type: 'error', text: `保存失败：${formatErrorMessage(appError)}` });
       }
     };
     reader.onerror = () => {
@@ -606,8 +650,11 @@ export function AdminPage() {
       setBrandLogo('');
       setLogoMessage({ type: 'info', text: '已恢复默认圆环 Logo' });
     } catch (error) {
-      console.error('重置 Logo 失败:', error);
-      setLogoMessage({ type: 'error', text: `重置失败：${error.message}` });
+      const appError = handleError(error, {
+        context: 'handleResetLogo',
+        type: ErrorType.NETWORK,
+      });
+      setLogoMessage({ type: 'error', text: `重置失败：${formatErrorMessage(appError)}` });
     }
   };
 
@@ -665,8 +712,11 @@ export function AdminPage() {
       setSubmitMessage({ type: 'success', text: '数据已导出为 JSON 文件' });
       setTimeout(() => setSubmitMessage({ type: '', text: '' }), 3000);
     } catch (error) {
-      console.error('导出数据失败:', error);
-      setSubmitMessage({ type: 'error', text: `导出失败：${error.message}` });
+      const appError = handleError(error, {
+        context: 'handleExportData',
+        type: ErrorType.UNKNOWN,
+      });
+      setSubmitMessage({ type: 'error', text: `导出失败：${formatErrorMessage(appError)}` });
     }
   };
 
@@ -701,7 +751,11 @@ export function AdminPage() {
           Storage.set(STORAGE_KEY, pending);
           Storage.set(APPROVED_STORAGE_KEY, approved);
         } catch (storageError) {
-          console.error('写入 localStorage 失败:', storageError);
+          handleError(storageError, {
+            context: 'handleImportPhotos.storage',
+            type: ErrorType.STORAGE,
+            silent: true,
+          });
         }
         setAdminUploads(pending.map((r) => mapSupabaseRowToPhoto(r)));
         setApprovedPhotos(approved.map((r) => mapSupabaseRowToPhoto(r)));
@@ -710,8 +764,11 @@ export function AdminPage() {
       setSubmitMessage({ type: 'success', text: '数据导入成功' });
       setTimeout(() => setSubmitMessage({ type: '', text: '' }), 3000);
     } catch (error) {
-      console.error('导入数据失败:', error);
-      setSubmitMessage({ type: 'error', text: `导入失败：${error.message}` });
+      const appError = handleError(error, {
+        context: 'handleImportPhotos',
+        type: ErrorType.PARSE,
+      });
+      setSubmitMessage({ type: 'error', text: `导入失败：${formatErrorMessage(appError)}` });
     }
   };
 
@@ -915,7 +972,7 @@ export function AdminPage() {
       
       // 如果没有配置高德 key，直接清空结果并提示，不再访问国外服务
       if (!amapKey) {
-        console.warn('未配置 VITE_AMAP_KEY，高德地点搜索不可用');
+        // 未配置 VITE_AMAP_KEY，高德地点搜索不可用（静默处理）
         if (isEdit) {
           setEditSearchResults([]);
         } else {
@@ -1022,7 +1079,11 @@ export function AdminPage() {
             setSearchResults([]);
       }
     } catch (error) {
-      console.error('搜索位置失败:', error);
+      handleError(error, {
+        context: 'searchLocation',
+        type: ErrorType.NETWORK,
+        silent: true,
+      });
             if (isEdit) {
               setEditSearchResults([]);
             } else {
@@ -1257,7 +1318,11 @@ export function AdminPage() {
     try {
       Storage.set(STORAGE_KEY, uploads);
     } catch (error) {
-      console.error('Failed to save to localStorage:', error);
+      handleError(error, {
+        context: 'handleSubmit.storage',
+        type: ErrorType.STORAGE,
+        silent: true,
+      });
     }
   };
 
@@ -1299,10 +1364,17 @@ export function AdminPage() {
       try {
         Storage.set(APPROVED_STORAGE_KEY, approvedMapped);
       } catch (storageError) {
-        console.warn('同步已审核作品到 localStorage 失败:', storageError);
+        handleError(storageError, {
+          context: 'refreshSupabaseData.sync',
+          type: ErrorType.STORAGE,
+          silent: true,
+        });
       }
     } catch (error) {
-      console.error('加载 Supabase 数据失败:', error);
+      handleError(error, {
+        context: 'refreshSupabaseData',
+        type: ErrorType.NETWORK,
+      });
       setSupabaseError(error.message || '无法从 Supabase 加载数据');
     } finally {
       setIsSupabaseLoading(false);
@@ -1732,14 +1804,12 @@ export function AdminPage() {
             setSubmitMessage({ type: 'success', text: `照片已上传到 ${getUploadTypeName(uploadType)}` });
           }
         } catch (error) {
-          console.error('上传失败，使用本地预览:', error);
-          console.error('错误详情:', {
-            message: error.message,
-            stack: error.stack,
-            uploadType: uploadType,
+          const appError = handleError(error, {
+            context: 'handleSubmit.upload',
+            type: ErrorType.NETWORK,
           });
           if (uploadType !== UPLOAD_TYPES.BASE64) {
-            setSubmitMessage({ type: 'error', text: `上传失败: ${error.message}，使用本地预览` });
+            setSubmitMessage({ type: 'error', text: `上传失败: ${formatErrorMessage(appError)}，使用本地预览` });
           }
           // 继续使用 base64 预览
         }
@@ -1805,15 +1875,18 @@ export function AdminPage() {
         console.log('准备上传到 Supabase，payload:', payload);
         const { data, error } = await supabase.from('photos').upsert(payload);
         if (error) {
-          console.error('Supabase 保存失败:', error);
-          console.error('错误详情:', error);
-          throw error;
+          throw handleError(error, {
+            context: 'handleSubmit.supabase',
+            type: ErrorType.NETWORK,
+          });
         }
-        console.log('Supabase 保存成功:', data);
         await refreshSupabaseData();
       } catch (error) {
-        console.error('Supabase 保存失败:', error);
-        setSubmitMessage({ type: 'error', text: `上传到云端失败：${error.message || '未知错误'}` });
+        const appError = handleError(error, {
+          context: 'handleSubmit.supabase',
+          type: ErrorType.NETWORK,
+        });
+        setSubmitMessage({ type: 'error', text: `上传到云端失败：${formatErrorMessage(appError)}` });
       }
     }
       setSubmitMessage({ type: 'success', text: '提交成功！作品已添加到待审核列表' });
@@ -1900,7 +1973,11 @@ export function AdminPage() {
         setApprovedPhotos([...approved]);
       }
     } catch (error) {
-      console.error('Failed to save approved photo:', error);
+      handleError(error, {
+        context: 'handleApprove.storage',
+        type: ErrorType.STORAGE,
+        silent: true,
+      });
     }
   };
 
@@ -1918,7 +1995,10 @@ export function AdminPage() {
             .eq('id', id);
           await refreshSupabaseData();
         } catch (error) {
-          console.error('更新 Supabase 状态失败:', error);
+          handleError(error, {
+            context: 'handleApprove.supabase',
+            type: ErrorType.NETWORK,
+          });
           setSubmitMessage({ type: 'error', text: `云端审核失败：${error.message}` });
           return;
         }
@@ -1949,7 +2029,11 @@ export function AdminPage() {
         try {
           Storage.set(REJECTED_STORAGE_KEY, updated);
         } catch (error) {
-          console.error('保存已拒绝作品到本地存储失败:', error);
+          handleError(error, {
+            context: 'handleReject.storage',
+            type: ErrorType.STORAGE,
+            silent: true,
+          });
         }
       }
       return updated;
@@ -1963,7 +2047,10 @@ export function AdminPage() {
           .eq('id', id);
         await refreshSupabaseData();
       } catch (error) {
-        console.error('拒绝作品失败:', error);
+        handleError(error, {
+          context: 'handleReject',
+          type: ErrorType.NETWORK,
+        });
         setSubmitMessage({ type: 'error', text: `云端拒绝失败：${error.message}` });
         return;
       }
@@ -2034,7 +2121,10 @@ export function AdminPage() {
         }, 2000);
         return;
       } catch (error) {
-        console.error('更新云端作品失败:', error);
+        handleError(error, {
+          context: 'handleResubmit',
+          type: ErrorType.NETWORK,
+        });
         setSubmitMessage({ type: 'error', text: `保存失败：${error.message}` });
         return;
       }
@@ -2111,7 +2201,11 @@ export function AdminPage() {
         return;
       }
     } catch (error) {
-      console.error('Failed to save edit:', error);
+      handleError(error, {
+        context: 'handleSaveEdit',
+        type: ErrorType.STORAGE,
+        silent: true,
+      });
       setSubmitMessage({ type: 'error', text: '保存失败，请重试' });
     }
   };
@@ -2188,10 +2282,14 @@ export function AdminPage() {
         return result;
       }
       
-      console.warn('无法解析OSS URL路径:', pathname);
+      // 无法解析OSS URL路径，返回null
       return null;
     } catch (error) {
-      console.error('解析OSS URL失败:', error, url);
+      handleError(error, {
+        context: 'extractOSSFileInfo',
+        type: ErrorType.PARSE,
+        silent: true,
+      });
       return null;
     }
   };
@@ -2208,7 +2306,7 @@ export function AdminPage() {
     
     const fileInfo = extractOSSFileInfo(url);
     if (!fileInfo || !fileInfo.filename) {
-      console.warn('无法从URL提取文件信息:', url);
+      // 无法从URL提取文件信息（静默处理）
       return;
     }
     
@@ -2231,10 +2329,18 @@ export function AdminPage() {
         console.log('OSS文件删除成功:', pathToDelete, result);
       } else {
         const errorText = await response.text();
-        console.error('OSS文件删除失败:', pathToDelete, response.status, errorText);
+        handleError(new Error(`OSS文件删除失败: ${response.status} - ${errorText}`), {
+          context: 'deleteOSSFile',
+          type: ErrorType.NETWORK,
+          silent: true,
+        });
       }
     } catch (error) {
-      console.error('删除OSS文件时出错:', error);
+      handleError(error, {
+        context: 'deleteOSSFile',
+        type: ErrorType.NETWORK,
+        silent: true,
+      });
       // 不抛出错误，避免影响主流程
     }
   };
@@ -2269,7 +2375,11 @@ export function AdminPage() {
             photoToDelete = data;
           }
         } catch (error) {
-          console.error('获取照片信息失败:', error);
+          handleError(error, {
+            context: 'handleDelete.fetchPhoto',
+            type: ErrorType.NETWORK,
+            silent: true,
+          });
         }
       } else {
         // 从本地存储中查找照片
@@ -2298,7 +2408,7 @@ export function AdminPage() {
           await deleteOSSFile(thumbnailUrl);
         }
       } else {
-        console.warn('未找到要删除的照片信息，editingPhotoId:', editingPhotoId);
+        // 未找到要删除的照片信息（静默处理）
       }
       
     // 删除数据库记录
@@ -2313,7 +2423,10 @@ export function AdminPage() {
           }, 2000);
           return;
         } catch (error) {
-          console.error('删除云端作品失败:', error);
+          handleError(error, {
+            context: 'handleDelete.supabase',
+            type: ErrorType.NETWORK,
+          });
           setSubmitMessage({ type: 'error', text: `删除失败：${error.message}` });
           return;
         }
@@ -2344,7 +2457,11 @@ export function AdminPage() {
         setSubmitMessage({ type: '', text: '' });
       }, 2000);
     } catch (error) {
-      console.error('Failed to delete:', error);
+      handleError(error, {
+        context: 'handleDelete.localStorage',
+        type: ErrorType.STORAGE,
+        silent: true,
+      });
       setSubmitMessage({ type: 'error', text: '删除失败，请重试' });
     }
   };
@@ -3054,7 +3171,11 @@ export function AdminPage() {
                       }
                       setBrandTextMessage({ type: 'success', text: '标题文案已保存' });
                     } catch (error) {
-                      console.error('保存品牌标题失败:', error);
+                      handleError(error, {
+                        context: 'handleSaveBrandText',
+                        type: ErrorType.NETWORK,
+                        silent: true,
+                      });
                       setBrandTextMessage({ type: 'error', text: '保存失败，请稍后重试' });
                     }
                   }}
@@ -3275,7 +3396,11 @@ export function AdminPage() {
                           text: '已在本地生成原图、压缩图和参数 txt（焦距、光圈、快门、ISO、相机、镜头、拍摄日期），请在下载对话框中选择同一文件夹保存。',
                         });
                       } catch (error) {
-                        console.error('图片压缩工具失败:', error);
+                        handleError(error, {
+                          context: 'handleCompressImage',
+                          type: ErrorType.UNKNOWN,
+                          silent: true,
+                        });
                         setToolMessage({
                           type: 'error',
                           text: `处理失败：${error.message || '未知错误'}`,
@@ -4480,7 +4605,11 @@ export function AdminPage() {
                                   try {
                                     Storage.set(REJECTED_STORAGE_KEY, updated);
                                   } catch (error) {
-                                    console.error('更新已拒绝列表失败:', error);
+                                    handleError(error, {
+                                      context: 'handleReject.updateList',
+                                      type: ErrorType.STORAGE,
+                                      silent: true,
+                                    });
                                   }
                                 }
                                 return updated;
@@ -4497,7 +4626,10 @@ export function AdminPage() {
                                     .eq('id', item.id);
                                   await refreshSupabaseData();
                                 } catch (error) {
-                                  console.error('重新提交审核失败:', error);
+                                  handleError(error, {
+                                    context: 'handleResubmit',
+                                    type: ErrorType.NETWORK,
+                                  });
                                   setSubmitMessage({ type: 'error', text: `重新提交失败：${error.message}` });
                                   return;
                                 }

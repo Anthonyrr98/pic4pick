@@ -17,6 +17,7 @@ import {
   saveBrandText,
 } from '../utils/branding';
 import { Storage, StorageString, STORAGE_KEYS } from '../utils/storage';
+import { handleError, formatErrorMessage, safeAsync, safeSync, ErrorType } from '../utils/errorHandler';
 
 // 从localStorage加载审核通过的作品
 const loadApprovedPhotos = () => {
@@ -587,7 +588,7 @@ export function GalleryPage() {
         alreadyLiked ? prev.filter((id) => id !== photo.id) : [...prev, photo.id],
       );
 
-      try {
+      await safeAsync(async () => {
         const newLikes = Math.max(0, (photo.likes || 0) + delta);
         const { error } = await supabase
           .from('photos')
@@ -595,11 +596,16 @@ export function GalleryPage() {
           .eq('id', photo.id);
 
         if (error) {
-          console.error('更新点赞失败:', error);
+          throw handleError(error, {
+            context: 'handleToggleLike.updateLikes',
+            type: ErrorType.NETWORK,
+          });
         }
-      } catch (error) {
-        console.error('更新点赞失败:', error);
-      }
+      }, {
+        context: 'handleToggleLike',
+        silent: true, // 点赞失败不显示错误，静默处理
+        throwError: false,
+      });
     },
     [likedPhotoIds, supabase, setApprovedPhotos],
   );
@@ -963,9 +969,12 @@ export function GalleryPage() {
           setSupabaseError('');
         }
       } catch (error) {
-        console.error('从 Supabase 加载作品失败:', error);
+        const appError = handleError(error, {
+          context: 'fetchApprovedFromSupabase',
+          type: ErrorType.NETWORK,
+        });
         if (isMounted) {
-          setSupabaseError(error.message || '加载云端作品失败');
+          setSupabaseError(formatErrorMessage(appError, '加载云端作品失败'));
         }
       }
     };
@@ -1112,7 +1121,11 @@ export function GalleryPage() {
           .eq('id', BRAND_LOGO_SUPABASE_ID)
           .limit(1);
         if (error) {
-          console.error('加载云端品牌配置失败:', error);
+          handleError(error, {
+            context: 'fetchRemoteBranding.load',
+            type: ErrorType.NETWORK,
+            silent: true, // 品牌配置加载失败不影响主要功能
+          });
           return;
         }
         const record = Array.isArray(data) ? data[0] : null;
@@ -1132,15 +1145,22 @@ export function GalleryPage() {
             adminTitle: record.admin_title || prev.adminTitle,
             adminSubtitle: record.admin_subtitle || prev.adminSubtitle,
           };
-          try {
+          safeSync(() => {
             saveBrandText(merged);
-          } catch (e) {
-            console.error('保存品牌文案到本地失败:', e);
-          }
+          }, {
+            context: 'fetchRemoteBranding.saveText',
+            type: ErrorType.STORAGE,
+            silent: true,
+            throwError: false,
+          });
           return merged;
         });
       } catch (error) {
-        console.error('加载云端品牌配置失败:', error);
+        handleError(error, {
+          context: 'fetchRemoteBranding',
+          type: ErrorType.NETWORK,
+          silent: true,
+        });
       }
     };
 
@@ -1368,13 +1388,12 @@ export function GalleryPage() {
     const initGaodeMap = async () => {
       const amapKey = getEnvValue('VITE_AMAP_KEY', '');
       if (!amapKey) {
-        console.warn('VITE_AMAP_KEY 未配置，跳过高德地图初始化');
+        // 配置缺失，静默处理
         return;
       }
 
       // 确保容器已准备好
       if (!mapContainerRef.current) {
-        console.warn('地图容器未准备好，延迟初始化');
         setTimeout(initGaodeMap, 100);
         return;
       }
@@ -1406,8 +1425,10 @@ export function GalleryPage() {
 
         // 再次检查容器是否存在
         if (!mapContainerRef.current) {
-          console.error('地图容器在初始化时不存在');
-          return;
+          throw handleError(new Error('地图容器在初始化时不存在'), {
+            context: 'initGaodeMap.container',
+            type: ErrorType.VALIDATION,
+          });
         }
 
         const map = new AMap.Map(mapContainerRef.current, {
@@ -1428,7 +1449,11 @@ export function GalleryPage() {
           }
         }, 100);
       } catch (error) {
-        console.error('初始化高德地图失败:', error);
+        handleError(error, {
+          context: 'initGaodeMap',
+          type: ErrorType.NETWORK,
+          silent: false,
+        });
       }
     };
 
@@ -2002,7 +2027,11 @@ export function GalleryPage() {
                         alt={item.title} 
                         loading="lazy"
                         onError={(e) => {
-                          console.error('图片加载失败:', item.title, item.image);
+                          handleError(new Error(`图片加载失败: ${item.title}`), {
+                            context: 'GalleryPage.imageLoad',
+                            type: ErrorType.NETWORK,
+                            silent: true,
+                          });
                           e.target.style.display = 'none';
                         }}
                       />

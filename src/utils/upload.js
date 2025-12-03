@@ -1,6 +1,7 @@
 // 通用上传工具，支持多种存储方式
 
 import { StorageString, STORAGE_KEYS } from './storage';
+import { handleError, ErrorType, safeSync } from './errorHandler';
 
 // 上传方式类型
 export const UPLOAD_TYPES = {
@@ -177,7 +178,11 @@ const uploadToAPI = async (file, filename, onProgress) => {
           }
           resolve(data.url || data.imageUrl || data.fileUrl);
         } catch (error) {
-          reject(new Error('解析响应失败'));
+          const appError = handleError(error, {
+            context: 'uploadToAPI.parse',
+            type: ErrorType.PARSE,
+          });
+          reject(appError);
         }
       } else {
         try {
@@ -238,7 +243,11 @@ const uploadToCloudinary = async (file, filename, onProgress) => {
           const data = JSON.parse(xhr.responseText);
           resolve(data.secure_url || data.url);
         } catch (error) {
-          reject(new Error('解析响应失败'));
+          const appError = handleError(error, {
+            context: 'uploadToAPI.parse',
+            type: ErrorType.PARSE,
+          });
+          reject(appError);
         }
       } else {
         reject(new Error(`Cloudinary 上传失败: ${xhr.statusText}`));
@@ -376,25 +385,37 @@ const uploadToAliyunOSS = async (file, filename) => {
               thumbnailUrl: data.thumbnailUrl || data.thumbnail_url || null,
             });
           } catch (error) {
-            console.error('[uploadToAliyunOSS] 解析响应失败:', error);
-            reject(new Error('解析响应失败'));
+            const appError = handleError(error, {
+              context: 'uploadToAliyunOSS.parse',
+              type: ErrorType.PARSE,
+            });
+            reject(appError);
           }
         } else {
           const errorText = xhr.responseText;
-          console.error('[uploadToAliyunOSS] 后端错误响应:', errorText);
           let errorData;
-          try {
-            errorData = JSON.parse(errorText);
-          } catch (e) {
-            errorData = { error: errorText };
-          }
-          reject(new Error(errorData.error || `上传失败: ${xhr.statusText} (${xhr.status})`));
+          const parseResult = safeSync(() => {
+            return JSON.parse(errorText);
+          }, {
+            context: 'uploadToAliyunOSS.parseError',
+            throwError: false,
+          });
+          errorData = parseResult.error ? { error: errorText } : parseResult;
+          
+          const appError = handleError(new Error(errorData.error || `上传失败: ${xhr.statusText} (${xhr.status})`), {
+            context: 'uploadToAliyunOSS.response',
+            type: ErrorType.NETWORK,
+          });
+          reject(appError);
         }
       });
       
       xhr.addEventListener('error', () => {
-        console.error('[uploadToAliyunOSS] 网络错误');
-        reject(new Error('网络错误'));
+        const appError = handleError(new Error('网络错误'), {
+          context: 'uploadToAliyunOSS.network',
+          type: ErrorType.NETWORK,
+        });
+        reject(appError);
       });
       
       xhr.addEventListener('abort', () => {
@@ -424,8 +445,7 @@ const uploadToAliyunOSS = async (file, filename) => {
   const objectKey = `pic4pick/${filename}`;
   const url = `${endpoint}/${objectKey}`;
   
-  console.log('[uploadToAliyunOSS] 上传到:', url);
-  console.warn('[uploadToAliyunOSS] ⚠️ 警告：前端直传需要签名，当前实现可能无法正常工作。建议使用后端代理上传。');
+  // 注意：前端直传需要签名，当前实现可能无法正常工作。建议使用后端代理上传。
   
   // 注意：前端直传到 OSS 需要签名，这里仅作示例
   // 实际应该从后端获取签名或使用 STS 临时凭证
@@ -439,19 +459,22 @@ const uploadToAliyunOSS = async (file, filename) => {
       body: file,
     });
     
-    console.log('[uploadToAliyunOSS] OSS 响应状态:', response.status, response.statusText);
-    
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('[uploadToAliyunOSS] OSS 错误响应:', errorText);
-      throw new Error(`OSS 上传失败: ${response.statusText} (${response.status}) - ${errorText.substring(0, 200)}`);
+      const appError = handleError(new Error(`OSS 上传失败: ${response.statusText} (${response.status}) - ${errorText.substring(0, 200)}`), {
+        context: 'uploadToAliyunOSS.direct',
+        type: ErrorType.NETWORK,
+      });
+      throw appError;
     }
     
-    console.log('[uploadToAliyunOSS] 上传成功，URL:', url);
     return url;
   } catch (error) {
-    console.error('[uploadToAliyunOSS] 前端直传失败:', error);
-    throw new Error(`前端直传失败: ${error.message}。建议使用后端代理上传模式。`);
+    const appError = handleError(error, {
+      context: 'uploadToAliyunOSS.direct',
+      type: ErrorType.NETWORK,
+    });
+    throw new Error(`前端直传失败: ${appError.message}。建议使用后端代理上传模式。`);
   }
 };
 

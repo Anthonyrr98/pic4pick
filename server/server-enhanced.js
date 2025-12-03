@@ -345,7 +345,7 @@ app.delete('/api/upload/oss/:filename(*)', async (req, res) => {
     const deleteResults = [];
     for (const objectKey of objectKeys) {
       try {
-        await ossClient.delete(objectKey);
+    await ossClient.delete(objectKey);
         deleteResults.push({ objectKey, success: true });
         console.log('成功删除OSS文件:', objectKey);
       } catch (deleteError) {

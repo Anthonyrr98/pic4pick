@@ -1,6 +1,7 @@
 // 认证工具（从 webdav-proxy 中提取的认证功能）
 
 import { Storage, StorageString, STORAGE_KEYS } from './storage';
+import { handleError, formatErrorMessage, ErrorType, safeAsync } from './errorHandler';
 
 // 获取 JWT Token
 export const getAuthToken = () => {
@@ -17,14 +18,9 @@ export const clearAuthToken = () => {
   Storage.remove(STORAGE_KEYS.AUTH_TOKEN);
 };
 
-// 清除 JWT Token
-export const clearAuthToken = () => {
-  Storage.remove(STORAGE_KEYS.AUTH_TOKEN);
-};
-
 // 用户登录
 export const login = async (username, password) => {
-  try {
+  return safeAsync(async () => {
     const response = await fetch('/api/auth/login', {
       method: 'POST',
       headers: {
@@ -40,17 +36,25 @@ export const login = async (username, password) => {
       try {
         data = JSON.parse(rawBody);
       } catch (parseError) {
-        console.error('Login response parse error:', parseError);
-        throw new Error('服务器返回了无法解析的内容');
+        throw handleError(parseError, {
+          context: 'login.parse',
+          type: ErrorType.PARSE,
+        });
       }
     }
 
     if (!data || typeof data !== 'object') {
-      throw new Error('服务器未返回有效数据');
+      throw handleError(new Error('服务器未返回有效数据'), {
+        context: 'login.validate',
+        type: ErrorType.VALIDATION,
+      });
     }
 
     if (!response.ok || !data.success) {
-      throw new Error(data.error || '登录失败');
+      throw handleError(new Error(data.error || '登录失败'), {
+        context: 'login.response',
+        type: ErrorType.PERMISSION,
+      });
     }
 
     setAuthToken(data.token);
@@ -60,10 +64,10 @@ export const login = async (username, password) => {
       username: data.username,
       expiresIn: data.expiresIn,
     };
-  } catch (error) {
-    console.error('Login error:', error);
-    throw new Error(`登录失败: ${error.message}`);
-  }
+  }, {
+    context: 'login',
+    throwError: true,
+  });
 };
 
 // 验证 Token
@@ -73,7 +77,7 @@ export const verifyToken = async () => {
     return { success: false, authenticated: false };
   }
 
-  try {
+  return safeAsync(async () => {
     const response = await fetch('/api/auth/verify', {
       method: 'POST',
       headers: {
@@ -93,11 +97,14 @@ export const verifyToken = async () => {
       authenticated: true,
       user: data.user,
     };
-  } catch (error) {
-    console.error('Token verification error:', error);
-    clearAuthToken();
-    return { success: false, authenticated: false };
-  }
+  }, {
+    context: 'verifyToken',
+    silent: true, // 验证失败不输出错误日志
+    throwError: false,
+    onError: () => {
+      clearAuthToken();
+    },
+  }) || { success: false, authenticated: false };
 };
 
 // 登出

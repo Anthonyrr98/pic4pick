@@ -10,9 +10,7 @@ const ensureClient = () => {
   const anonKey = getEnvValue('VITE_SUPABASE_ANON_KEY', '');
 
   if (!url || !anonKey) {
-    if (supabase) {
-      console.warn('[supabaseClient] Supabase 配置缺失，已回退到本地存储。');
-    }
+    // Supabase 配置缺失，已回退到本地存储（静默处理）
     supabase = null;
     currentUrl = null;
     currentKey = null;
