@@ -7,12 +7,12 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 function App() {
   return (
     <ErrorBoundary>
-      <HashRouter>
-        <Routes>
-          <Route path="/" element={<GalleryPage />} />
-          <Route path="/admin" element={<AdminPage />} />
-        </Routes>
-      </HashRouter>
+    <HashRouter>
+      <Routes>
+        <Route path="/" element={<GalleryPage />} />
+        <Route path="/admin" element={<AdminPage />} />
+      </Routes>
+    </HashRouter>
     </ErrorBoundary>
   );
 }

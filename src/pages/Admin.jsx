@@ -3,7 +3,7 @@ import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import exifr from 'exifr';
 import '../App.css';
-import { uploadImage, getUploadType, setUploadType, UPLOAD_TYPES, compressImage } from '../utils/upload';
+import { uploadImage, getUploadType, setUploadType, UPLOAD_TYPES } from '../utils/upload';
 import { getSupabaseClient } from '../utils/supabaseClient';
 import { UploadProgress } from '../components/UploadProgress';
 import { ConfirmDialog } from '../components/ConfirmDialog';
@@ -14,6 +14,7 @@ import {
   BRAND_LOGO_STORAGE_KEY,
   BRAND_LOGO_SUPABASE_ID,
   BRAND_LOGO_SUPABASE_TABLE,
+  BRAND_LOGO_MAX_SIZE,
   getStoredBrandLogo,
   saveBrandLogo,
   removeBrandLogo,
@@ -23,6 +24,14 @@ import {
 } from '../utils/branding';
 import { Storage, StorageString, STORAGE_KEYS } from '../utils/storage';
 import { handleError, formatErrorMessage, safeAsync, safeSync, ErrorType } from '../utils/errorHandler';
+import { mapSupabaseRowToPhoto, buildSupabasePayloadFromPhoto, getUploadTypeName, extractOSSFileInfo, deleteOSSFile, getAmapApiUrl } from '../utils/adminUtils';
+import { usePhotoManagement } from '../hooks/usePhotoManagement';
+import { useLocationPicker } from '../hooks/useLocationPicker';
+import { useGearOptions } from '../hooks/useGearOptions';
+import { useBrandConfig } from '../hooks/useBrandConfig';
+import { useFileUpload } from '../hooks/useFileUpload';
+import { ToolsPanel } from '../components/admin/ToolsPanel';
+import { ConfigPanel } from '../components/admin/ConfigPanel';
 
 const tabs = [
   { id: 'featured', label: '精选' },
@@ -36,19 +45,8 @@ const tabs = [
 const STORAGE_KEY = STORAGE_KEYS.ADMIN_UPLOADS;
 const APPROVED_STORAGE_KEY = STORAGE_KEYS.APPROVED_PHOTOS;
 const REJECTED_STORAGE_KEY = STORAGE_KEYS.REJECTED_PHOTOS;
-const BRAND_LOGO_MAX_SIZE = 1024 * 1024; // 1MB
 
-// 获取上传方式的中文名称
-const getUploadTypeName = (type) => {
-  const names = {
-    [UPLOAD_TYPES.BASE64]: '本地存储',
-    [UPLOAD_TYPES.API]: '后端 API',
-    [UPLOAD_TYPES.CLOUDINARY]: 'Cloudinary',
-    [UPLOAD_TYPES.SUPABASE]: 'Supabase',
-    [UPLOAD_TYPES.ALIYUN_OSS]: '阿里云 OSS',
-  };
-  return names[type] || '本地存储';
-};
+// getUploadTypeName 已移至 adminUtils.js
 
 export function AdminPage() {
   const adminPassword = getEnvValue('VITE_ADMIN_PASSWORD', 'pic4pick-admin');
@@ -62,66 +60,7 @@ export function AdminPage() {
     return Storage.get(STORAGE_KEY, []);
   };
 
-  const mapSupabaseRowToPhoto = (row) => ({
-    id: row.id,
-    title: row.title || '',
-    location: row.location || '',
-    country: row.country || '',
-    category: row.category || 'featured',
-    tags: row.tags || '',
-    preview: row.thumbnail_url || row.image_url || '',
-    image: row.image_url || '',
-    latitude: row.latitude,
-    longitude: row.longitude,
-    altitude: row.altitude,
-    focal: row.focal || '',
-    aperture: row.aperture || '',
-    shutter: row.shutter || '',
-    iso: row.iso || '',
-    camera: row.camera || '',
-    lens: row.lens || '',
-    rating: typeof row.rating === 'number' ? row.rating : null,
-    shotDate: row.shot_date || null,
-    createdAt: row.created_at,
-    status: row.status || 'pending',
-    hidden: row.hidden ?? false,
-    thumbnail: row.thumbnail_url || null,
-    reject_reason: row.reject_reason || null,
-  });
-
-  const buildSupabasePayloadFromPhoto = (photo, statusOverride) => {
-    const payload = {
-      id: photo.id,
-      title: photo.title || '',
-      location: photo.location || '',
-      country: photo.country || '',
-      category: photo.category || 'featured',
-      tags: photo.tags || '',
-      image_url: photo.image || photo.preview || '',
-      // 确保经纬度是数字类型或 null
-      latitude: photo.latitude != null && !isNaN(photo.latitude) ? Number(photo.latitude) : null,
-      longitude: photo.longitude != null && !isNaN(photo.longitude) ? Number(photo.longitude) : null,
-      altitude: photo.altitude != null && !isNaN(photo.altitude) ? Number(photo.altitude) : null,
-      focal: photo.focal || null,
-      aperture: photo.aperture || null,
-      shutter: photo.shutter || null,
-      iso: photo.iso || null,
-      camera: photo.camera || null,
-      lens: photo.lens || null,
-      rating: typeof photo.rating === 'number' ? photo.rating : null,
-      shot_date: photo.shotDate || null,
-      thumbnail_url: photo.thumbnail || null,
-      hidden: photo.hidden ?? false,
-      status: statusOverride ?? photo.status ?? 'pending',
-    };
-    
-    // 只在有 reject_reason 字段时才添加（避免数据库字段不存在导致的错误）
-    if (photo.reject_reason !== undefined) {
-      payload.reject_reason = photo.reject_reason || null;
-    }
-    
-    return payload;
-  };
+  // mapSupabaseRowToPhoto 和 buildSupabasePayloadFromPhoto 已移至 adminUtils.js
 
   const supabase = getSupabaseClient();
   const [envConfigForm, setEnvConfigForm] = useState(() => ({
@@ -132,10 +71,7 @@ export function AdminPage() {
   const [envConfigMessage, setEnvConfigMessage] = useState({ type: '', text: '' });
   const importFileInputRef = useRef(null);
   const logoFileInputRef = useRef(null);
-  const [adminUploads, setAdminUploads] = useState(() => {
-    if (supabase) return [];
-    return Storage.get(STORAGE_KEY, []);
-  });
+  // 照片管理 hook 将在后面初始化（需要 refreshSupabaseData）
   const [uploadForm, setUploadForm] = useState({
     title: '',
     location: '',
@@ -159,90 +95,26 @@ export function AdminPage() {
     camera: '',
     lens: '',
   });
-  const [cameraOptions, setCameraOptions] = useState(() => {
-    return Storage.get(STORAGE_KEYS.ADMIN_CAMERA_OPTIONS, []);
-  });
-  const [lensOptions, setLensOptions] = useState(() => {
-    return Storage.get(STORAGE_KEYS.ADMIN_LENS_OPTIONS, []);
-  });
-  const [showCameraDropdown, setShowCameraDropdown] = useState(false);
-  const [showLensDropdown, setShowLensDropdown] = useState(false);
+  // 使用相机/镜头选项管理 hook
+  const {
+    cameraOptions,
+    setCameraOptions,
+    lensOptions,
+    setLensOptions,
+    showCameraDropdown,
+    setShowCameraDropdown,
+    showLensDropdown,
+    setShowLensDropdown,
+    addCameraOption,
+    addLensOption,
+  } = useGearOptions(supabase);
+
   const [isAdminAuthed, setIsAdminAuthed] = useState(() => {
     return StorageString.get(STORAGE_KEYS.ADMIN_AUTHED) === 'true';
   });
   const [adminPasswordInput, setAdminPasswordInput] = useState('');
   const [adminAuthError, setAdminAuthError] = useState('');
   const [showAdminPassword, setShowAdminPassword] = useState(false);
-  const addCameraOption = (value) => {
-    const trimmed = (value || '').trim();
-    if (!trimmed) return;
-    setCameraOptions((prev) => {
-      if (prev.includes(trimmed)) return prev;
-      const next = [...prev, trimmed];
-      Storage.set(STORAGE_KEYS.ADMIN_CAMERA_OPTIONS, next);
-      if (supabase) {
-        (async () => {
-          try {
-            const { error } = await supabase
-              .from('gear_presets')
-              .upsert(
-                { type: 'camera', name: trimmed },
-                { onConflict: 'type,name', ignoreDuplicates: true }
-              );
-            if (error && error.code !== '23505') {
-              handleError(error, {
-                context: 'addCameraOption.supabase',
-                type: ErrorType.NETWORK,
-                silent: true, // 保存预设失败不影响主要功能
-              });
-            }
-          } catch (e) {
-            handleError(e, {
-              context: 'addCameraOption',
-              type: ErrorType.UNKNOWN,
-              silent: true,
-            });
-          }
-        })();
-      }
-      return next;
-    });
-  };
-  const addLensOption = (value) => {
-    const trimmed = (value || '').trim();
-    if (!trimmed) return;
-    setLensOptions((prev) => {
-      if (prev.includes(trimmed)) return prev;
-      const next = [...prev, trimmed];
-      Storage.set(STORAGE_KEYS.ADMIN_LENS_OPTIONS, next);
-      if (supabase) {
-        (async () => {
-          try {
-            const { error } = await supabase
-              .from('gear_presets')
-              .upsert(
-                { type: 'lens', name: trimmed },
-                { onConflict: 'type,name', ignoreDuplicates: true }
-              );
-            if (error && error.code !== '23505') {
-              handleError(error, {
-                context: 'addLensOption.supabase',
-                type: ErrorType.NETWORK,
-                silent: true,
-              });
-            }
-          } catch (e) {
-            handleError(e, {
-              context: 'addLensOption',
-              type: ErrorType.UNKNOWN,
-              silent: true,
-            });
-          }
-        })();
-      }
-      return next;
-    });
-  };
   const [showLocationPicker, setShowLocationPicker] = useState(false);
   const locationMapContainerRef = useRef(null);
   const locationMapInstance = useRef(null);
@@ -252,10 +124,15 @@ export function AdminPage() {
   const [searchResults, setSearchResults] = useState([]);
   const [submitMessage, setSubmitMessage] = useState({ type: '', text: '' });
   const [activeTab, setActiveTab] = useState('upload'); // 'upload' | 'pending' | 'approved' | 'rejected' | 'tools' | 'config'
-  const [isUploading, setIsUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(null);
-  const [uploadingFileName, setUploadingFileName] = useState(null);
-  const [uploadBytes, setUploadBytes] = useState({ uploaded: 0, total: 0 });
+  // 使用文件上传管理 hook
+  const {
+    isUploading,
+    uploadProgress,
+    uploadingFileName,
+    uploadBytes,
+    uploadFile,
+    resetUploadState,
+  } = useFileUpload();
   // 默认使用阿里云 OSS
   const [uploadType, setUploadTypeState] = useState(() => {
     const currentType = getUploadType();
@@ -268,17 +145,44 @@ export function AdminPage() {
   });
   const [isSupabaseLoading, setIsSupabaseLoading] = useState(Boolean(supabase));
   const [supabaseError, setSupabaseError] = useState('');
-  const [brandLogo, setBrandLogo] = useState(() => getStoredBrandLogo());
-  const [logoMessage, setLogoMessage] = useState({ type: '', text: '' });
-  const [brandText, setBrandText] = useState(() => getStoredBrandText());
-  const [brandTextMessage, setBrandTextMessage] = useState({ type: '', text: '' });
+  // 使用品牌配置管理 hook
+  const {
+    brandLogo,
+    setBrandLogo,
+    logoMessage,
+    setLogoMessage,
+    brandText,
+    setBrandText,
+    brandTextMessage,
+    setBrandTextMessage,
+  } = useBrandConfig(supabase);
 
-  // 工具：图片压缩模块状态
-  const [toolFile, setToolFile] = useState(null);
-  const [toolOriginalPreview, setToolOriginalPreview] = useState('');
-  const [toolCompressedPreview, setToolCompressedPreview] = useState('');
-  const [toolMessage, setToolMessage] = useState({ type: '', text: '' });
-  const [toolLoading, setToolLoading] = useState(false);
+  // 工具：图片压缩模块状态（已移至 ToolsPanel 组件）
+
+  // 照片管理 hook（先调用，获取 setter 函数）
+  // 注意：refreshSupabaseData 稍后定义，使用 useRef 传递
+  const refreshSupabaseDataRef = useRef(null);
+  
+  const {
+    adminUploads,
+    setAdminUploads,
+    approvedPhotos,
+    setApprovedPhotos,
+    rejectedPhotos,
+    setRejectedPhotos,
+    handleApprove,
+    handleReject,
+    handleDelete,
+    handleResubmit,
+  } = usePhotoManagement(
+    supabase, 
+    async () => {
+      if (refreshSupabaseDataRef.current) {
+        await refreshSupabaseDataRef.current();
+      }
+    }, 
+    setSubmitMessage
+  );
 
   const pendingReviewCount = useMemo(() => adminUploads.length, [adminUploads]);
 
@@ -302,183 +206,20 @@ export function AdminPage() {
     }
   }, []);
 
-  // 从 Supabase 同步常用相机/镜头
-  useEffect(() => {
-    const loadGearPresets = async () => {
-      if (!supabase) return;
-      try {
-        const { data, error } = await supabase
-          .from('gear_presets')
-          .select('type, name')
-          .order('name', { ascending: true });
-        if (error) {
-          handleError(error, {
-            context: 'loadGearPresets.supabase',
-            type: ErrorType.NETWORK,
-            silent: true,
-          });
-          return;
-        }
-        const cameras = [];
-        const lenses = [];
-        for (const row of data || []) {
-          if (row.type === 'camera' && row.name && !cameras.includes(row.name)) {
-            cameras.push(row.name);
-          }
-          if (row.type === 'lens' && row.name && !lenses.includes(row.name)) {
-            lenses.push(row.name);
-          }
-        }
-        if (cameras.length) {
-          setCameraOptions((prev) => {
-            const merged = Array.from(new Set([...prev, ...cameras]));
-            Storage.set(STORAGE_KEYS.ADMIN_CAMERA_OPTIONS, merged);
-            return merged;
-          });
-        }
-        if (lenses.length) {
-          setLensOptions((prev) => {
-            const merged = Array.from(new Set([...prev, ...lenses]));
-            Storage.set(STORAGE_KEYS.ADMIN_LENS_OPTIONS, merged);
-            return merged;
-          });
-        }
-      } catch (e) {
-        handleError(e, {
-          context: 'loadGearPresets',
-          type: ErrorType.NETWORK,
-          silent: true,
-        });
-      }
-    };
-    loadGearPresets();
-  }, [supabase]);
+  // loadGearPresets, loadRemoteBrandLogo, loadRemoteBrandText 等已移至对应的 hooks
 
-  const loadRemoteBrandLogo = useCallback(async () => {
-    if (!supabase) return;
-    try {
-      const { data, error } = await supabase
-        .from(BRAND_LOGO_SUPABASE_TABLE)
-        .select('logo_data, logo_url')
-        .eq('id', BRAND_LOGO_SUPABASE_ID)
-        .limit(1);
-      if (error) {
-        handleError(error, {
-          context: 'loadRemoteBrandLogo',
-          type: ErrorType.NETWORK,
-          silent: true,
-        });
-        return;
-      }
-      const record = Array.isArray(data) ? data[0] : null;
-      const remoteLogo = record?.logo_data || record?.logo_url || '';
-      const normalized = remoteLogo || '';
-      if (normalized) {
-        saveBrandLogo(normalized);
-      } else {
-        removeBrandLogo();
-      }
-      setBrandLogo(normalized);
-    } catch (error) {
-      handleError(error, {
-        context: 'loadRemoteBrandLogo',
-        type: ErrorType.NETWORK,
-        silent: true,
-      });
-    }
-  }, [supabase]);
-
-  const loadRemoteBrandText = useCallback(async () => {
-    if (!supabase) return;
-    try {
-      const { data, error } = await supabase
-        .from(BRAND_LOGO_SUPABASE_TABLE)
-        .select('site_title, site_subtitle, admin_title, admin_subtitle')
-        .eq('id', BRAND_LOGO_SUPABASE_ID)
-        .limit(1);
-      if (error) {
-        handleError(error, {
-          context: 'loadRemoteBrandText',
-          type: ErrorType.NETWORK,
-          silent: true,
-        });
-        return;
-      }
-      const record = Array.isArray(data) ? data[0] : null;
-      if (!record) return;
-
-      // 以本地已有配置为基础，只在为空时用远端覆盖，避免你输入时被频繁重置
-      const local = getStoredBrandText();
-      const remoteText = {
-        siteTitle: record.site_title || local.siteTitle,
-        siteSubtitle: record.site_subtitle || local.siteSubtitle,
-        adminTitle: record.admin_title || local.adminTitle,
-        adminSubtitle: record.admin_subtitle || local.adminSubtitle,
-      };
-      saveBrandText(remoteText);
-      setBrandText(remoteText);
-    } catch (error) {
-      handleError(error, {
-        context: 'loadRemoteBrandText',
-        type: ErrorType.NETWORK,
-        silent: true,
-      });
-    }
-  }, [supabase]);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    const handleLogoBroadcast = (event) => {
-      setBrandLogo(typeof event.detail === 'string' ? event.detail : getStoredBrandLogo());
-    };
-
-    const handleStorage = (event) => {
-      if (event.key === BRAND_LOGO_STORAGE_KEY) {
-        setBrandLogo(event.newValue || '');
-      }
-    };
-
-    window.addEventListener(BRAND_LOGO_EVENT, handleLogoBroadcast);
-    window.addEventListener('storage', handleStorage);
-
-    return () => {
-      window.removeEventListener(BRAND_LOGO_EVENT, handleLogoBroadcast);
-      window.removeEventListener('storage', handleStorage);
-    };
-  }, []);
-
-  useEffect(() => {
-    loadRemoteBrandLogo();
-    loadRemoteBrandText();
-  }, [loadRemoteBrandLogo, loadRemoteBrandText]);
-
-  useEffect(() => {
-    if (!logoMessage.text) return;
-    const timer = setTimeout(() => setLogoMessage({ type: '', text: '' }), 3200);
-    return () => clearTimeout(timer);
-  }, [logoMessage]);
-
-  useEffect(() => {
-    if (!brandTextMessage.text) return;
-    const timer = setTimeout(() => setBrandTextMessage({ type: '', text: '' }), 3200);
-    return () => clearTimeout(timer);
-  }, [brandTextMessage]);
-
-  // 加载已审核通过的作品
+  // 加载已审核通过的作品（已移至 usePhotoManagement hook）
   const loadApprovedPhotos = () => {
     return Storage.get(APPROVED_STORAGE_KEY, []);
   };
 
-  const [approvedPhotos, setApprovedPhotos] = useState(() => (supabase ? [] : loadApprovedPhotos()));
   const approvedCount = useMemo(() => approvedPhotos.length, [approvedPhotos]);
   
-  // 加载已拒绝的作品
+  // 加载已拒绝的作品（已移至 usePhotoManagement hook）
   const loadRejectedPhotos = () => {
     return Storage.get(REJECTED_STORAGE_KEY, []);
   };
 
-  const [rejectedPhotos, setRejectedPhotos] = useState(() => (supabase ? [] : loadRejectedPhotos()));
   const rejectedCount = useMemo(() => rejectedPhotos.length, [rejectedPhotos]);
   
   // 编辑状态
@@ -937,18 +678,7 @@ export function AdminPage() {
   }, [showLocationPicker]);
 
   // 生成高德地图 API URL（生产环境直接调用，开发环境使用代理）
-  const getAmapApiUrl = useCallback((path) => {
-    // 检测是否为生产环境（GitHub Pages 或其他静态托管）
-    const isProduction = import.meta.env.PROD || window.location.hostname !== 'localhost';
-    
-    if (isProduction) {
-      // 生产环境：直接使用高德地图 API
-      return `https://restapi.amap.com${path}`;
-    } else {
-      // 开发环境：使用 Vite 代理
-      return `/amap-api${path}`;
-    }
-  }, []);
+  // getAmapApiUrl 已移至 adminUtils.js
 
   // 地理位置搜索函数（优先使用高德地图搜索 API，需要配置 VITE_AMAP_KEY）
   const searchLocation = useCallback(async (query, isEdit = false) => {
@@ -1379,7 +1109,12 @@ export function AdminPage() {
     } finally {
       setIsSupabaseLoading(false);
     }
-  }, [supabase]);
+  }, [supabase, setAdminUploads, setApprovedPhotos, setRejectedPhotos]);
+
+  // 更新 ref，使 hook 可以调用 refreshSupabaseData
+  useEffect(() => {
+    refreshSupabaseDataRef.current = refreshSupabaseData;
+  }, [refreshSupabaseData]);
 
   // 当 adminUploads 变化时保存到 localStorage
   useEffect(() => {
@@ -1392,7 +1127,7 @@ export function AdminPage() {
     if (supabase) return;
     setApprovedPhotos(loadApprovedPhotos());
     setRejectedPhotos(loadRejectedPhotos());
-  }, [supabase]);
+  }, [supabase, setApprovedPhotos, setRejectedPhotos]);
 
   useEffect(() => {
     if (!supabase) return;
@@ -1981,86 +1716,15 @@ export function AdminPage() {
     }
   };
 
-  const handleApprove = async (id) => {
-    const itemToApprove = adminUploads.find((item) => item.id === id);
-    if (itemToApprove) {
-      if (!supabase) {
-        // 保存到审核通过列表（本地模式）
-      saveApprovedPhoto(itemToApprove);
-      } else {
-        try {
-          await supabase
-            .from('photos')
-            .update({ status: 'approved' })
-            .eq('id', id);
-          await refreshSupabaseData();
-        } catch (error) {
-          handleError(error, {
-            context: 'handleApprove.supabase',
-            type: ErrorType.NETWORK,
-          });
-          setSubmitMessage({ type: 'error', text: `云端审核失败：${error.message}` });
-          return;
-        }
-      }
-      // 从待审核列表移除（本地 UI 立即反馈）
-      setAdminUploads((prev) => prev.filter((item) => item.id !== id));
-      setSubmitMessage({ type: 'success', text: '作品已通过审核，已添加到前端图库' });
-      setActiveTab('approved'); // 切换到已审核标签
-    }
-    setTimeout(() => {
-      setSubmitMessage({ type: '', text: '' });
-    }, 3000);
+  // 包装函数：添加切换标签页的功能
+  const handleApproveWithTabSwitch = async (id) => {
+    await handleApprove(id);
+    setActiveTab('approved'); // 切换到已审核标签
   };
 
-  const handleReject = async (id) => {
-    const itemToReject = adminUploads.find((item) => item.id === id);
-    if (!itemToReject) return;
-
-    // 从待审核列表移除
-    setAdminUploads((prev) => prev.filter((item) => item.id !== id));
-
-    // 添加到已拒绝列表
-    const rejectedItem = { ...itemToReject, status: 'rejected' };
-    setRejectedPhotos((prev) => {
-      const updated = [rejectedItem, ...prev];
-      // 保存到本地存储（非 Supabase 模式）
-      if (!supabase) {
-        try {
-          Storage.set(REJECTED_STORAGE_KEY, updated);
-        } catch (error) {
-          handleError(error, {
-            context: 'handleReject.storage',
-            type: ErrorType.STORAGE,
-            silent: true,
-          });
-        }
-      }
-      return updated;
-    });
-
-    if (supabase) {
-      try {
-        await supabase
-          .from('photos')
-          .update({ status: 'rejected' })
-          .eq('id', id);
-        await refreshSupabaseData();
-      } catch (error) {
-        handleError(error, {
-          context: 'handleReject',
-          type: ErrorType.NETWORK,
-        });
-        setSubmitMessage({ type: 'error', text: `云端拒绝失败：${error.message}` });
-        return;
-      }
-    }
-
-    setSubmitMessage({ type: 'success', text: '作品已拒绝，已移至已拒绝列表' });
+  const handleRejectWithTabSwitch = async (id) => {
+    await handleReject(id);
     setActiveTab('rejected'); // 切换到已拒绝标签
-    setTimeout(() => {
-      setSubmitMessage({ type: '', text: '' });
-    }, 3000);
   };
 
   // 打开编辑表单
@@ -2233,120 +1897,10 @@ export function AdminPage() {
     setEditSelectedLocation(null);
   };
 
-  // 从OSS URL中提取文件名和路径
-  const extractOSSFileInfo = (url) => {
-    if (!url || typeof url !== 'string') return null;
-    
-    // OSS URL格式可能是：
-    // 1. https://bucket.region.aliyuncs.com/origin/filename.jpg (服务器端上传的格式)
-    // 2. https://bucket.region.aliyuncs.com/ore/filename.jpg (缩略图)
-    // 3. https://bucket.region.aliyuncs.com/pic4pick/filename.jpg (旧格式)
-    // 4. https://bucket.region.aliyuncs.com/pic4pick/origin/filename.jpg
-    // 5. https://bucket.region.aliyuncs.com/pic4pick/ore/filename.jpg
-    try {
-      const urlObj = new URL(url);
-      const pathname = urlObj.pathname;
-      
-      console.log('解析OSS URL:', url, 'pathname:', pathname);
-      
-      // 先尝试匹配 pic4pick/ 前缀的路径
-      let match = pathname.match(/pic4pick\/(.+)$/);
-      if (match) {
-        const fullPath = match[1];
-        const parts = fullPath.split('/');
-        const filename = parts[parts.length - 1];
-        const subDir = parts.length > 1 ? parts[0] : null;
-        const result = { filename, subDir, fullPath };
-        console.log('匹配到pic4pick路径:', result);
-        return result;
-      }
-      
-      // 如果没有pic4pick前缀，直接匹配路径（服务器端上传的格式）
-      // 路径格式：/origin/filename.jpg 或 /ore/filename.jpg
-      match = pathname.match(/^\/(origin|ore)\/(.+)$/);
-      if (match) {
-        const subDir = match[1]; // origin 或 ore
-        const filename = match[2];
-        const result = { filename, subDir, fullPath: `${subDir}/${filename}` };
-        console.log('匹配到直接路径:', result);
-        return result;
-      }
-      
-      // 如果都不匹配，尝试直接取文件名
-      const parts = pathname.split('/').filter(p => p);
-      if (parts.length > 0) {
-        const filename = parts[parts.length - 1];
-        const subDir = parts.length > 1 ? parts[parts.length - 2] : null;
-        const result = { filename, subDir, fullPath: subDir ? `${subDir}/${filename}` : filename };
-        console.log('使用默认解析:', result);
-        return result;
-      }
-      
-      // 无法解析OSS URL路径，返回null
-      return null;
-    } catch (error) {
-      handleError(error, {
-        context: 'extractOSSFileInfo',
-        type: ErrorType.PARSE,
-        silent: true,
-      });
-      return null;
-    }
-  };
+  // extractOSSFileInfo 和 deleteOSSFile 已移至 adminUtils.js
 
-  // 删除OSS中的文件
-  const deleteOSSFile = async (url) => {
-    if (!url || typeof url !== 'string') return;
-    
-    // 检查是否是OSS URL
-    if (!url.includes('.aliyuncs.com')) {
-      console.log('不是OSS URL，跳过删除:', url);
-      return; // 不是OSS URL，跳过
-    }
-    
-    const fileInfo = extractOSSFileInfo(url);
-    if (!fileInfo || !fileInfo.filename) {
-      // 无法从URL提取文件信息（静默处理）
-      return;
-    }
-    
-    try {
-      const backendUrl = StorageString.get(STORAGE_KEYS.ALIYUN_OSS_BACKEND_URL, 'http://localhost:3002');
-      // 构建要删除的路径
-      // 如果文件在子目录中（origin 或 ore），传递完整路径
-      // 否则只传递文件名，让服务器端尝试多个路径
-      const pathToDelete = fileInfo.subDir ? `${fileInfo.subDir}/${fileInfo.filename}` : fileInfo.filename;
-      const deleteUrl = `${backendUrl}/api/upload/oss/${encodeURIComponent(pathToDelete)}`;
-      
-      console.log('准备删除OSS文件:', { url, pathToDelete, deleteUrl });
-      
-      const response = await fetch(deleteUrl, {
-        method: 'DELETE',
-      });
-      
-      if (response.ok) {
-        const result = await response.json();
-        console.log('OSS文件删除成功:', pathToDelete, result);
-      } else {
-        const errorText = await response.text();
-        handleError(new Error(`OSS文件删除失败: ${response.status} - ${errorText}`), {
-          context: 'deleteOSSFile',
-          type: ErrorType.NETWORK,
-          silent: true,
-        });
-      }
-    } catch (error) {
-      handleError(error, {
-        context: 'deleteOSSFile',
-        type: ErrorType.NETWORK,
-        silent: true,
-      });
-      // 不抛出错误，避免影响主流程
-    }
-  };
-
-  // 删除作品
-  const handleDelete = async () => {
+  // 删除作品（从编辑表单）
+  const handleDeleteFromEdit = async () => {
     if (!editingPhotoId) return;
     
     const confirmed = await confirmDialog.showConfirm({
@@ -2851,686 +2405,28 @@ export function AdminPage() {
         {/* 内容区域 / 配置区域 */}
         {activeTab === 'config' ? (
           <div className="admin-settings-grid">
-            {/* .env.local 配置覆盖 */}
-            <section className="admin-settings-card">
-              <div className="admin-settings-card-header">
-            <div>
-                  <h2 className="admin-settings-card-title">运行时配置（覆盖 .env.local）</h2>
-                  <p className="admin-settings-card-subtitle">
-                这些值会保存到浏览器的 localStorage，用于覆盖 Supabase、地图等配置，适合快速切换测试环境。
-              </p>
-            </div>
-            <div
-                  className="admin-settings-card-badge"
-                  style={{ color: supabase ? 'var(--success)' : 'var(--warning)' }}
-            >
-              {supabase ? 'Supabase 已启用' : 'Supabase 未配置，正在使用本地存储'}
-            </div>
-          </div>
-
-          {envConfigMessage.text && (
-            <div className={`admin-message ${envConfigMessage.type}`} style={{ marginBottom: '12px' }}>
-              {envConfigMessage.text}
-            </div>
-          )}
-
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
-              gap: '16px',
-              marginBottom: '16px',
-            }}
-          >
-            <label style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <span style={{ fontSize: '0.85rem', color: 'var(--muted)' }}>Supabase URL</span>
-              <input
-                type="text"
-                name="supabaseUrl"
-                value={envConfigForm.supabaseUrl}
-                onChange={handleEnvConfigChange}
-                placeholder="https://xxxx.supabase.co"
-                style={{
-                  width: '100%',
-                  padding: '10px 14px',
-                  borderRadius: '10px',
-                  border: '1px solid var(--border)',
-                  background: 'rgba(255, 255, 255, 0.05)',
-                  color: 'var(--text)',
-                }}
-              />
-            </label>
-            <label style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <span style={{ fontSize: '0.85rem', color: 'var(--muted)' }}>Supabase anon key</span>
-              <textarea
-                name="supabaseAnonKey"
-                value={envConfigForm.supabaseAnonKey}
-                onChange={handleEnvConfigChange}
-                placeholder="eyJhbGciOi..."
-                rows={4}
-                style={{
-                  width: '100%',
-                  padding: '10px 14px',
-                  borderRadius: '10px',
-                  border: '1px solid var(--border)',
-                  background: 'rgba(255, 255, 255, 0.05)',
-                  color: 'var(--text)',
-                  resize: 'vertical',
-                }}
-              />
-            </label>
-            <label style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <span style={{ fontSize: '0.85rem', color: 'var(--muted)' }}>高德地图 Key</span>
-              <input
-                type="text"
-                name="amapKey"
-                value={envConfigForm.amapKey}
-                onChange={handleEnvConfigChange}
-                placeholder="请输入高德 Web 服务 key"
-                style={{
-                  width: '100%',
-                  padding: '10px 14px',
-                  borderRadius: '10px',
-                  border: '1px solid var(--border)',
-                  background: 'rgba(255, 255, 255, 0.05)',
-                  color: 'var(--text)',
-                }}
-              />
-            </label>
-          </div>
-
-              <div className="admin-settings-actions-row">
-            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-              <button
-                type="button"
-                className="btn-secondary"
-                onClick={handleExportPhotos}
-                style={{ minWidth: '140px' }}
-              >
-                导出 JSON 备份
-              </button>
-              <button
-                type="button"
-                className="btn-secondary"
-                onClick={handleImportClick}
-                style={{ minWidth: '140px' }}
-              >
-                从 JSON 导入
-              </button>
-              <input
-                ref={importFileInputRef}
-                type="file"
-                accept="application/json"
-                style={{ display: 'none' }}
-                onChange={handleImportPhotos}
-              />
-            </div>
-            <button
-              type="button"
-              className="btn-secondary"
-              onClick={handleResetEnvConfig}
-                  style={{ minWidth: '120px' }}
-            >
-              恢复默认
-            </button>
-            <button
-              type="button"
-              className="btn-primary"
-              onClick={handleSaveEnvConfig}
-                  style={{ minWidth: '120px' }}
-            >
-              保存配置
-            </button>
-          </div>
-        </section>
-
-            {/* 品牌 Logo 设置 */}
-            <section className="admin-settings-card">
-              <div className="admin-settings-card-header">
-                <div>
-                  <h2 className="admin-settings-card-title">品牌 Logo</h2>
-                  <p className="admin-settings-card-subtitle">
-                    上传一张正方形的图片即可替换前台与后台顶部的圆环 Logo，支持 PNG / JPG / SVG。
-                  </p>
-                </div>
-                <div
-                  className="admin-settings-card-badge"
-                  style={{ color: brandLogo ? 'var(--success)' : 'var(--muted)' }}
-                >
-                  {brandLogo ? '已启用自定义 Logo' : '当前使用默认圆环'}
-                </div>
-              </div>
-
-              <div className="admin-logo-preview-wrapper">
-                <div className="admin-logo-ring-frame">
-                  {brandLogo ? (
-                    <img
-                      src={brandLogo}
-                      alt="当前 Logo 预览"
-                      className="brand-logo-img"
-                      style={{ width: '72px', height: '72px' }}
-                    />
-                  ) : (
-                    <div className="logo-mark" aria-hidden="true" style={{ width: '72px', height: '72px' }} />
-                  )}
-                </div>
-
-                <div style={{ flex: 1, minWidth: '240px' }}>
-                  <p style={{ fontSize: '0.9rem', color: 'var(--muted)', marginBottom: '12px' }}>
-                    建议尺寸 320×320 以内，背景建议透明或纯色。更新后无需刷新即可在所有页面生效。
-                  </p>
-                  <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-                    <button type="button" className="btn-primary" onClick={handleLogoUploadClick}>
-                      上传新 Logo
-                </button>
-                    <button type="button" className="btn-secondary" onClick={handleResetLogo} disabled={!brandLogo}>
-                      使用默认
-                    </button>
-                  </div>
-                  {logoMessage.text && (
-                    <div className={`admin-message ${logoMessage.type}`} style={{ marginTop: '12px' }}>
-                      {logoMessage.text}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <input
-                ref={logoFileInputRef}
-                type="file"
-                accept="image/*"
-                onChange={handleLogoFileChange}
-                style={{ display: 'none' }}
-              />
-            </section>
-
-            {/* 品牌标题设置 */}
-            <section className="admin-settings-card">
-              <div className="admin-settings-card-header">
-                <div>
-                  <h2 className="admin-settings-card-title">品牌标题文案</h2>
-                  <p className="admin-settings-card-subtitle">
-                    配置前台和后台顶部 Logo 旁边显示的主标题与副标题，例如「CAMARTS / PHOTOGRAPHY」「CAMARTS / ADMIN PANEL」。
-                  </p>
-                </div>
-              </div>
-
-              {brandTextMessage.text && (
-                <div className={`admin-message ${brandTextMessage.type}`} style={{ marginBottom: '12px' }}>
-                  {brandTextMessage.text}
-                </div>
-              )}
-
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
-                  gap: '16px',
-                  marginBottom: '16px',
-                }}
-              >
-                <label style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  <span style={{ fontSize: '0.85rem', color: 'var(--muted)' }}>前台主标题</span>
-                  <input
-                    type="text"
-                    value={brandText.siteTitle}
-                    onChange={(e) => setBrandText((prev) => ({ ...prev, siteTitle: e.target.value }))}
-                    placeholder="CAMARTS"
-                    style={{
-                      width: '100%',
-                      padding: '10px 14px',
-                      borderRadius: '10px',
-                      border: '1px solid var(--border)',
-                      background: 'rgba(255, 255, 255, 0.05)',
-                      color: 'var(--text)',
-                    }}
-                  />
-                </label>
-                <label style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  <span style={{ fontSize: '0.85rem', color: 'var(--muted)' }}>前台副标题</span>
-                  <input
-                    type="text"
-                    value={brandText.siteSubtitle}
-                    onChange={(e) => setBrandText((prev) => ({ ...prev, siteSubtitle: e.target.value }))}
-                    placeholder="PHOTOGRAPHY"
-                    style={{
-                      width: '100%',
-                      padding: '10px 14px',
-                      borderRadius: '10px',
-                      border: '1px solid var(--border)',
-                      background: 'rgba(255, 255, 255, 0.05)',
-                      color: 'var(--text)',
-                    }}
-                  />
-                </label>
-                <label style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  <span style={{ fontSize: '0.85rem', color: 'var(--muted)' }}>后台主标题</span>
-                  <input
-                    type="text"
-                    value={brandText.adminTitle}
-                    onChange={(e) => setBrandText((prev) => ({ ...prev, adminTitle: e.target.value }))}
-                    placeholder="CAMARTS"
-                    style={{
-                      width: '100%',
-                      padding: '10px 14px',
-                      borderRadius: '10px',
-                      border: '1px solid var(--border)',
-                      background: 'rgba(255, 255, 255, 0.05)',
-                      color: 'var(--text)',
-                    }}
-                  />
-                </label>
-                <label style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  <span style={{ fontSize: '0.85rem', color: 'var(--muted)' }}>后台副标题</span>
-                  <input
-                    type="text"
-                    value={brandText.adminSubtitle}
-                    onChange={(e) => setBrandText((prev) => ({ ...prev, adminSubtitle: e.target.value }))}
-                    placeholder="ADMIN PANEL"
-                    style={{
-                      width: '100%',
-                      padding: '10px 14px',
-                      borderRadius: '10px',
-                      border: '1px solid var(--border)',
-                      background: 'rgba(255, 255, 255, 0.05)',
-                      color: 'var(--text)',
-                    }}
-                  />
-                </label>
-              </div>
-
-              <div className="admin-settings-actions-row">
-          <button
-                  type="button"
-                  className="btn-secondary"
-                  onClick={() => {
-                    resetBrandText();
-                    const fresh = getStoredBrandText();
-                    setBrandText(fresh);
-                    setBrandTextMessage({ type: 'info', text: '已恢复默认标题文案' });
-                  }}
-                  style={{ minWidth: '120px' }}
-                >
-                  恢复默认
-          </button>
-          <button
-                  type="button"
-                  className="btn-primary"
-                  onClick={async () => {
-                    try {
-                      saveBrandText(brandText);
-                      if (supabase) {
-                        await supabase.from(BRAND_LOGO_SUPABASE_TABLE).upsert({
-                          id: BRAND_LOGO_SUPABASE_ID,
-                          site_title: brandText.siteTitle || null,
-                          site_subtitle: brandText.siteSubtitle || null,
-                          admin_title: brandText.adminTitle || null,
-                          admin_subtitle: brandText.adminSubtitle || null,
-                          updated_at: new Date().toISOString(),
-                        });
-                      }
-                      setBrandTextMessage({ type: 'success', text: '标题文案已保存' });
-                    } catch (error) {
-                      handleError(error, {
-                        context: 'handleSaveBrandText',
-                        type: ErrorType.NETWORK,
-                        silent: true,
-                      });
-                      setBrandTextMessage({ type: 'error', text: '保存失败，请稍后重试' });
-                    }
-                  }}
-                  style={{ minWidth: '120px' }}
-                >
-                  保存标题
-                </button>
-        </div>
-            </section>
+            <ConfigPanel
+              supabase={supabase}
+              envConfigForm={envConfigForm}
+              setEnvConfigForm={setEnvConfigForm}
+              envConfigMessage={envConfigMessage}
+              setEnvConfigMessage={setEnvConfigMessage}
+              brandLogo={brandLogo}
+              setBrandLogo={setBrandLogo}
+              logoMessage={logoMessage}
+              setLogoMessage={setLogoMessage}
+              brandText={brandText}
+              setBrandText={setBrandText}
+              brandTextMessage={brandTextMessage}
+              setBrandTextMessage={setBrandTextMessage}
+              onExportPhotos={handleExportPhotos}
+              onImportPhotos={handleImportPhotos}
+              importFileInputRef={importFileInputRef}
+            />
           </div>
         ) : (
         <div className="admin-content-wrapper">
-            {activeTab === 'tools' && (
-              <section>
-                <h2 className="form-section-title">图片压缩工具</h2>
-                <p style={{ marginBottom: '16px', color: 'var(--muted)', fontSize: '0.9rem' }}>
-                  上传一张图片，系统会在浏览器内进行压缩处理（尽量不影响画质），并在处理完成后
-                  <strong> 仅在本地生成原图和压缩图文件 </strong>，你可以选择同一个文件夹进行保存。
-                </p>
-
-                {toolMessage.text && (
-                  <div className={`admin-message ${toolMessage.type}`} style={{ marginBottom: '12px' }}>
-                    {toolMessage.text}
-                  </div>
-                )}
-
-                <div className="upload-dropzone-new" style={{ marginBottom: '20px' }}>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    id="tool-file-upload"
-                    onChange={async (e) => {
-                      const file = e.target.files?.[0];
-                      if (!file) return;
-                      setToolMessage({ type: '', text: '' });
-                      setToolFile(file);
-
-                      // 原图预览
-                      const reader = new FileReader();
-                      reader.onload = () => {
-                        setToolOriginalPreview(reader.result?.toString() || '');
-                      };
-                      reader.readAsDataURL(file);
-
-                      // 立即压缩，仅在本地保存
-                      try {
-                        setToolLoading(true);
-                        const compressed = await compressImage(file, {
-                          maxWidth: 2560,
-                          maxHeight: 2560,
-                          quality: 0.85,
-                        });
-
-                        const ext = file.name.includes('.') ? file.name.split('.').pop() : 'jpg';
-                        const nameWithoutExt = file.name.replace(/\.[^/.]+$/, '');
-                        const originalFilename = file.name || `image.${ext}`;
-                        const compressedFilename = `${nameWithoutExt}pre.${ext}`;
-
-                        // 预览压缩结果
-                        const compressedUrl = compressed instanceof File ? URL.createObjectURL(compressed) : '';
-                        setToolCompressedPreview(compressedUrl);
-
-                        // 在浏览器中触发下载，让用户保存到同一文件夹
-                        const triggerDownload = (blobFile, filename) => {
-                          const url = blobFile instanceof File ? URL.createObjectURL(blobFile) : '';
-                          const a = document.createElement('a');
-                          a.href = url;
-                          a.download = filename;
-                          document.body.appendChild(a);
-                          a.click();
-                          document.body.removeChild(a);
-                          setTimeout(() => URL.revokeObjectURL(url), 2000);
-                        };
-
-                        // 1) 原图
-                        triggerDownload(file, originalFilename);
-                        // 2) 压缩图
-                        triggerDownload(compressed, compressedFilename);
-
-                        // 3) 读取 EXIF 参数并生成同名 txt（无论是否有 EXIF 都生成）
-                        let focal = '';
-                        let fNumber = '';
-                        let shutter = '';
-                        let iso = '';
-                        let camera = '';
-                        let lens = '';
-                        let shotDate = '';
-
-                        try {
-                          // 不传 translateKeys，让 exifr 使用默认的字段名（有些是 camelCase）
-                          const exif = await exifr.parse(file);
-
-                          // 焦距：优先 35mm 等效，其次实际焦距
-                          const rawFocal =
-                            exif?.FocalLengthIn35mm ||
-                            exif?.focalLengthIn35mm ||
-                            exif?.FocalLength ||
-                            exif?.focalLength ||
-                            exif?.LensFocalLength ||
-                            exif?.lensFocalLength ||
-                            null;
-                          if (typeof rawFocal === 'number') {
-                            focal = `${Math.round(rawFocal)}mm`;
-                          } else if (rawFocal != null && rawFocal.toString) {
-                            focal = `${rawFocal.toString()}mm`;
-                          }
-
-                          // 光圈：FNumber 或 ApertureValue
-                          const rawFNumber =
-                            exif?.FNumber ||
-                            exif?.fNumber ||
-                            exif?.ApertureValue ||
-                            exif?.apertureValue ||
-                            null;
-                          if (typeof rawFNumber === 'number') {
-                            fNumber = `f/${rawFNumber.toFixed(1)}`;
-                          } else if (rawFNumber != null && rawFNumber.toString) {
-                            fNumber = `f/${rawFNumber.toString()}`;
-                          }
-
-                          // 快门：ExposureTime 或 ShutterSpeedValue
-                          const rawExposure =
-                            exif?.ExposureTime ||
-                            exif?.exposureTime ||
-                            exif?.ShutterSpeedValue ||
-                            exif?.shutterSpeedValue ||
-                            null;
-                          if (typeof rawExposure === 'number') {
-                            if (rawExposure >= 1) {
-                              shutter = `${rawExposure.toFixed(1)}s`;
-                            } else {
-                              const denom = Math.round(1 / rawExposure);
-                              shutter = `1/${denom}s`;
-                            }
-                          } else if (rawExposure != null && rawExposure.toString) {
-                            shutter = rawExposure.toString();
-                          }
-
-                          // ISO：多个常见字段兜底
-                          iso =
-                            exif?.ISO ||
-                            exif?.iso ||
-                            exif?.ISOSpeedRatings ||
-                            exif?.isoSpeedRatings ||
-                            exif?.PhotographicSensitivity ||
-                            exif?.photographicSensitivity ||
-                            '';
-
-                          // 拍摄日期（优先使用 DateTimeOriginal，其次 CreateDate）
-                          const rawDate =
-                            exif?.DateTimeOriginal ||
-                            exif?.dateTimeOriginal ||
-                            exif?.CreateDate ||
-                            exif?.createDate ||
-                            exif?.DateTimeDigitized ||
-                            exif?.dateTimeDigitized ||
-                            exif?.ModifyDate ||
-                            exif?.modifyDate;
-                          if (rawDate instanceof Date) {
-                            const y = rawDate.getFullYear();
-                            const m = String(rawDate.getMonth() + 1).padStart(2, '0');
-                            const d = String(rawDate.getDate()).padStart(2, '0');
-                            shotDate = `${y}-${m}-${d}`;
-                          } else if (typeof rawDate === 'string') {
-                            // 常见格式：'2024:12:03 18:20:15'
-                            const normalized = rawDate.replace(/:/g, '-').replace(' ', 'T');
-                            const parsed = new Date(normalized);
-                            if (!Number.isNaN(parsed.getTime())) {
-                              const y = parsed.getFullYear();
-                              const m = String(parsed.getMonth() + 1).padStart(2, '0');
-                              const d = String(parsed.getDate()).padStart(2, '0');
-                              shotDate = `${y}-${m}-${d}`;
-                            } else {
-                              shotDate = rawDate;
-                            }
-                          }
-
-                          // 相机 / 镜头
-                          camera =
-                            exif?.Model ||
-                            exif?.model ||
-                            exif?.BodySerialNumber ||
-                            exif?.bodySerialNumber ||
-                            '';
-                          lens =
-                            exif?.LensModel ||
-                            exif?.lensModel ||
-                            exif?.Lens ||
-                            exif?.lens ||
-                            exif?.LensSpecification ||
-                            exif?.lensSpecification ||
-                            '';
-                        } catch (exifError) {
-                          console.log('读取 EXIF 生成参数 txt 失败，改为空模板:', exifError);
-                        }
-
-                        const lines = [];
-                        lines.push(`焦距: ${focal || ''}`);
-                        lines.push(`光圈: ${fNumber || ''}`);
-                        lines.push(`快门: ${shutter || ''}`);
-                        lines.push(`ISO: ${iso || ''}`);
-                        lines.push(`相机: ${camera || ''}`);
-                        lines.push(`镜头: ${lens || ''}`);
-                        // 拍摄日期放在最后，方便你手动补
-                        lines.push(`拍摄日期: ${shotDate || ''}`);
-
-                        const txtContent = lines.join('\n');
-                        const txtBlob = new Blob([txtContent], {
-                          type: 'text/plain;charset=utf-8',
-                        });
-                        const txtFile = new File([txtBlob], `${nameWithoutExt}.txt`, {
-                          type: 'text/plain;charset=utf-8',
-                        });
-                        triggerDownload(txtFile, `${nameWithoutExt}.txt`);
-
-                        setToolMessage({
-                          type: 'success',
-                          text: '已在本地生成原图、压缩图和参数 txt（焦距、光圈、快门、ISO、相机、镜头、拍摄日期），请在下载对话框中选择同一文件夹保存。',
-                        });
-                      } catch (error) {
-                        handleError(error, {
-                          context: 'handleCompressImage',
-                          type: ErrorType.UNKNOWN,
-                          silent: true,
-                        });
-                        setToolMessage({
-                          type: 'error',
-                          text: `处理失败：${error.message || '未知错误'}`,
-                        });
-                      } finally {
-                        setToolLoading(false);
-                      }
-                    }}
-                  />
-                  <label htmlFor="tool-file-upload" className="dropzone-label">
-                    {toolOriginalPreview ? (
-                      <div
-                        className="preview-container"
-                        style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}
-                      >
-                        <div>
-                          <p style={{ marginBottom: '8px', fontSize: '0.85rem', color: 'var(--muted)' }}>
-                            原图预览
-                          </p>
-                          <div
-                            style={{
-                              width: '100%',
-                              maxHeight: '70vh',
-                              borderRadius: '12px',
-                              background: 'var(--panel)',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                            }}
-                          >
-                            <img
-                              src={toolOriginalPreview}
-                              alt="原图预览"
-                              style={{
-                                maxWidth: '100%',
-                                maxHeight: '70vh',
-                                width: 'auto',
-                                height: 'auto',
-                                objectFit: 'contain',
-                                display: 'block',
-                              }}
-                            />
-                          </div>
-                        </div>
-                        {toolCompressedPreview && (
-                          <div>
-                            <p style={{ marginBottom: '8px', fontSize: '0.85rem', color: 'var(--muted)' }}>
-                              压缩图预览
-                            </p>
-                            <div
-                              style={{
-                                width: '100%',
-                                maxHeight: '70vh',
-                                borderRadius: '12px',
-                                background: 'var(--panel)',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                              }}
-                            >
-                              <img
-                                src={toolCompressedPreview}
-                                alt="压缩图预览"
-                                style={{
-                                  maxWidth: '100%',
-                                  maxHeight: '70vh',
-                                  width: 'auto',
-                                  height: 'auto',
-                                  objectFit: 'contain',
-                                  display: 'block',
-                                }}
-                              />
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="dropzone-placeholder">
-                        <div className="dropzone-icon">
-                          <svg
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            xmlns="http://www.w3.org/2000/svg"
-                            width="48"
-                            height="48"
-                          >
-                            <path
-                              d="M4 7H20"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            />
-                            <path
-                              d="M6 10H18"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            />
-                            <path
-                              d="M8 13H16"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            />
-                            <path
-                              d="M10 16H14"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            />
-                          </svg>
-                        </div>
-                        <p className="dropzone-text">
-                          点击或拖拽上传图片，自动生成压缩图并保存到同一文件夹
-                        </p>
-                        <p className="dropzone-hint">支持 JPG、PNG 格式，推荐不超过 20MB</p>
-                      </div>
-                    )}
-                  </label>
-                </div>
-
-                {toolLoading && (
-                  <p style={{ color: 'var(--muted)', fontSize: '0.9rem' }}>正在压缩图片，请稍候...</p>
-                )}
-              </section>
-            )}
+            {activeTab === 'tools' && <ToolsPanel />}
           {activeTab === 'upload' && (
             <form className="admin-upload-form" onSubmit={handleUpload}>
               <div className="form-section">
@@ -4438,7 +3334,7 @@ export function AdminPage() {
                       }}>
                         <button
                           className="btn-approve"
-                          onClick={() => handleApprove(item.id)}
+                          onClick={() => handleApproveWithTabSwitch(item.id)}
                           style={{ 
                             width: '100%',
                             fontSize: '0.85rem', 
@@ -4450,7 +3346,7 @@ export function AdminPage() {
                         </button>
                         <button
                           className="btn-reject"
-                          onClick={() => handleReject(item.id)}
+                          onClick={() => handleRejectWithTabSwitch(item.id)}
                           style={{ 
                             width: '100%',
                             fontSize: '0.85rem', 
@@ -5342,7 +4238,7 @@ export function AdminPage() {
                 }}>
                   <button
                     type="button"
-                    onClick={handleDelete}
+                    onClick={handleDeleteFromEdit}
                     style={{ 
                       padding: '10px 20px',
                       background: 'rgba(231, 76, 60, 0.1)',

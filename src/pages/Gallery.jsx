@@ -1454,12 +1454,12 @@ export function GalleryPage() {
           type: ErrorType.NETWORK,
           silent: false,
         });
-      }
+          }
     };
 
     // 延迟初始化，确保 DOM 已渲染
     const timer = setTimeout(() => {
-      initGaodeMap();
+    initGaodeMap();
     }, 50);
 
     return () => {
@@ -1468,7 +1468,7 @@ export function GalleryPage() {
       if (mapInstance.current && typeof mapInstance.current.destroy === 'function') {
         mapInstance.current.destroy();
         mapInstance.current = null;
-      }
+          }
     };
   }, [activeView]);
 
