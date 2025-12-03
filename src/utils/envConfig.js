@@ -1,6 +1,6 @@
-const STORAGE_KEY = 'pic4pick_env_overrides';
+import { Storage, STORAGE_KEYS } from './storage';
 
-const isBrowser = typeof window !== 'undefined' && typeof localStorage !== 'undefined';
+const STORAGE_KEY = STORAGE_KEYS.ENV_OVERRIDES;
 let cachedOverrides = null;
 
 const readOverrides = () => {
@@ -8,29 +8,17 @@ const readOverrides = () => {
     return cachedOverrides;
   }
 
-  if (!isBrowser) {
-    cachedOverrides = {};
-    return cachedOverrides;
-  }
-
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    cachedOverrides = raw ? JSON.parse(raw) : {};
-  } catch (error) {
-    console.warn('[envConfig] 读取本地配置失败:', error);
-    cachedOverrides = {};
-  }
+  cachedOverrides = Storage.get(STORAGE_KEY, {});
   return cachedOverrides;
 };
 
 const persistOverrides = (overrides) => {
   cachedOverrides = overrides;
-  if (!isBrowser) return;
-
+  
   if (!overrides || Object.keys(overrides).length === 0) {
-    localStorage.removeItem(STORAGE_KEY);
+    Storage.remove(STORAGE_KEY);
   } else {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(overrides));
+    Storage.set(STORAGE_KEY, overrides);
   }
 };
 

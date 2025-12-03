@@ -21,6 +21,7 @@ import {
   saveBrandText,
   resetBrandText,
 } from '../utils/branding';
+import { Storage, StorageString, STORAGE_KEYS } from '../utils/storage';
 
 const tabs = [
   { id: 'featured', label: '精选' },
@@ -30,9 +31,10 @@ const tabs = [
   { id: 'far', label: '远方' },
 ];
 
-const STORAGE_KEY = 'camarts_admin_uploads';
-const APPROVED_STORAGE_KEY = 'camarts_approved_photos';
-const REJECTED_STORAGE_KEY = 'camarts_rejected_photos';
+// 使用统一的存储键常量
+const STORAGE_KEY = STORAGE_KEYS.ADMIN_UPLOADS;
+const APPROVED_STORAGE_KEY = STORAGE_KEYS.APPROVED_PHOTOS;
+const REJECTED_STORAGE_KEY = STORAGE_KEYS.REJECTED_PHOTOS;
 const BRAND_LOGO_MAX_SIZE = 1024 * 1024; // 1MB
 
 // 获取上传方式的中文名称
@@ -56,15 +58,7 @@ export function AdminPage() {
   // === 原有状态 ===
   // 从 localStorage 加载数据
   const loadFromStorage = () => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        return JSON.parse(stored);
-      }
-    } catch (error) {
-      console.error('Failed to load from localStorage:', error);
-    }
-    return [];
+    return Storage.get(STORAGE_KEY, []);
   };
 
   const mapSupabaseRowToPhoto = (row) => ({
@@ -139,16 +133,8 @@ export function AdminPage() {
   const logoFileInputRef = useRef(null);
   const [adminUploads, setAdminUploads] = useState(() => {
     if (supabase) return [];
-      try {
-        const stored = localStorage.getItem(STORAGE_KEY);
-        if (stored) {
-          return JSON.parse(stored);
-        }
-      } catch (error) {
-      console.error('Failed to load from localStorage:', error);
-      }
-      return [];
-    });
+    return Storage.get(STORAGE_KEY, []);
+  });
   const [uploadForm, setUploadForm] = useState({
     title: '',
     location: '',
@@ -173,30 +159,15 @@ export function AdminPage() {
     lens: '',
   });
   const [cameraOptions, setCameraOptions] = useState(() => {
-    try {
-      const raw = localStorage.getItem('admin_camera_options');
-      return raw ? JSON.parse(raw) : [];
-    } catch {
-      return [];
-    }
+    return Storage.get(STORAGE_KEYS.ADMIN_CAMERA_OPTIONS, []);
   });
   const [lensOptions, setLensOptions] = useState(() => {
-    try {
-      const raw = localStorage.getItem('admin_lens_options');
-      return raw ? JSON.parse(raw) : [];
-    } catch {
-      return [];
-    }
+    return Storage.get(STORAGE_KEYS.ADMIN_LENS_OPTIONS, []);
   });
   const [showCameraDropdown, setShowCameraDropdown] = useState(false);
   const [showLensDropdown, setShowLensDropdown] = useState(false);
   const [isAdminAuthed, setIsAdminAuthed] = useState(() => {
-    if (typeof window === 'undefined') return false;
-    try {
-      return localStorage.getItem('admin_authed') === 'true';
-    } catch {
-      return false;
-    }
+    return StorageString.get(STORAGE_KEYS.ADMIN_AUTHED) === 'true';
   });
   const [adminPasswordInput, setAdminPasswordInput] = useState('');
   const [adminAuthError, setAdminAuthError] = useState('');
@@ -207,9 +178,7 @@ export function AdminPage() {
     setCameraOptions((prev) => {
       if (prev.includes(trimmed)) return prev;
       const next = [...prev, trimmed];
-      try {
-        localStorage.setItem('admin_camera_options', JSON.stringify(next));
-      } catch {}
+      Storage.set(STORAGE_KEYS.ADMIN_CAMERA_OPTIONS, next);
       if (supabase) {
         (async () => {
           try {
@@ -236,9 +205,7 @@ export function AdminPage() {
     setLensOptions((prev) => {
       if (prev.includes(trimmed)) return prev;
       const next = [...prev, trimmed];
-      try {
-        localStorage.setItem('admin_lens_options', JSON.stringify(next));
-      } catch {}
+      Storage.set(STORAGE_KEYS.ADMIN_LENS_OPTIONS, next);
       if (supabase) {
         (async () => {
           try {
@@ -344,18 +311,14 @@ export function AdminPage() {
         if (cameras.length) {
           setCameraOptions((prev) => {
             const merged = Array.from(new Set([...prev, ...cameras]));
-            try {
-              localStorage.setItem('admin_camera_options', JSON.stringify(merged));
-            } catch {}
+            Storage.set(STORAGE_KEYS.ADMIN_CAMERA_OPTIONS, merged);
             return merged;
           });
         }
         if (lenses.length) {
           setLensOptions((prev) => {
             const merged = Array.from(new Set([...prev, ...lenses]));
-            try {
-              localStorage.setItem('admin_lens_options', JSON.stringify(merged));
-            } catch {}
+            Storage.set(STORAGE_KEYS.ADMIN_LENS_OPTIONS, merged);
             return merged;
           });
         }
@@ -463,15 +426,7 @@ export function AdminPage() {
 
   // 加载已审核通过的作品
   const loadApprovedPhotos = () => {
-    try {
-      const stored = localStorage.getItem(APPROVED_STORAGE_KEY);
-      if (stored) {
-        return JSON.parse(stored);
-      }
-    } catch (error) {
-      console.error('Failed to load approved photos:', error);
-    }
-    return [];
+    return Storage.get(APPROVED_STORAGE_KEY, []);
   };
 
   const [approvedPhotos, setApprovedPhotos] = useState(() => (supabase ? [] : loadApprovedPhotos()));
@@ -479,15 +434,7 @@ export function AdminPage() {
   
   // 加载已拒绝的作品
   const loadRejectedPhotos = () => {
-    try {
-      const stored = localStorage.getItem(REJECTED_STORAGE_KEY);
-      if (stored) {
-        return JSON.parse(stored);
-      }
-    } catch (error) {
-      console.error('Failed to load rejected photos:', error);
-    }
-    return [];
+    return Storage.get(REJECTED_STORAGE_KEY, []);
   };
 
   const [rejectedPhotos, setRejectedPhotos] = useState(() => (supabase ? [] : loadRejectedPhotos()));
@@ -751,8 +698,8 @@ export function AdminPage() {
         const pending = rows.filter((r) => (r.status || 'pending') !== 'approved');
         const approved = rows.filter((r) => (r.status || 'pending') === 'approved');
         try {
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(pending));
-          localStorage.setItem(APPROVED_STORAGE_KEY, JSON.stringify(approved));
+          Storage.set(STORAGE_KEY, pending);
+          Storage.set(APPROVED_STORAGE_KEY, approved);
         } catch (storageError) {
           console.error('写入 localStorage 失败:', storageError);
         }
@@ -1308,7 +1255,7 @@ export function AdminPage() {
   // 保存到 localStorage
   const saveToStorage = (uploads) => {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(uploads));
+      Storage.set(STORAGE_KEY, uploads);
     } catch (error) {
       console.error('Failed to save to localStorage:', error);
     }
@@ -1350,7 +1297,7 @@ export function AdminPage() {
       setRejectedPhotos(rejectedMapped);
       saveToStorage(pendingMapped);
       try {
-        localStorage.setItem(APPROVED_STORAGE_KEY, JSON.stringify(approvedMapped));
+        Storage.set(APPROVED_STORAGE_KEY, approvedMapped);
       } catch (storageError) {
         console.warn('同步已审核作品到 localStorage 失败:', storageError);
       }
@@ -1836,7 +1783,7 @@ export function AdminPage() {
         if (prev.includes(newUpload.camera)) return prev;
         const next = [...prev, newUpload.camera];
         try {
-          localStorage.setItem('admin_camera_options', JSON.stringify(next));
+          Storage.set(STORAGE_KEYS.ADMIN_CAMERA_OPTIONS, next);
         } catch {}
         return next;
       });
@@ -1846,7 +1793,7 @@ export function AdminPage() {
         if (prev.includes(newUpload.lens)) return prev;
         const next = [...prev, newUpload.lens];
         try {
-          localStorage.setItem('admin_lens_options', JSON.stringify(next));
+          Storage.set(STORAGE_KEYS.ADMIN_LENS_OPTIONS, next);
         } catch {}
         return next;
       });
@@ -1949,7 +1896,7 @@ export function AdminPage() {
       // 检查是否已存在，避免重复
       if (!approved.find((p) => p.id === item.id)) {
         approved.push(approvedPhoto);
-        localStorage.setItem(APPROVED_STORAGE_KEY, JSON.stringify(approved));
+        Storage.set(APPROVED_STORAGE_KEY, approved);
         setApprovedPhotos([...approved]);
       }
     } catch (error) {
@@ -2000,7 +1947,7 @@ export function AdminPage() {
       // 保存到本地存储（非 Supabase 模式）
       if (!supabase) {
         try {
-          localStorage.setItem(REJECTED_STORAGE_KEY, JSON.stringify(updated));
+          Storage.set(REJECTED_STORAGE_KEY, updated);
         } catch (error) {
           console.error('保存已拒绝作品到本地存储失败:', error);
         }
@@ -2119,7 +2066,7 @@ export function AdminPage() {
           hidden: !!editForm.hidden,
         };
         
-        localStorage.setItem(APPROVED_STORAGE_KEY, JSON.stringify(approved));
+        Storage.set(APPROVED_STORAGE_KEY, approved);
         setApprovedPhotos([...approved]);
         setEditingPhotoId(null);
         setSubmitMessage({ type: 'success', text: '编辑成功！' });
@@ -2154,7 +2101,7 @@ export function AdminPage() {
           hidden: !!editForm.hidden,
         };
         
-        localStorage.setItem(REJECTED_STORAGE_KEY, JSON.stringify(rejected));
+        Storage.set(REJECTED_STORAGE_KEY, rejected);
         setRejectedPhotos([...rejected]);
         setEditingPhotoId(null);
         setSubmitMessage({ type: 'success', text: '编辑成功！' });
@@ -2266,7 +2213,7 @@ export function AdminPage() {
     }
     
     try {
-      const backendUrl = localStorage.getItem('aliyun_oss_backend_url') || 'http://localhost:3002';
+      const backendUrl = StorageString.get(STORAGE_KEYS.ALIYUN_OSS_BACKEND_URL, 'http://localhost:3002');
       // 构建要删除的路径
       // 如果文件在子目录中（origin 或 ore），传递完整路径
       // 否则只传递文件名，让服务器端尝试多个路径
@@ -2378,7 +2325,7 @@ export function AdminPage() {
       const approvedFiltered = approved.filter((p) => p.id !== editingPhotoId);
       
       if (approvedFiltered.length !== approved.length) {
-        localStorage.setItem(APPROVED_STORAGE_KEY, JSON.stringify(approvedFiltered));
+        Storage.set(APPROVED_STORAGE_KEY, approvedFiltered);
         setApprovedPhotos([...approvedFiltered]);
       }
 
@@ -2387,7 +2334,7 @@ export function AdminPage() {
       const rejectedFiltered = rejected.filter((p) => p.id !== editingPhotoId);
       
       if (rejectedFiltered.length !== rejected.length) {
-        localStorage.setItem(REJECTED_STORAGE_KEY, JSON.stringify(rejectedFiltered));
+        Storage.set(REJECTED_STORAGE_KEY, rejectedFiltered);
         setRejectedPhotos([...rejectedFiltered]);
       }
 
@@ -2481,7 +2428,7 @@ export function AdminPage() {
                         if (adminPasswordInput === adminPassword) {
                           setIsAdminAuthed(true);
                           try {
-                            localStorage.setItem('admin_authed', 'true');
+                            StorageString.set(STORAGE_KEYS.ADMIN_AUTHED, 'true');
                           } catch {}
                         } else {
                           setAdminAuthError('密码不正确');
@@ -2525,9 +2472,7 @@ export function AdminPage() {
                   if (!adminPasswordInput) return;
                   if (adminPasswordInput === adminPassword) {
                     setIsAdminAuthed(true);
-                    try {
-                      localStorage.setItem('admin_authed', 'true');
-                    } catch {}
+                    StorageString.set(STORAGE_KEYS.ADMIN_AUTHED, 'true');
                   } else {
                     setAdminAuthError('密码不正确');
                   }
@@ -4533,7 +4478,7 @@ export function AdminPage() {
                                 const updated = prev.filter((p) => p.id !== item.id);
                                 if (!supabase) {
                                   try {
-                                    localStorage.setItem(REJECTED_STORAGE_KEY, JSON.stringify(updated));
+                                    Storage.set(REJECTED_STORAGE_KEY, updated);
                                   } catch (error) {
                                     console.error('更新已拒绝列表失败:', error);
                                   }

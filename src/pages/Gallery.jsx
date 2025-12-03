@@ -16,18 +16,11 @@ import {
   getStoredBrandText,
   saveBrandText,
 } from '../utils/branding';
+import { Storage, StorageString, STORAGE_KEYS } from '../utils/storage';
 
 // 从localStorage加载审核通过的作品
 const loadApprovedPhotos = () => {
-  try {
-    const stored = localStorage.getItem('camarts_approved_photos');
-    if (stored) {
-      return JSON.parse(stored);
-    }
-  } catch (error) {
-    console.error('Failed to load approved photos:', error);
-  }
-  return [];
+  return Storage.get(STORAGE_KEYS.APPROVED_PHOTOS, []);
 };
 
 const mapSupabaseRowToGalleryPhoto = (row) => ({
@@ -541,8 +534,7 @@ export function GalleryPage() {
   const [activeFilter, setActiveFilter] = useState('latest');
   // 记住上次使用的视图：刷新后仍然停留在“发现”或“图库”
   const [activeView, setActiveView] = useState(() => {
-    if (typeof window === 'undefined') return 'gallery-view';
-    const stored = window.localStorage.getItem('camarts_active_view');
+    const stored = StorageString.get(STORAGE_KEYS.ACTIVE_VIEW, 'gallery-view');
     return stored === 'explore-view' ? 'explore-view' : 'gallery-view';
   });
   const [lightboxPhoto, setLightboxPhoto] = useState(null);
@@ -570,24 +562,11 @@ export function GalleryPage() {
 
   // 点赞记录（保存在本地，防止同一浏览器无限刷赞）
   const [likedPhotoIds, setLikedPhotoIds] = useState(() => {
-    if (typeof window === 'undefined') return [];
-    try {
-      const stored = window.localStorage.getItem('camarts_liked_photos');
-      if (!stored) return [];
-      const parsed = JSON.parse(stored);
-      return Array.isArray(parsed) ? parsed : [];
-    } catch {
-      return [];
-    }
+    return Storage.get(STORAGE_KEYS.LIKED_PHOTOS, []);
   });
 
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-    try {
-      window.localStorage.setItem('camarts_liked_photos', JSON.stringify(likedPhotoIds));
-    } catch {
-      // 忽略本地存储错误
-    }
+    Storage.set(STORAGE_KEYS.LIKED_PHOTOS, likedPhotoIds);
   }, [likedPhotoIds]);
 
   const handleToggleLike = useCallback(
@@ -743,18 +722,18 @@ export function GalleryPage() {
       
       // 如果还是找不到，尝试匹配预定义的城市列表（向后兼容）
       if (!province) {
-        const location = normalizeText(photo.location);
-        const country = normalizeText(photo.country);
-        
+      const location = normalizeText(photo.location);
+      const country = normalizeText(photo.country);
+
         for (const p of provinceCityData) {
           const targets = [...p.cities];
           if (MUNICIPALITY_PROVINCES.has(p.id)) {
             targets.push(p.title);
-          }
-          
+        }
+
           for (const city of targets) {
             const cityLower = normalizeText(city);
-            if (location.includes(cityLower) || country.includes(cityLower)) {
+          if (location.includes(cityLower) || country.includes(cityLower)) {
               province = p;
               cityName = city;
               break;
@@ -766,10 +745,10 @@ export function GalleryPage() {
       
       // 如果找到了省份，添加到地图中
       if (province) {
-        const key = `${province.id}-${cityName}`;
-        if (!map.has(key)) map.set(key, []);
-        map.get(key).push(photo);
-      }
+            const key = `${province.id}-${cityName}`;
+            if (!map.has(key)) map.set(key, []);
+            map.get(key).push(photo);
+          }
     });
 
     // 按时间排序
@@ -814,12 +793,12 @@ export function GalleryPage() {
         }
         
         provinceData.cities.set(cityName, {
-          id: key,
-          label: cityName,
+              id: key,
+              label: cityName,
           image: photos[0].thumbnail || photos[0].image,
           photoCount: photos.length,
-          lat: coords.lat ?? null,
-          lng: coords.lng ?? null,
+              lat: coords.lat ?? null,
+              lng: coords.lng ?? null,
           provinceId: provinceId,
         });
       }
@@ -905,9 +884,7 @@ export function GalleryPage() {
 
   const handleViewChange = useCallback((view) => {
     setActiveView(view);
-    if (typeof window !== 'undefined') {
-      window.localStorage.setItem('camarts_active_view', view);
-    }
+    StorageString.set(STORAGE_KEYS.ACTIVE_VIEW, view);
   }, []);
 
   const showLocationPanel = useCallback(
@@ -1395,6 +1372,13 @@ export function GalleryPage() {
         return;
       }
 
+      // 确保容器已准备好
+      if (!mapContainerRef.current) {
+        console.warn('地图容器未准备好，延迟初始化');
+        setTimeout(initGaodeMap, 100);
+        return;
+      }
+
       const ensureAMapLoaded = () =>
         new Promise((resolve, reject) => {
           if (window.AMap && window.AMap.Map) {
@@ -1420,6 +1404,12 @@ export function GalleryPage() {
         await ensureAMapLoaded();
         const AMap = window.AMap;
 
+        // 再次检查容器是否存在
+        if (!mapContainerRef.current) {
+          console.error('地图容器在初始化时不存在');
+          return;
+        }
+
         const map = new AMap.Map(mapContainerRef.current, {
           viewMode: '2D',
           zoom: 3.2,
@@ -1430,19 +1420,30 @@ export function GalleryPage() {
 
         mapInstance.current = map;
         setIsMapReady(true);
+        
+        // 确保地图正确显示
+        setTimeout(() => {
+          if (mapInstance.current) {
+            mapInstance.current.resize();
+          }
+        }, 100);
       } catch (error) {
         console.error('初始化高德地图失败:', error);
-          }
+      }
     };
 
-    initGaodeMap();
+    // 延迟初始化，确保 DOM 已渲染
+    const timer = setTimeout(() => {
+      initGaodeMap();
+    }, 50);
 
     return () => {
+      clearTimeout(timer);
       setIsMapReady(false);
       if (mapInstance.current && typeof mapInstance.current.destroy === 'function') {
         mapInstance.current.destroy();
         mapInstance.current = null;
-          }
+      }
     };
   }, [activeView]);
 

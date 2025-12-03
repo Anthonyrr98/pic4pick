@@ -13,7 +13,8 @@ export default defineConfig({
     minify: 'terser',
     terserOptions: {
       compress: {
-        drop_console: true,
+        // 只移除 console.log 和 console.debug，保留 console.error 和 console.warn
+        pure_funcs: ['console.log', 'console.debug', 'console.info'],
         drop_debugger: true,
       },
     },

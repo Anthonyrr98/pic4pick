@@ -1,18 +1,25 @@
 // 认证工具（从 webdav-proxy 中提取的认证功能）
 
+import { Storage, StorageString, STORAGE_KEYS } from './storage';
+
 // 获取 JWT Token
 export const getAuthToken = () => {
-  return localStorage.getItem('auth_token') || '';
+  return StorageString.get(STORAGE_KEYS.AUTH_TOKEN, '');
 };
 
 // 设置 JWT Token
 export const setAuthToken = (token) => {
-  localStorage.setItem('auth_token', token);
+  StorageString.set(STORAGE_KEYS.AUTH_TOKEN, token);
 };
 
 // 清除 JWT Token
 export const clearAuthToken = () => {
-  localStorage.removeItem('auth_token');
+  Storage.remove(STORAGE_KEYS.AUTH_TOKEN);
+};
+
+// 清除 JWT Token
+export const clearAuthToken = () => {
+  Storage.remove(STORAGE_KEYS.AUTH_TOKEN);
 };
 
 // 用户登录

@@ -1,5 +1,7 @@
 // 通用上传工具，支持多种存储方式
 
+import { StorageString, STORAGE_KEYS } from './storage';
+
 // 上传方式类型
 export const UPLOAD_TYPES = {
   BASE64: 'base64',           // 本地 base64（默认）
@@ -11,12 +13,12 @@ export const UPLOAD_TYPES = {
 
 // 获取当前上传方式
 export const getUploadType = () => {
-  return localStorage.getItem('upload_type') || UPLOAD_TYPES.BASE64;
+  return StorageString.get(STORAGE_KEYS.UPLOAD_TYPE, UPLOAD_TYPES.BASE64);
 };
 
 // 设置上传方式
 export const setUploadType = (type) => {
-  localStorage.setItem('upload_type', type);
+  StorageString.set(STORAGE_KEYS.UPLOAD_TYPE, type);
 };
 
 // 通用上传函数
@@ -146,12 +148,12 @@ const uploadToBase64 = async (file, onProgress) => {
 
 // 后端 API 上传
 const uploadToAPI = async (file, filename, onProgress) => {
-  const apiUrl = localStorage.getItem('api_upload_url') || '/api/upload';
+  const apiUrl = StorageString.get(STORAGE_KEYS.API_UPLOAD_URL, '/api/upload');
   const formData = new FormData();
   formData.append('file', file);
   formData.append('filename', filename);
   // 可选：启用图片优化
-  if (localStorage.getItem('api_optimize') === 'true') {
+  if (StorageString.get(STORAGE_KEYS.API_OPTIMIZE) === 'true') {
     formData.append('optimize', 'true');
   }
   
@@ -202,8 +204,8 @@ const uploadToAPI = async (file, filename, onProgress) => {
 
 // Cloudinary 上传
 const uploadToCloudinary = async (file, filename, onProgress) => {
-  const cloudName = localStorage.getItem('cloudinary_cloud_name') || '';
-  const uploadPreset = localStorage.getItem('cloudinary_upload_preset') || '';
+  const cloudName = StorageString.get(STORAGE_KEYS.CLOUDINARY_CLOUD_NAME, '');
+  const uploadPreset = StorageString.get(STORAGE_KEYS.CLOUDINARY_UPLOAD_PRESET, '');
   
   if (!cloudName || !uploadPreset) {
     throw new Error('Cloudinary 配置不完整');
@@ -258,9 +260,9 @@ const uploadToCloudinary = async (file, filename, onProgress) => {
 
 // Supabase Storage 上传
 const uploadToSupabase = async (file, filename, onProgress) => {
-  const supabaseUrl = localStorage.getItem('supabase_url') || '';
-  const supabaseKey = localStorage.getItem('supabase_anon_key') || '';
-  const bucket = localStorage.getItem('supabase_bucket') || 'pic4pick';
+  const supabaseUrl = StorageString.get(STORAGE_KEYS.SUPABASE_URL, '');
+  const supabaseKey = StorageString.get(STORAGE_KEYS.SUPABASE_ANON_KEY, '');
+  const bucket = StorageString.get(STORAGE_KEYS.SUPABASE_BUCKET, 'pic4pick');
   
   if (!supabaseUrl || !supabaseKey) {
     throw new Error('Supabase 配置不完整');
@@ -314,12 +316,12 @@ const uploadToSupabase = async (file, filename, onProgress) => {
 
 // 阿里云 OSS 上传
 const uploadToAliyunOSS = async (file, filename) => {
-  const region = localStorage.getItem('aliyun_oss_region') || '';
-  const bucket = localStorage.getItem('aliyun_oss_bucket') || '';
-  const accessKeyId = localStorage.getItem('aliyun_oss_access_key_id') || '';
-  const accessKeySecret = localStorage.getItem('aliyun_oss_access_key_secret') || '';
+  const region = StorageString.get(STORAGE_KEYS.ALIYUN_OSS_REGION, '');
+  const bucket = StorageString.get(STORAGE_KEYS.ALIYUN_OSS_BUCKET, '');
+  const accessKeyId = StorageString.get(STORAGE_KEYS.ALIYUN_OSS_ACCESS_KEY_ID, '');
+  const accessKeySecret = StorageString.get(STORAGE_KEYS.ALIYUN_OSS_ACCESS_KEY_SECRET, '');
   // 默认使用后端代理模式（更安全），除非明确设置为 'false'
-  const useBackend = localStorage.getItem('aliyun_oss_use_backend') !== 'false';
+  const useBackend = StorageString.get('aliyun_oss_use_backend') !== 'false';
   
   console.log('[uploadToAliyunOSS] 配置检查:', {
     useBackend,
@@ -332,7 +334,7 @@ const uploadToAliyunOSS = async (file, filename) => {
   // 如果使用后端代理上传（推荐，默认模式）
   if (useBackend) {
     // 默认使用完整 URL，如果前后端在同一端口可通过代理配置覆盖
-    const apiUrl = localStorage.getItem('aliyun_oss_backend_url') || 'http://localhost:3002/api/upload/oss';
+    const apiUrl = StorageString.get(STORAGE_KEYS.ALIYUN_OSS_BACKEND_URL, 'http://localhost:3002/api/upload/oss');
     console.log('[uploadToAliyunOSS] 使用后端代理，API 地址:', apiUrl);
     
     const formData = new FormData();
