@@ -1,0 +1,106 @@
+.upload-progress-container {
+  position: fixed;
+  top: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10000;
+  background: var(--panel-dark, rgba(17, 18, 24, 0.95));
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
+  border-radius: 12px;
+  padding: 16px 24px;
+  min-width: 320px;
+  max-width: 500px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+.upload-progress-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.upload-progress-label {
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: var(--text, #ffffff);
+}
+
+.upload-progress-percentage {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--accent, #cfa56a);
+}
+
+.upload-progress-filename {
+  font-size: 0.85rem;
+  color: var(--muted, rgba(255, 255, 255, 0.6));
+  margin-bottom: 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.upload-progress-bytes {
+  font-size: 0.8rem;
+  color: var(--muted, rgba(255, 255, 255, 0.5));
+  margin-bottom: 12px;
+  font-family: 'Courier New', monospace;
+}
+
+.upload-progress-bar {
+  width: 100%;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+  overflow: hidden;
+  position: relative;
+}
+
+.upload-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent, #cfa56a), #d48a48);
+  border-radius: 3px;
+  transition: width 0.2s ease-out;
+  position: relative;
+  overflow: hidden;
+}
+
+.upload-progress-fill::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.3),
+    transparent
+  );
+  animation: shimmer 1.5s infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+

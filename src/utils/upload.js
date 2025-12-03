@@ -21,7 +21,7 @@ export const setUploadType = (type) => {
 };
 
 // 通用上传函数
-export const uploadImage = async (file, filename) => {
+export const uploadImage = async (file, filename, onProgress) => {
   const uploadType = getUploadType();
   const normalizeResult = (result) => {
     if (!result) {
@@ -41,30 +41,30 @@ export const uploadImage = async (file, filename) => {
   
   switch (uploadType) {
     case UPLOAD_TYPES.WEBDAV:
-      rawResult = await uploadToWebDAV(file, filename);
+      rawResult = await uploadToWebDAV(file, filename, onProgress);
       break;
     
     case UPLOAD_TYPES.API:
-      rawResult = await uploadToAPI(file, filename);
+      rawResult = await uploadToAPI(file, filename, onProgress);
       break;
     
     case UPLOAD_TYPES.CLOUDINARY:
-      rawResult = await uploadToCloudinary(file, filename);
+      rawResult = await uploadToCloudinary(file, filename, onProgress);
       break;
     
     case UPLOAD_TYPES.SUPABASE:
-      rawResult = await uploadToSupabase(file, filename);
+      rawResult = await uploadToSupabase(file, filename, onProgress);
       break;
     
     case UPLOAD_TYPES.ALIYUN_OSS:
       console.log('[uploadImage] 使用阿里云 OSS 上传');
-      rawResult = await uploadToAliyunOSS(file, filename);
+      rawResult = await uploadToAliyunOSS(file, filename, onProgress);
       break;
     
     case UPLOAD_TYPES.BASE64:
     default:
       console.log('[uploadImage] 使用 Base64 本地存储');
-      rawResult = await uploadToBase64(file);
+      rawResult = await uploadToBase64(file, onProgress);
       break;
   }
 
@@ -129,10 +129,19 @@ export const compressImage = (file, options = {}) => {
 };
 
 // Base64 上传（本地存储）
-const uploadToBase64 = async (file) => {
+const uploadToBase64 = async (file, onProgress) => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
+    
+    // 模拟进度（Base64 转换很快，但为了用户体验还是显示进度）
+    if (onProgress) {
+      onProgress(10);
+      setTimeout(() => onProgress(50), 50);
+      setTimeout(() => onProgress(90), 100);
+    }
+    
     reader.onload = () => {
+      if (onProgress) onProgress(100);
       resolve(reader.result?.toString() || '');
     };
     reader.onerror = reject;
@@ -141,13 +150,22 @@ const uploadToBase64 = async (file) => {
 };
 
 // WebDAV 上传
-const uploadToWebDAV = async (file, filename) => {
+const uploadToWebDAV = async (file, filename, onProgress) => {
   const { uploadToWebDAV: upload } = await import('./webdav');
-  return await upload(file, filename);
+  // WebDAV 上传可能不支持进度，先尝试传递回调
+  try {
+    return await upload(file, filename, onProgress);
+  } catch (error) {
+    // 如果原函数不支持进度回调，忽略错误继续
+    if (error.message && error.message.includes('onProgress')) {
+      return await upload(file, filename);
+    }
+    throw error;
+  }
 };
 
 // 后端 API 上传
-const uploadToAPI = async (file, filename) => {
+const uploadToAPI = async (file, filename, onProgress) => {
   const apiUrl = localStorage.getItem('api_upload_url') || '/api/upload';
   const formData = new FormData();
   formData.append('file', file);
@@ -157,26 +175,53 @@ const uploadToAPI = async (file, filename) => {
     formData.append('optimize', 'true');
   }
   
-  const response = await fetch(apiUrl, {
-    method: 'POST',
-    body: formData,
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    
+    xhr.upload.addEventListener('progress', (e) => {
+      if (e.lengthComputable && onProgress) {
+        const percent = (e.loaded / e.total) * 100;
+        onProgress(percent);
+      }
+    });
+    
+    xhr.addEventListener('load', () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          const data = JSON.parse(xhr.responseText);
+          if (!data.success && !data.url) {
+            reject(new Error(data.error || '上传失败'));
+            return;
+          }
+          resolve(data.url || data.imageUrl || data.fileUrl);
+        } catch (error) {
+          reject(new Error('解析响应失败'));
+        }
+      } else {
+        try {
+          const errorData = JSON.parse(xhr.responseText);
+          reject(new Error(errorData.error || `上传失败: ${xhr.statusText}`));
+        } catch {
+          reject(new Error(`上传失败: ${xhr.statusText}`));
+        }
+      }
+    });
+    
+    xhr.addEventListener('error', () => {
+      reject(new Error('网络错误'));
+    });
+    
+    xhr.addEventListener('abort', () => {
+      reject(new Error('上传已取消'));
+    });
+    
+    xhr.open('POST', apiUrl);
+    xhr.send(formData);
   });
-  
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.error || `上传失败: ${response.statusText}`);
-  }
-  
-  const data = await response.json();
-  if (!data.success && !data.url) {
-    throw new Error(data.error || '上传失败');
-  }
-  
-  return data.url || data.imageUrl || data.fileUrl;
 };
 
 // Cloudinary 上传
-const uploadToCloudinary = async (file, filename) => {
+const uploadToCloudinary = async (file, filename, onProgress) => {
   const cloudName = localStorage.getItem('cloudinary_cloud_name') || '';
   const uploadPreset = localStorage.getItem('cloudinary_upload_preset') || '';
   
@@ -189,21 +234,50 @@ const uploadToCloudinary = async (file, filename) => {
   formData.append('upload_preset', uploadPreset);
   formData.append('folder', 'pic4pick');
   
-  const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
-    method: 'POST',
-    body: formData,
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    
+    let lastUpdateTime = 0;
+    
+    xhr.upload.addEventListener('progress', (e) => {
+      if (e.lengthComputable && onProgress) {
+        const now = Date.now();
+        if (now - lastUpdateTime >= 50 || e.loaded === e.total) {
+          const percent = (e.loaded / e.total) * 100;
+          onProgress(percent, e.loaded, e.total);
+          lastUpdateTime = now;
+        }
+      }
+    });
+    
+    xhr.addEventListener('load', () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          const data = JSON.parse(xhr.responseText);
+          resolve(data.secure_url || data.url);
+        } catch (error) {
+          reject(new Error('解析响应失败'));
+        }
+      } else {
+        reject(new Error(`Cloudinary 上传失败: ${xhr.statusText}`));
+      }
+    });
+    
+    xhr.addEventListener('error', () => {
+      reject(new Error('网络错误'));
+    });
+    
+    xhr.addEventListener('abort', () => {
+      reject(new Error('上传已取消'));
+    });
+    
+    xhr.open('POST', `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`);
+    xhr.send(formData);
   });
-  
-  if (!response.ok) {
-    throw new Error(`Cloudinary 上传失败: ${response.statusText}`);
-  }
-  
-  const data = await response.json();
-  return data.secure_url || data.url;
 };
 
 // Supabase Storage 上传
-const uploadToSupabase = async (file, filename) => {
+const uploadToSupabase = async (file, filename, onProgress) => {
   const supabaseUrl = localStorage.getItem('supabase_url') || '';
   const supabaseKey = localStorage.getItem('supabase_anon_key') || '';
   const bucket = localStorage.getItem('supabase_bucket') || 'pic4pick';
@@ -214,23 +288,48 @@ const uploadToSupabase = async (file, filename) => {
   
   const filePath = `pic4pick/${filename}`;
   
-  // 上传文件
-  const response = await fetch(`${supabaseUrl}/storage/v1/object/${bucket}/${filePath}`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${supabaseKey}`,
-      'Content-Type': file.type,
-    },
-    body: file,
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    
+    let lastUpdateTime = 0;
+    
+    xhr.upload.addEventListener('progress', (e) => {
+      if (e.lengthComputable && onProgress) {
+        const now = Date.now();
+        if (now - lastUpdateTime >= 50 || e.loaded === e.total) {
+          const percent = (e.loaded / e.total) * 100;
+          onProgress(percent, e.loaded, e.total);
+          lastUpdateTime = now;
+        }
+      }
+    });
+    
+    xhr.addEventListener('load', () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          const data = JSON.parse(xhr.responseText);
+          resolve(`${supabaseUrl}/storage/v1/object/public/${bucket}/${filePath}`);
+        } catch (error) {
+          resolve(`${supabaseUrl}/storage/v1/object/public/${bucket}/${filePath}`);
+        }
+      } else {
+        reject(new Error(`Supabase 上传失败: ${xhr.statusText}`));
+      }
+    });
+    
+    xhr.addEventListener('error', () => {
+      reject(new Error('网络错误'));
+    });
+    
+    xhr.addEventListener('abort', () => {
+      reject(new Error('上传已取消'));
+    });
+    
+    xhr.open('POST', `${supabaseUrl}/storage/v1/object/${bucket}/${filePath}`);
+    xhr.setRequestHeader('Authorization', `Bearer ${supabaseKey}`);
+    xhr.setRequestHeader('Content-Type', file.type);
+    xhr.send(file);
   });
-  
-  if (!response.ok) {
-    throw new Error(`Supabase 上传失败: ${response.statusText}`);
-  }
-  
-  // 获取公共 URL
-  const { data } = await response.json();
-  return `${supabaseUrl}/storage/v1/object/public/${bucket}/${filePath}`;
 };
 
 // 阿里云 OSS 上传
@@ -260,42 +359,69 @@ const uploadToAliyunOSS = async (file, filename) => {
     formData.append('file', file);
     formData.append('filename', filename);
     
-    try {
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        body: formData,
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      
+      let lastUpdateTime = 0;
+      
+      xhr.upload.addEventListener('progress', (e) => {
+        if (e.lengthComputable && onProgress) {
+          const now = Date.now();
+          if (now - lastUpdateTime >= 50 || e.loaded === e.total) {
+            const percent = (e.loaded / e.total) * 100;
+            onProgress(percent, e.loaded, e.total);
+            lastUpdateTime = now;
+          }
+        }
       });
       
-      console.log('[uploadToAliyunOSS] 后端响应状态:', response.status, response.statusText);
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('[uploadToAliyunOSS] 后端错误响应:', errorText);
-        let errorData;
-        try {
-          errorData = JSON.parse(errorText);
-        } catch (e) {
-          errorData = { error: errorText };
+      xhr.addEventListener('load', () => {
+        console.log('[uploadToAliyunOSS] 后端响应状态:', xhr.status, xhr.statusText);
+        
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            const data = JSON.parse(xhr.responseText);
+            console.log('[uploadToAliyunOSS] 后端返回数据:', data);
+            
+            if (!data.success && !data.url) {
+              reject(new Error(data.error || '上传失败：服务器未返回有效的 URL'));
+              return;
+            }
+            
+            // 返回包含原图和缩略图的对象，供上层统一处理
+            resolve({
+              url: data.url || data.imageUrl || data.fileUrl || '',
+              thumbnailUrl: data.thumbnailUrl || data.thumbnail_url || null,
+            });
+          } catch (error) {
+            console.error('[uploadToAliyunOSS] 解析响应失败:', error);
+            reject(new Error('解析响应失败'));
+          }
+        } else {
+          const errorText = xhr.responseText;
+          console.error('[uploadToAliyunOSS] 后端错误响应:', errorText);
+          let errorData;
+          try {
+            errorData = JSON.parse(errorText);
+          } catch (e) {
+            errorData = { error: errorText };
+          }
+          reject(new Error(errorData.error || `上传失败: ${xhr.statusText} (${xhr.status})`));
         }
-        throw new Error(errorData.error || `上传失败: ${response.statusText} (${response.status})`);
-      }
+      });
       
-      const data = await response.json();
-      console.log('[uploadToAliyunOSS] 后端返回数据:', data);
+      xhr.addEventListener('error', () => {
+        console.error('[uploadToAliyunOSS] 网络错误');
+        reject(new Error('网络错误'));
+      });
       
-      if (!data.success && !data.url) {
-        throw new Error(data.error || '上传失败：服务器未返回有效的 URL');
-      }
+      xhr.addEventListener('abort', () => {
+        reject(new Error('上传已取消'));
+      });
       
-      // 返回包含原图和缩略图的对象，供上层统一处理
-      return {
-        url: data.url || data.imageUrl || data.fileUrl || '',
-        thumbnailUrl: data.thumbnailUrl || data.thumbnail_url || null,
-      };
-    } catch (error) {
-      console.error('[uploadToAliyunOSS] 后端代理上传失败:', error);
-      throw error;
-    }
+      xhr.open('POST', apiUrl);
+      xhr.send(formData);
+    });
   }
   
   // 前端直传（需要 AccessKey，不安全，仅用于开发测试）

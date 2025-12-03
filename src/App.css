@@ -2316,7 +2316,8 @@ main {
   }
   
   .admin-content-wrapper {
-    padding: 24px;
+    padding: 20px 16px;
+    border-radius: 16px;
   }
 
   /* 移动端发现页面面板调整 */
@@ -2604,17 +2605,138 @@ main {
 .form-section {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 24px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  padding: 28px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.form-section::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--accent, #cfa56a), #d48a48);
+  opacity: 0.6;
+}
+
+.form-section:hover {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.12);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
+  transform: translateY(-1px);
 }
 
 .form-section-title {
-  margin: 0;
-  font-size: 1.25rem;
-  font-weight: 600;
+  margin: 0 0 8px 0;
+  font-size: 1.5rem;
+  font-weight: 700;
   color: var(--text);
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
+  padding-bottom: 16px;
+  border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+  position: relative;
+}
+
+.form-section-title::before {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  width: 60px;
+  height: 2px;
+  background: linear-gradient(90deg, var(--accent, #cfa56a), transparent);
+}
+
+/* 移动端响应式优化 */
+@media (max-width: 768px) {
+  .form-section {
+    padding: 20px 16px;
+    gap: 20px;
+    border-radius: 12px;
+    margin-bottom: 20px;
+  }
+
+  .form-section-title {
+    font-size: 1.25rem;
+    gap: 10px;
+    padding-bottom: 12px;
+    margin-bottom: 16px;
+  }
+
+  .form-section-title svg {
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+  }
+
+  .admin-upload-form {
+    gap: 24px;
+  }
+
+  .admin-main {
+    padding: 20px 16px;
+  }
+
+  .form-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+}
+
+@media (max-width: 480px) {
+  .form-section {
+    padding: 16px 12px;
+    gap: 16px;
+    border-radius: 10px;
+    margin-bottom: 16px;
+  }
+
+  .form-section-title {
+    font-size: 1.1rem;
+    gap: 8px;
+    padding-bottom: 10px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+    word-break: break-word;
+  }
+
+  .form-section-title svg {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+  }
+
+  .admin-upload-form {
+    gap: 20px;
+  }
+
+  .admin-main {
+    padding: 16px 12px;
+  }
+
+  .form-grid {
+    grid-template-columns: 1fr !important;
+    gap: 16px;
+  }
+
+  /* 确保输入框在小屏幕上不会溢出 */
+  .form-group input,
+  .form-group select,
+  .form-group textarea {
+    width: 100%;
+    box-sizing: border-box;
+    max-width: 100%;
+  }
 }
 
 .required {

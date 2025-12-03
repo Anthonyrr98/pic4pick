@@ -5,6 +5,7 @@ import exifr from 'exifr';
 import '../App.css';
 import { uploadImage, getUploadType, setUploadType, UPLOAD_TYPES, compressImage } from '../utils/upload';
 import { getSupabaseClient } from '../utils/supabaseClient';
+import { UploadProgress } from '../components/UploadProgress';
 import {
   testWebDAVConnection,
   getWebDAVConfig,
@@ -263,6 +264,9 @@ export function AdminPage() {
   const [submitMessage, setSubmitMessage] = useState({ type: '', text: '' });
   const [activeTab, setActiveTab] = useState('upload'); // 'upload' | 'pending' | 'approved' | 'tools' | 'config'
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(null);
+  const [uploadingFileName, setUploadingFileName] = useState(null);
+  const [uploadBytes, setUploadBytes] = useState({ uploaded: 0, total: 0 });
   // 默认使用阿里云 OSS
   const [uploadType, setUploadTypeState] = useState(() => {
     const currentType = getUploadType();
@@ -1654,6 +1658,8 @@ export function AdminPage() {
 
     setIsUploading(true);
     setSubmitMessage({ type: '', text: '' });
+    setUploadProgress(0);
+    setUploadingFileName(uploadForm.uploadMode === 'file' ? uploadForm.file?.name || null : null);
 
     try {
       let imageURL = '';
@@ -1670,7 +1676,16 @@ export function AdminPage() {
         
         try {
           console.log('开始上传，上传类型:', uploadType, '文件名:', filename);
-          const { url, thumbnailUrl: returnedThumb } = await uploadImage(uploadForm.file, filename);
+          const { url, thumbnailUrl: returnedThumb } = await uploadImage(
+            uploadForm.file, 
+            filename,
+            (progress, uploaded, total) => {
+              setUploadProgress(progress);
+              if (uploaded !== undefined && total !== undefined) {
+                setUploadBytes({ uploaded, total });
+              }
+            }
+          );
           imageURL = url || imageURL;
           // 如果后端返回了缩略图（例如 OSS 的 ore 目录），优先使用
           if (returnedThumb) {
@@ -1803,6 +1818,12 @@ export function AdminPage() {
       setSubmitMessage({ type: 'error', text: `上传失败: ${error.message}` });
     } finally {
       setIsUploading(false);
+      // 延迟隐藏进度条，让用户看到100%完成
+      setTimeout(() => {
+        setUploadProgress(null);
+        setUploadingFileName(null);
+        setUploadBytes({ uploaded: 0, total: 0 });
+      }, 500);
     }
   };
 
@@ -2213,6 +2234,13 @@ export function AdminPage() {
 
   return (
     <div className="app-shell admin-shell">
+      <UploadProgress 
+        progress={uploadProgress} 
+        fileName={uploadingFileName}
+        isVisible={uploadProgress !== null}
+        uploadedBytes={uploadBytes.uploaded}
+        totalBytes={uploadBytes.total}
+      />
       <header className="app-header admin-header">
         <div className="brand">
           {brandLogo ? (
@@ -3104,7 +3132,158 @@ export function AdminPage() {
           {activeTab === 'upload' && (
             <form className="admin-upload-form" onSubmit={handleUpload}>
               <div className="form-section">
-                <h2 className="form-section-title">作品信息</h2>
+                <h2 className="form-section-title">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ color: 'var(--accent)' }}>
+                    <path d="M21 15V19C21 19.5304 20.7893 20.0391 20.4142 20.4142C20.0391 20.7893 19.5304 21 19 21H5C4.46957 21 3.96086 20.7893 3.58579 20.4142C3.21071 20.0391 3 19.5304 3 19V15" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d="M17 8L12 3L7 8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d="M12 3V15" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                  上传照片
+                </h2>
+                
+                {/* 上传目标存储（仅阿里云 OSS） */}
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '12px',
+                    marginBottom: '12px',
+                    padding: '8px 12px',
+                    background: 'rgba(255, 255, 255, 0.03)',
+                    borderRadius: '8px',
+                    border: '1px solid var(--border)',
+                  }}
+                >
+                  <div style={{ fontSize: '0.9rem', color: 'var(--muted)' }}>
+                    当前上传目标：<strong>阿里云 OSS</strong>
+                  </div>
+                </div>
+
+                {/* 上传方式切换（文件 / 直链） */}
+                <div style={{ 
+                  display: 'flex', 
+                  gap: '12px', 
+                  marginBottom: '20px',
+                  padding: '8px',
+                  background: 'rgba(255, 255, 255, 0.05)',
+                  borderRadius: '8px'
+                }}>
+                  <button
+                    type="button"
+                    onClick={() => handleUploadModeChange('file')}
+                    style={{
+                      flex: 1,
+                      padding: '10px 16px',
+                      background: uploadForm.uploadMode === 'file' ? 'var(--accent)' : 'transparent',
+                      border: '1px solid var(--border)',
+                      borderRadius: '6px',
+                      color: uploadForm.uploadMode === 'file' ? 'var(--bg)' : 'var(--text)',
+                      cursor: 'pointer',
+                      fontSize: '0.95rem',
+                      fontWeight: uploadForm.uploadMode === 'file' ? '600' : '400',
+                      transition: 'all 0.2s'
+                    }}
+                  >
+                    文件上传
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleUploadModeChange('url')}
+                    style={{
+                      flex: 1,
+                      padding: '10px 16px',
+                      background: uploadForm.uploadMode === 'url' ? 'var(--accent)' : 'transparent',
+                      border: '1px solid var(--border)',
+                      borderRadius: '6px',
+                      color: uploadForm.uploadMode === 'url' ? 'var(--bg)' : 'var(--text)',
+                      cursor: 'pointer',
+                      fontSize: '0.95rem',
+                      fontWeight: uploadForm.uploadMode === 'url' ? '600' : '400',
+                      transition: 'all 0.2s'
+                    }}
+                  >
+                    直链上传
+                  </button>
+                </div>
+
+                {uploadForm.uploadMode === 'file' ? (
+                  <div className="upload-dropzone-new">
+                    <input type="file" accept="image/*" onChange={handleFileChange} id="file-upload" />
+                    <label htmlFor="file-upload" className="dropzone-label">
+                      {uploadForm.preview ? (
+                        <div className="preview-container">
+                          <img src={uploadForm.preview} alt="预览" />
+                          <button
+                            type="button"
+                            className="remove-preview"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              setUploadForm((prev) => ({ ...prev, file: null, preview: '' }));
+                              const fileInput = document.getElementById('file-upload');
+                              if (fileInput) fileInput.value = '';
+                            }}
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="dropzone-placeholder">
+                          <div className="dropzone-icon">
+                            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" width="48" height="48">
+                              <path d="M12 15C13.6569 15 15 13.6569 15 12C15 10.3431 13.6569 9 12 9C10.3431 9 9 10.3431 9 12C9 13.6569 10.3431 15 12 15Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                              <path d="M3 9V7C3 6.46957 3.21071 5.96086 3.58579 5.58579C3.96086 5.21071 4.46957 5 5 5H7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                              <path d="M21 9V7C21 6.46957 20.7893 5.96086 20.4142 5.58579C20.0391 5.21071 19.5304 5 19 5H17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                              <path d="M3 15V17C3 17.5304 3.21071 18.0391 3.58579 18.4142C3.96086 18.7893 4.46957 19 5 19H7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                              <path d="M21 15V17C21 17.5304 20.7893 18.0391 20.4142 18.4142C20.0391 18.7893 19.5304 19 19 19H17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                              <path d="M3 12H21" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                            </svg>
+                          </div>
+                          <p className="dropzone-text">点击或拖拽上传照片</p>
+                          <p className="dropzone-hint">支持 JPG、PNG 格式，推荐不超过 20MB</p>
+                        </div>
+                      )}
+                    </label>
+                  </div>
+                ) : (
+                  <div className="form-grid">
+                    <div className="form-group">
+                      <label>缩略图直链地址 <span className="required">*</span></label>
+                      <input
+                        type="url"
+                        name="thumbnailUrl"
+                        placeholder="https://example.com/thumbnail.jpg"
+                        value={uploadForm.thumbnailUrl}
+                        onChange={handleFormChange}
+                        required={uploadForm.uploadMode === 'url'}
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>原图直链地址 <span className="required">*</span></label>
+                      <input
+                        type="url"
+                        name="imageUrl"
+                        placeholder="https://example.com/image.jpg"
+                        value={uploadForm.imageUrl}
+                        onChange={handleFormChange}
+                        required={uploadForm.uploadMode === 'url'}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="form-section">
+                <h2 className="form-section-title">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ color: 'var(--accent)' }}>
+                    <path d="M14 2H6C5.46957 2 4.96086 2.21071 4.58579 2.58579C4.21071 2.96086 4 3.46957 4 4V20C4 20.5304 4.21071 21.0391 4.58579 21.4142C4.96086 21.7893 5.46957 22 6 22H18C18.5304 22 19.0391 21.7893 19.4142 21.4142C19.7893 21.0391 20 20.5304 20 20V8L14 2Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d="M14 2V8H20" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d="M16 13H8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d="M16 17H8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d="M10 9H9H8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                  作品信息
+                </h2>
               <div className="form-grid">
                   <div className="form-group">
                     <label>标题 <span className="required">*</span></label>
@@ -3258,7 +3437,13 @@ export function AdminPage() {
               </div>
 
               <div className="form-section">
-                <h2 className="form-section-title">相机参数 & 上传照片 <span className="required">*</span></h2>
+                <h2 className="form-section-title">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ color: 'var(--accent)' }}>
+                    <path d="M23 19C23 19.5304 22.7893 20.0391 22.4142 20.4142C22.0391 20.7893 21.5304 21 21 21H3C2.46957 21 1.96086 20.7893 1.58579 20.4142C1.21071 20.0391 1 19.5304 1 19V8C1 7.46957 1.21071 6.96086 1.58579 6.58579C1.96086 6.21071 2.46957 6 3 6H7L9 4H15L17 6H21C21.5304 6 22.0391 6.21071 22.4142 6.58579C22.7893 6.96086 23 7.46957 23 8V19Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    <circle cx="12" cy="13" r="4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                  相机参数
+                </h2>
                 
                 {/* 相机参数 */}
                 <div className="form-grid" style={{ marginBottom: '20px' }}>
@@ -3469,220 +3654,6 @@ export function AdminPage() {
                     </div>
                   </div>
                 </div>
-                
-                {/* 上传目标存储（仅阿里云 OSS） */}
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: '12px',
-                    marginBottom: '12px',
-                    padding: '8px 12px',
-                    background: 'rgba(255, 255, 255, 0.03)',
-                    borderRadius: '8px',
-                    border: '1px solid var(--border)',
-                  }}
-                >
-                  <div style={{ fontSize: '0.9rem', color: 'var(--muted)' }}>
-                    当前上传目标：<strong>阿里云 OSS</strong>
-                  </div>
-                </div>
-
-                {/* 上传方式切换（文件 / 直链） */}
-                <div style={{ 
-                  display: 'flex', 
-                  gap: '12px', 
-                  marginBottom: '20px',
-                  padding: '8px',
-                  background: 'rgba(255, 255, 255, 0.05)',
-                  borderRadius: '8px'
-                }}>
-                  <button
-                    type="button"
-                    onClick={() => handleUploadModeChange('file')}
-                    style={{
-                      flex: 1,
-                      padding: '10px 16px',
-                      background: uploadForm.uploadMode === 'file' ? 'var(--accent)' : 'transparent',
-                      border: '1px solid var(--border)',
-                      borderRadius: '6px',
-                      color: uploadForm.uploadMode === 'file' ? 'var(--bg)' : 'var(--text)',
-                      cursor: 'pointer',
-                      fontSize: '0.95rem',
-                      fontWeight: uploadForm.uploadMode === 'file' ? '600' : '400',
-                      transition: 'all 0.2s'
-                    }}
-                  >
-                    文件上传
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleUploadModeChange('url')}
-                    style={{
-                      flex: 1,
-                      padding: '10px 16px',
-                      background: uploadForm.uploadMode === 'url' ? 'var(--accent)' : 'transparent',
-                      border: '1px solid var(--border)',
-                      borderRadius: '6px',
-                      color: uploadForm.uploadMode === 'url' ? 'var(--bg)' : 'var(--text)',
-                      cursor: 'pointer',
-                      fontSize: '0.95rem',
-                      fontWeight: uploadForm.uploadMode === 'url' ? '600' : '400',
-                      transition: 'all 0.2s'
-                    }}
-                  >
-                    直链上传
-                  </button>
-              </div>
-
-                {uploadForm.uploadMode === 'file' ? (
-                  <div className="upload-dropzone-new">
-                    <input type="file" accept="image/*" onChange={handleFileChange} id="file-upload" />
-                    <label htmlFor="file-upload" className="dropzone-label">
-                {uploadForm.preview ? (
-                        <div className="preview-container">
-                  <img src={uploadForm.preview} alt="预览" />
-                          <button
-                            type="button"
-                            className="remove-preview"
-                            onClick={(e) => {
-                              e.preventDefault();
-                              setUploadForm((prev) => ({ ...prev, file: null, preview: '' }));
-                              const fileInput = document.getElementById('file-upload');
-                              if (fileInput) fileInput.value = '';
-                            }}
-                          >
-                            ✕
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="dropzone-placeholder">
-                          <div className="dropzone-icon">
-                            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" width="48" height="48">
-                              <path d="M12 15C13.6569 15 15 13.6569 15 12C15 10.3431 13.6569 9 12 9C10.3431 9 9 10.3431 9 12C9 13.6569 10.3431 15 12 15Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                              <path d="M3 9V7C3 6.46957 3.21071 5.96086 3.58579 5.58579C3.96086 5.21071 4.46957 5 5 5H7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                              <path d="M21 9V7C21 6.46957 20.7893 5.96086 20.4142 5.58579C20.0391 5.21071 19.5304 5 19 5H17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                              <path d="M3 15V17C3 17.5304 3.21071 18.0391 3.58579 18.4142C3.96086 18.7893 4.46957 19 5 19H7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                              <path d="M21 15V17C21 17.5304 20.7893 18.0391 20.4142 18.4142C20.0391 18.7893 19.5304 19 19 19H17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                              <path d="M3 12H21" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                            </svg>
-                          </div>
-                          <p className="dropzone-text">点击或拖拽上传照片</p>
-                          <p className="dropzone-hint">支持 JPG、PNG 格式</p>
-                        </div>
-                      )}
-                    </label>
-                  </div>
-                ) : (
-                  <div style={{ 
-                    background: 'rgba(255, 255, 255, 0.05)',
-                    borderRadius: '12px',
-                    padding: '20px',
-                    border: '1px solid var(--border)'
-                  }}>
-                    <div className="form-group" style={{ marginBottom: '16px' }}>
-                      <label>缩略图直链地址 <span className="required">*</span></label>
-                      <input
-                        type="url"
-                        placeholder="https://example.com/image-thumb.jpg"
-                        value={uploadForm.thumbnailUrl}
-                        onChange={handleThumbnailUrlChange}
-                        style={{
-                          width: '100%',
-                          padding: '12px',
-                          background: 'rgba(0, 0, 0, 0.2)',
-                          border: '1px solid var(--border)',
-                          borderRadius: '8px',
-                          color: 'var(--text)',
-                          fontSize: '0.95rem'
-                        }}
-                      />
-                      <small style={{ 
-                        display: 'block', 
-                        marginTop: '8px', 
-                        color: 'var(--muted)', 
-                        fontSize: '0.85rem' 
-                      }}>
-                        用于网格和缩略显示的较小图片链接。
-                      </small>
-                    </div>
-
-                    <div className="form-group" style={{ marginBottom: '16px' }}>
-                      <label>原图直链地址 <span className="required">*</span></label>
-                      <input
-                        type="url"
-                        placeholder="https://example.com/image.jpg"
-                        value={uploadForm.imageUrl}
-                        onChange={handleUrlChange}
-                        style={{
-                          width: '100%',
-                          padding: '12px',
-                          background: 'rgba(0, 0, 0, 0.2)',
-                          border: '1px solid var(--border)',
-                          borderRadius: '8px',
-                          color: 'var(--text)',
-                          fontSize: '0.95rem'
-                        }}
-                      />
-                      <small style={{ 
-                        display: 'block', 
-                        marginTop: '8px', 
-                        color: 'var(--muted)', 
-                        fontSize: '0.85rem' 
-                      }}>
-                        点击大图时展示的原始图片链接。
-                      </small>
-                    </div>
-                    {uploadForm.preview && (
-                      <div style={{ 
-                        marginTop: '16px',
-                        position: 'relative',
-                        borderRadius: '8px',
-                        overflow: 'hidden',
-                        border: '1px solid var(--border)'
-                      }}>
-                        <img 
-                          src={uploadForm.preview} 
-                          alt="预览" 
-                          style={{ 
-                            width: '100%', 
-                            height: 'auto',
-                            display: 'block'
-                          }}
-                          onError={(e) => {
-                            e.target.style.display = 'none';
-                            setSubmitMessage({ type: 'error', text: '无法加载图片，请检查URL是否正确' });
-                          }}
-                        />
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setUploadForm((prev) => ({ ...prev, imageUrl: '', thumbnailUrl: '', preview: '' }));
-                          }}
-                          style={{
-                            position: 'absolute',
-                            top: '8px',
-                            right: '8px',
-                            width: '32px',
-                            height: '32px',
-                            background: 'rgba(0, 0, 0, 0.6)',
-                            border: 'none',
-                            borderRadius: '50%',
-                            color: 'white',
-                            cursor: 'pointer',
-                            fontSize: '18px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center'
-                          }}
-                        >
-                          ✕
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                )}
               </div>
 
               <div className="form-actions">
