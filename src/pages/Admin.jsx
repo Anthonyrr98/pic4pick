@@ -35,6 +35,7 @@ const tabs = [
 
 const STORAGE_KEY = 'camarts_admin_uploads';
 const APPROVED_STORAGE_KEY = 'camarts_approved_photos';
+const REJECTED_STORAGE_KEY = 'camarts_rejected_photos';
 const BRAND_LOGO_MAX_SIZE = 1024 * 1024; // 1MB
 
 // 获取上传方式的中文名称
@@ -97,6 +98,7 @@ export function AdminPage() {
     status: row.status || 'pending',
     hidden: row.hidden ?? false,
     thumbnail: row.thumbnail_url || null,
+    reject_reason: row.reject_reason || null,
   });
 
   const buildSupabasePayloadFromPhoto = (photo, statusOverride) => ({
@@ -262,7 +264,7 @@ export function AdminPage() {
   const [isSearching, setIsSearching] = useState(false);
   const [searchResults, setSearchResults] = useState([]);
   const [submitMessage, setSubmitMessage] = useState({ type: '', text: '' });
-  const [activeTab, setActiveTab] = useState('upload'); // 'upload' | 'pending' | 'approved' | 'tools' | 'config'
+  const [activeTab, setActiveTab] = useState('upload'); // 'upload' | 'pending' | 'approved' | 'rejected' | 'tools' | 'config'
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(null);
   const [uploadingFileName, setUploadingFileName] = useState(null);
@@ -471,6 +473,22 @@ export function AdminPage() {
 
   const [approvedPhotos, setApprovedPhotos] = useState(() => (supabase ? [] : loadApprovedPhotos()));
   const approvedCount = useMemo(() => approvedPhotos.length, [approvedPhotos]);
+  
+  // 加载已拒绝的作品
+  const loadRejectedPhotos = () => {
+    try {
+      const stored = localStorage.getItem(REJECTED_STORAGE_KEY);
+      if (stored) {
+        return JSON.parse(stored);
+      }
+    } catch (error) {
+      console.error('Failed to load rejected photos:', error);
+    }
+    return [];
+  };
+
+  const [rejectedPhotos, setRejectedPhotos] = useState(() => (supabase ? [] : loadRejectedPhotos()));
+  const rejectedCount = useMemo(() => rejectedPhotos.length, [rejectedPhotos]);
   
   // 编辑状态
   const [editingPhotoId, setEditingPhotoId] = useState(null);
@@ -1325,7 +1343,7 @@ export function AdminPage() {
     setIsSupabaseLoading(true);
     setSupabaseError('');
     try {
-      const [pendingResult, approvedResult] = await Promise.all([
+      const [pendingResult, approvedResult, rejectedResult] = await Promise.all([
         supabase
           .from('photos')
           .select('*')
@@ -1336,17 +1354,24 @@ export function AdminPage() {
           .select('*')
           .eq('status', 'approved')
           .order('created_at', { ascending: false }),
+        supabase
+          .from('photos')
+          .select('*')
+          .eq('status', 'rejected')
+          .order('created_at', { ascending: false }),
       ]);
 
-      if (pendingResult.error || approvedResult.error) {
-        throw pendingResult.error || approvedResult.error;
+      if (pendingResult.error || approvedResult.error || rejectedResult.error) {
+        throw pendingResult.error || approvedResult.error || rejectedResult.error;
       }
 
       const pendingMapped = (pendingResult.data || []).map(mapSupabaseRowToPhoto);
       const approvedMapped = (approvedResult.data || []).map(mapSupabaseRowToPhoto);
+      const rejectedMapped = (rejectedResult.data || []).map(mapSupabaseRowToPhoto);
 
       setAdminUploads(pendingMapped);
       setApprovedPhotos(approvedMapped);
+      setRejectedPhotos(rejectedMapped);
       saveToStorage(pendingMapped);
       try {
         localStorage.setItem(APPROVED_STORAGE_KEY, JSON.stringify(approvedMapped));
@@ -1367,10 +1392,11 @@ export function AdminPage() {
     saveToStorage(adminUploads);
   }, [adminUploads, supabase]);
 
-  // 更新已审核通过的作品列表
+  // 更新已审核通过和已拒绝的作品列表
   useEffect(() => {
     if (supabase) return;
     setApprovedPhotos(loadApprovedPhotos());
+    setRejectedPhotos(loadRejectedPhotos());
   }, [supabase]);
 
   useEffect(() => {
@@ -1893,7 +1919,26 @@ export function AdminPage() {
   };
 
   const handleReject = async (id) => {
+    const itemToReject = adminUploads.find((item) => item.id === id);
+    if (!itemToReject) return;
+
+    // 从待审核列表移除
     setAdminUploads((prev) => prev.filter((item) => item.id !== id));
+
+    // 添加到已拒绝列表
+    const rejectedItem = { ...itemToReject, status: 'rejected' };
+    setRejectedPhotos((prev) => {
+      const updated = [rejectedItem, ...prev];
+      // 保存到本地存储（非 Supabase 模式）
+      if (!supabase) {
+        try {
+          localStorage.setItem(REJECTED_STORAGE_KEY, JSON.stringify(updated));
+        } catch (error) {
+          console.error('保存已拒绝作品到本地存储失败:', error);
+        }
+      }
+      return updated;
+    });
 
     if (supabase) {
       try {
@@ -1909,10 +1954,11 @@ export function AdminPage() {
       }
     }
 
-    setSubmitMessage({ type: 'success', text: '作品已拒绝' });
+    setSubmitMessage({ type: 'success', text: '作品已拒绝，已移至已拒绝列表' });
+    setActiveTab('rejected'); // 切换到已拒绝标签
     setTimeout(() => {
       setSubmitMessage({ type: '', text: '' });
-    }, 2000);
+    }, 3000);
   };
 
   // 打开编辑表单
@@ -1980,12 +2026,13 @@ export function AdminPage() {
     }
 
     try {
+      // 检查是否在已审核列表中
       const approved = loadApprovedPhotos();
-      const index = approved.findIndex((p) => p.id === editingPhotoId);
+      const approvedIndex = approved.findIndex((p) => p.id === editingPhotoId);
       
-      if (index !== -1) {
-        approved[index] = {
-          ...approved[index],
+      if (approvedIndex !== -1) {
+        approved[approvedIndex] = {
+          ...approved[approvedIndex],
           title: editForm.title.trim(),
           location: editForm.location.trim(),
           country: editForm.country.trim(),
@@ -2011,6 +2058,42 @@ export function AdminPage() {
         setTimeout(() => {
           setSubmitMessage({ type: '', text: '' });
         }, 2000);
+        return;
+      }
+
+      // 检查是否在已拒绝列表中
+      const rejected = loadRejectedPhotos();
+      const rejectedIndex = rejected.findIndex((p) => p.id === editingPhotoId);
+      
+      if (rejectedIndex !== -1) {
+        rejected[rejectedIndex] = {
+          ...rejected[rejectedIndex],
+          title: editForm.title.trim(),
+          location: editForm.location.trim(),
+          country: editForm.country.trim(),
+          category: editForm.category,
+          latitude: editForm.latitude,
+          longitude: editForm.longitude,
+          altitude: editForm.altitude,
+          focal: editForm.focal.trim(),
+          aperture: editForm.aperture.trim(),
+          shutter: editForm.shutter.trim(),
+          iso: editForm.iso.trim(),
+          camera: editForm.camera.trim(),
+          lens: editForm.lens.trim(),
+          rating: typeof editForm.rating === 'number' ? editForm.rating : Number(editForm.rating) || 7,
+          shotDate: editForm.shotDate || null,
+          hidden: !!editForm.hidden,
+        };
+        
+        localStorage.setItem(REJECTED_STORAGE_KEY, JSON.stringify(rejected));
+        setRejectedPhotos([...rejected]);
+        setEditingPhotoId(null);
+        setSubmitMessage({ type: 'success', text: '编辑成功！' });
+        setTimeout(() => {
+          setSubmitMessage({ type: '', text: '' });
+        }, 2000);
+        return;
       }
     } catch (error) {
       console.error('Failed to save edit:', error);
@@ -2062,13 +2145,26 @@ export function AdminPage() {
           return;
         }
       }
-
+      
       try {
+        // 从已审核列表删除
         const approved = loadApprovedPhotos();
-        const filtered = approved.filter((p) => p.id !== editingPhotoId);
+        const approvedFiltered = approved.filter((p) => p.id !== editingPhotoId);
         
-        localStorage.setItem(APPROVED_STORAGE_KEY, JSON.stringify(filtered));
-        setApprovedPhotos([...filtered]);
+        if (approvedFiltered.length !== approved.length) {
+          localStorage.setItem(APPROVED_STORAGE_KEY, JSON.stringify(approvedFiltered));
+          setApprovedPhotos([...approvedFiltered]);
+        }
+
+        // 从已拒绝列表删除
+        const rejected = loadRejectedPhotos();
+        const rejectedFiltered = rejected.filter((p) => p.id !== editingPhotoId);
+        
+        if (rejectedFiltered.length !== rejected.length) {
+          localStorage.setItem(REJECTED_STORAGE_KEY, JSON.stringify(rejectedFiltered));
+          setRejectedPhotos([...rejectedFiltered]);
+        }
+
         setEditingPhotoId(null);
         setSubmitMessage({ type: 'success', text: '删除成功！' });
         setTimeout(() => {
@@ -2344,51 +2440,6 @@ export function AdminPage() {
         {/* 标签页导航 */}
         <div className="admin-tabs">
           <button
-            className={`admin-tab ${activeTab === 'config' ? 'active' : ''}`}
-            onClick={() => setActiveTab('config')}
-          >
-            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" width="18" height="18">
-              <path
-                d="M12 15.5C13.933 15.5 15.5 13.933 15.5 12C15.5 10.067 13.933 8.5 12 8.5C10.067 8.5 8.5 10.067 8.5 12C8.5 13.933 10.067 15.5 12 15.5Z"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-              <path
-                d="M19.4 15A1.65 1.65 0 0 0 20 13.5C19.9999 13.0032 19.868 12.5157 19.62 12.09L20.62 10.26C20.7094 10.0993 20.7548 9.91692 20.7512 9.73233C20.7475 9.54773 20.6948 9.36746 20.5987 9.21008C20.5026 9.0527 20.3667 8.92328 20.2047 8.83564C20.0427 8.748 19.8604 8.70512 19.677 8.711L17.677 8.781C17.3092 8.35334 16.8678 7.99718 16.377 7.735L16.247 5.72C16.2347 5.53518 16.1717 5.3571 16.0654 5.20537C15.9592 5.05365 15.8142 4.93439 15.647 4.861C15.4799 4.78761 15.2969 4.76272 15.1185 4.78884C14.94 4.81495 14.7728 4.89091 14.637 5.008L13.077 6.34C12.5543 6.22852 12.0204 6.22852 11.4977 6.34L9.937 5.008C9.80118 4.89091 9.63402 4.81495 9.45554 4.78884C9.27706 4.76272 9.09406 4.78761 8.92694 4.861C8.75983 4.93439 8.61485 5.05365 8.5086 5.20537C8.40235 5.3571 8.33942 5.53518 8.32704 5.72L8.19704 7.735C7.70628 7.99719 7.26477 8.35337 6.89704 8.781L4.89704 8.711C4.71362 8.70512 4.53132 8.748 4.36932 8.83564C4.20731 8.92328 4.07143 9.0527 3.97532 9.21008C3.87921 9.36746 3.82655 9.54773 3.82289 9.73233C3.81923 9.91692 3.86467 10.0993 3.95404 10.26L4.95404 12.09C4.70601 12.5157 4.57411 13.0032 4.57404 13.5C4.57416 13.9969 4.70614 14.4843 4.95404 14.91L3.95404 16.74C3.86467 16.9007 3.81923 17.0831 3.82289 17.2677C3.82655 17.4523 3.87921 17.6325 3.97532 17.7899C4.07143 17.9473 4.20731 18.0767 4.36932 18.1644C4.53132 18.252 4.71362 18.2949 4.89704 18.289L6.89704 18.219C7.26479 18.6466 7.70627 19.0028 8.19704 19.265L8.32704 21.28C8.33942 21.4648 8.40235 21.6429 8.5086 21.7946C8.61485 21.9463 8.75983 22.0656 8.92694 22.139C9.09406 22.2124 9.27706 22.2373 9.45554 22.2112C9.63402 22.1851 9.80118 22.1091 9.937 21.992L11.4977 20.66C12.0204 20.7715 12.5543 20.7715 13.077 20.66L14.637 21.992C14.7728 22.1091 14.94 22.1851 15.1185 22.2112C15.2969 22.2373 15.4799 22.2124 15.647 22.139C15.8142 22.0656 15.9592 21.9463 16.0654 21.7946C16.1717 21.6429 16.2347 21.4648 16.247 21.28L16.377 19.265C16.8677 19.0028 17.3092 18.6467 17.677 18.219L19.677 18.289C19.8604 18.2949 20.0427 18.252 20.2047 18.1644C20.3667 18.0767 20.5026 17.9473 20.5987 17.7899C20.6948 17.6325 20.7475 17.4523 20.7512 17.2677C20.7548 17.0831 20.7094 16.9007 20.62 16.74L19.62 14.91C19.7959 14.6114 19.9131 14.2844 19.9659 13.9448C20.0188 13.6051 20.0063 13.2602 19.929 12.9251"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-            <span>配置</span>
-          </button>
-          <button
-            className={`admin-tab ${activeTab === 'tools' ? 'active' : ''}`}
-            onClick={() => setActiveTab('tools')}
-          >
-            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" width="18" height="18">
-              {/* 扳手 + 螺母图标，更符合“工具”含义 */}
-              <path
-                d="M21 7.5L18.5 10L15 6.5L17.5 4C16.9 3.7 16.24 3.5 15.5 3.5C13.57 3.5 12 5.07 12 7C12 7.42 12.07 7.82 12.2 8.2L6.41 14C5.77 14.64 5.77 15.68 6.41 16.32L7.68 17.59C8.32 18.23 9.36 18.23 10 17.59L15.8 11.8C16.18 11.93 16.58 12 17 12C18.93 12 20.5 10.43 20.5 8.5C20.5 7.76 20.3 7.1 21 7.5Z"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-              <circle
-                cx="6"
-                cy="6"
-                r="2.25"
-                stroke="currentColor"
-                strokeWidth="1.5"
-              />
-            </svg>
-            <span>工具</span>
-          </button>
-          <button
             className={`admin-tab ${activeTab === 'upload' ? 'active' : ''}`}
             onClick={() => setActiveTab('upload')}
           >
@@ -2451,6 +2502,62 @@ export function AdminPage() {
               <path d="M20 6L9 17L4 12" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
             <span>已审核 ({approvedCount})</span>
+          </button>
+          <button
+            className={`admin-tab ${activeTab === 'rejected' ? 'active' : ''}`}
+            onClick={() => setActiveTab('rejected')}
+          >
+            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" width="18" height="18">
+              <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2"/>
+              <path d="M15 9L9 15" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+              <path d="M9 9L15 15" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+            </svg>
+            <span>已拒绝 ({rejectedCount})</span>
+          </button>
+          <button
+            className={`admin-tab ${activeTab === 'config' ? 'active' : ''}`}
+            onClick={() => setActiveTab('config')}
+          >
+            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" width="18" height="18">
+              <path
+                d="M12 15.5C13.933 15.5 15.5 13.933 15.5 12C15.5 10.067 13.933 8.5 12 8.5C10.067 8.5 8.5 10.067 8.5 12C8.5 13.933 10.067 15.5 12 15.5Z"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <path
+                d="M19.4 15A1.65 1.65 0 0 0 20 13.5C19.9999 13.0032 19.868 12.5157 19.62 12.09L20.62 10.26C20.7094 10.0993 20.7548 9.91692 20.7512 9.73233C20.7475 9.54773 20.6948 9.36746 20.5987 9.21008C20.5026 9.0527 20.3667 8.92328 20.2047 8.83564C20.0427 8.748 19.8604 8.70512 19.677 8.711L17.677 8.781C17.3092 8.35334 16.8678 7.99718 16.377 7.735L16.247 5.72C16.2347 5.53518 16.1717 5.3571 16.0654 5.20537C15.9592 5.05365 15.8142 4.93439 15.647 4.861C15.4799 4.78761 15.2969 4.76272 15.1185 4.78884C14.94 4.81495 14.7728 4.89091 14.637 5.008L13.077 6.34C12.5543 6.22852 12.0204 6.22852 11.4977 6.34L9.937 5.008C9.80118 4.89091 9.63402 4.81495 9.45554 4.78884C9.27706 4.76272 9.09406 4.78761 8.92694 4.861C8.75983 4.93439 8.61485 5.05365 8.5086 5.20537C8.40235 5.3571 8.33942 5.53518 8.32704 5.72L8.19704 7.735C7.70628 7.99719 7.26477 8.35337 6.89704 8.781L4.89704 8.711C4.71362 8.70512 4.53132 8.748 4.36932 8.83564C4.20731 8.92328 4.07143 9.0527 3.97532 9.21008C3.87921 9.36746 3.82655 9.54773 3.82289 9.73233C3.81923 9.91692 3.86467 10.0993 3.95404 10.26L4.95404 12.09C4.70601 12.5157 4.57411 13.0032 4.57404 13.5C4.57416 13.9969 4.70614 14.4843 4.95404 14.91L3.95404 16.74C3.86467 16.9007 3.81923 17.0831 3.82289 17.2677C3.82655 17.4523 3.87921 17.6325 3.97532 17.7899C4.07143 17.9473 4.20731 18.0767 4.36932 18.1644C4.53132 18.252 4.71362 18.2949 4.89704 18.289L6.89704 18.219C7.26479 18.6466 7.70627 19.0028 8.19704 19.265L8.32704 21.28C8.33942 21.4648 8.40235 21.6429 8.5086 21.7946C8.61485 21.9463 8.75983 22.0656 8.92694 22.139C9.09406 22.2124 9.27706 22.2373 9.45554 22.2112C9.63402 22.1851 9.80118 22.1091 9.937 21.992L11.4977 20.66C12.0204 20.7715 12.5543 20.7715 13.077 20.66L14.637 21.992C14.7728 22.1091 14.94 22.1851 15.1185 22.2112C15.2969 22.2373 15.4799 22.2124 15.647 22.139C15.8142 22.0656 15.9592 21.9463 16.0654 21.7946C16.1717 21.6429 16.2347 21.4648 16.247 21.28L16.377 19.265C16.8677 19.0028 17.3092 18.6467 17.677 18.219L19.677 18.289C19.8604 18.2949 20.0427 18.252 20.2047 18.1644C20.3667 18.0767 20.5026 17.9473 20.5987 17.7899C20.6948 17.6325 20.7475 17.4523 20.7512 17.2677C20.7548 17.0831 20.7094 16.9007 20.62 16.74L19.62 14.91C19.7959 14.6114 19.9131 14.2844 19.9659 13.9448C20.0188 13.6051 20.0063 13.2602 19.929 12.9251"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+            <span>配置</span>
+          </button>
+          <button
+            className={`admin-tab ${activeTab === 'tools' ? 'active' : ''}`}
+            onClick={() => setActiveTab('tools')}
+          >
+            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" width="18" height="18">
+              {/* 扳手 + 螺母图标，更符合"工具"含义 */}
+              <path
+                d="M21 7.5L18.5 10L15 6.5L17.5 4C16.9 3.7 16.24 3.5 15.5 3.5C13.57 3.5 12 5.07 12 7C12 7.42 12.07 7.82 12.2 8.2L6.41 14C5.77 14.64 5.77 15.68 6.41 16.32L7.68 17.59C8.32 18.23 9.36 18.23 10 17.59L15.8 11.8C16.18 11.93 16.58 12 17 12C18.93 12 20.5 10.43 20.5 8.5C20.5 7.76 20.3 7.1 21 7.5Z"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <circle
+                cx="6"
+                cy="6"
+                r="2.25"
+                stroke="currentColor"
+                strokeWidth="1.5"
+              />
+            </svg>
+            <span>工具</span>
           </button>
         </div>
 
@@ -4060,6 +4167,191 @@ export function AdminPage() {
                         </button>
                       </div>
                   </article>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'rejected' && (
+            <div className="admin-list-section">
+              <div className="list-header">
+                <h2>已拒绝作品</h2>
+                <span className="list-count">{rejectedCount} 条</span>
+              </div>
+
+              <div className="admin-list">
+                {rejectedPhotos.length === 0 ? (
+                  <div className="empty-state">
+                    <div className="empty-icon">
+                      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" width="64" height="64">
+                        <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2"/>
+                        <path d="M15 9L9 15" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                        <path d="M9 9L15 15" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                      </svg>
+                    </div>
+                    <p className="empty-text">暂无已拒绝作品</p>
+                    <p className="empty-hint">被拒绝的作品将显示在此</p>
+                  </div>
+                ) : (
+                  rejectedPhotos.map((item) => (
+                    <article key={item.id} className="admin-list-item rejected compact">
+                      <div className="item-image compact">
+                        {item.preview ? (
+                          <img src={item.preview} alt={item.title} />
+                        ) : (
+                          <div className="image-placeholder">
+                            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" width="32" height="32">
+                              <path d="M12 15C13.6569 15 15 13.6569 15 12C15 10.3431 13.6569 9 12 9C10.3431 9 9 10.3431 9 12C9 13.6569 10.3431 15 12 15Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                              <path d="M3 9V7C3 6.46957 3.21071 5.96086 3.58579 5.58579C3.96086 5.21071 4.46957 5 5 5H7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                              <path d="M21 9V7C21 6.46957 20.7893 5.96086 20.4142 5.58579C20.0391 5.21071 19.5304 5 19 5H17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                              <path d="M3 15V17C3 17.5304 3.21071 18.0391 3.58579 18.4142C3.96086 18.7893 4.46957 19 5 19H7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                              <path d="M21 15V17C21 17.5304 20.7893 18.0391 20.4142 18.4142C20.0391 18.7893 19.5304 19 19 19H17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                              <path d="M3 12H21" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                            </svg>
+                          </div>
+                        )}
+                        <span className="item-tag" style={{
+                          position: 'absolute',
+                          top: '8px',
+                          right: '8px',
+                          background: '#dc2626',
+                          color: '#fff',
+                          fontSize: '0.7rem',
+                          padding: '4px 8px',
+                          borderRadius: '4px',
+                          fontWeight: '600'
+                        }}>
+                          已拒绝
+                        </span>
+                      </div>
+                      <div className="item-content">
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                          <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: '600' }}>
+                            {item.title}
+                          </h3>
+                        </div>
+                        <p className="item-location" style={{ margin: '0 0 8px 0', fontSize: '0.85rem', color: 'var(--muted)' }}>
+                          {item.country} · {item.location}
+                        </p>
+                        {item.reject_reason && (
+                          <div style={{
+                            marginBottom: '12px',
+                            padding: '12px',
+                            background: 'rgba(220, 38, 38, 0.1)',
+                            border: '1px solid rgba(220, 38, 38, 0.2)',
+                            borderRadius: '8px',
+                            borderLeft: '3px solid #dc2626'
+                          }}>
+                            <div style={{
+                              fontSize: '0.8rem',
+                              fontWeight: '600',
+                              color: '#dc2626',
+                              marginBottom: '6px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '6px'
+                            }}>
+                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2"/>
+                                <path d="M12 8V12" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                                <path d="M12 16H12.01" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                              </svg>
+                              拒绝原因
+                            </div>
+                            <p style={{
+                              margin: 0,
+                              fontSize: '0.85rem',
+                              color: 'var(--text)',
+                              lineHeight: '1.5',
+                              whiteSpace: 'pre-wrap',
+                              wordBreak: 'break-word'
+                            }}>
+                              {item.reject_reason}
+                            </p>
+                          </div>
+                        )}
+                        <div style={{ fontSize: '0.8rem', color: 'var(--muted)', marginBottom: '12px' }}>
+                          <div style={{ marginBottom: '4px' }}>
+                            {item.focal || '50mm'} · {item.aperture || 'f/2.8'} · {item.shutter || '1/125s'} · ISO {item.iso || '200'}
+                          </div>
+                          <div style={{ fontSize: '0.75rem', opacity: 0.8 }}>
+                            {item.camera || 'Unknown'} · {item.lens || 'Unknown'}
+                          </div>
+                          {item.createdAt && (
+                            <div style={{ fontSize: '0.75rem', opacity: 0.7, marginTop: '4px' }}>
+                              {new Date(item.createdAt).toLocaleString('zh-CN')}
+                            </div>
+                          )}
+                        </div>
+                        <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
+                          <button
+                            className="btn-approve"
+                            onClick={() => handleEdit(item)}
+                            style={{ 
+                              flex: 1,
+                              fontSize: '0.85rem', 
+                              padding: '10px 16px',
+                              whiteSpace: 'nowrap'
+                            }}
+                          >
+                            ✎ 编辑
+                          </button>
+                          <button
+                            className="btn-primary"
+                            onClick={async () => {
+                              // 重新提交审核
+                              const itemToResubmit = { ...item, status: 'pending' };
+                              
+                              // 从已拒绝列表移除
+                              setRejectedPhotos((prev) => {
+                                const updated = prev.filter((p) => p.id !== item.id);
+                                if (!supabase) {
+                                  try {
+                                    localStorage.setItem(REJECTED_STORAGE_KEY, JSON.stringify(updated));
+                                  } catch (error) {
+                                    console.error('更新已拒绝列表失败:', error);
+                                  }
+                                }
+                                return updated;
+                              });
+
+                              // 添加到待审核列表
+                              setAdminUploads((prev) => [itemToResubmit, ...prev]);
+
+                              if (supabase) {
+                                try {
+                                  await supabase
+                                    .from('photos')
+                                    .update({ status: 'pending', reject_reason: null })
+                                    .eq('id', item.id);
+                                  await refreshSupabaseData();
+                                } catch (error) {
+                                  console.error('重新提交审核失败:', error);
+                                  setSubmitMessage({ type: 'error', text: `重新提交失败：${error.message}` });
+                                  return;
+                                }
+                              }
+
+                              setSubmitMessage({ type: 'success', text: '作品已重新提交审核' });
+                              setActiveTab('pending');
+                              setTimeout(() => {
+                                setSubmitMessage({ type: '', text: '' });
+                              }, 3000);
+                            }}
+                            style={{ 
+                              flex: 1,
+                              fontSize: '0.85rem', 
+                              padding: '10px 16px',
+                              whiteSpace: 'nowrap',
+                              background: 'var(--accent)'
+                            }}
+                          >
+                            ↻ 重新提交
+                          </button>
+                        </div>
+                      </div>
+                    </article>
                   ))
                 )}
               </div>
