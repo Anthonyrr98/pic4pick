@@ -41,9 +41,20 @@ if (process.env.NODE_ENV !== 'production') {
 }
 
 // 中间件
-app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// 配置 CORS，允许所有来源（生产环境建议限制特定域名）
+app.use(cors({
+  origin: process.env.CORS_ORIGIN || '*',
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  credentials: true,
+  maxAge: 86400, // 24小时
+}));
+
+// 处理预检请求
+app.options('*', cors());
+
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // 配置上传目录
 const UPLOAD_DIR = path.join(__dirname, 'uploads', 'pic4pick');
@@ -84,10 +95,14 @@ const fileFilter = (req, file, cb) => {
   }
 };
 
-// 不限制文件大小（仅依靠 OSS / Node 本身的限制）
+// 配置 multer，设置合理的文件大小限制（50MB）
 const upload = multer({
   storage: storage,
   fileFilter: fileFilter,
+  limits: {
+    fileSize: 50 * 1024 * 1024, // 50MB
+    fieldSize: 10 * 1024 * 1024, // 10MB for other fields
+  },
 });
 
 // 提供静态文件服务
@@ -222,14 +237,21 @@ if (process.env.ALIYUN_OSS_REGION && process.env.ALIYUN_OSS_BUCKET &&
 
 // 上传到阿里云 OSS
 app.post('/api/upload/oss', upload.single('file'), async (req, res) => {
+  // 设置较长的超时时间（5分钟）
+  req.setTimeout(5 * 60 * 1000);
+  
   try {
     if (!ossClient) {
+      logger.error('OSS 客户端未配置');
       return res.status(500).json({ error: 'OSS 客户端未配置' });
     }
 
     if (!req.file) {
+      logger.warn('上传请求中没有文件');
       return res.status(400).json({ error: '没有上传文件' });
     }
+    
+    logger.info(`开始处理 OSS 上传: ${req.file.originalname}, 大小: ${req.file.size} bytes`);
 
     const file = req.file;
     const filename = req.body.filename || file.filename;
@@ -296,6 +318,8 @@ app.post('/api/upload/oss', upload.single('file'), async (req, res) => {
 
     fs.unlinkSync(file.path);
 
+    logger.info(`OSS 上传成功: ${filename}, 原图: ${originResult.url}, 缩略图: ${thumbResult ? thumbResult.url : '无'}`);
+
     res.json({
       success: true,
       url: originResult.url,
@@ -306,11 +330,23 @@ app.post('/api/upload/oss', upload.single('file'), async (req, res) => {
       message: '上传到 OSS 成功'
     });
   } catch (error) {
-    console.error('OSS 上传错误:', error);
+    logger.error('OSS 上传错误:', error);
+    // 清理临时文件
     if (req.file && fs.existsSync(req.file.path)) {
-      fs.unlinkSync(req.file.path);
+      try {
+        fs.unlinkSync(req.file.path);
+      } catch (unlinkError) {
+        logger.warn('清理临时文件失败:', unlinkError);
+      }
     }
-    res.status(500).json({ error: error.message || 'OSS 上传失败' });
+    
+    // 返回详细的错误信息
+    const errorMessage = error.message || 'OSS 上传失败';
+    logger.error(`OSS 上传失败: ${errorMessage}`);
+    res.status(500).json({ 
+      error: errorMessage,
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
   }
 });
 

@@ -383,6 +383,18 @@ const uploadToAliyunOSS = async (file, filename) => {
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
       
+      // 设置超时（5分钟，适合大文件上传）
+      const timeout = 5 * 60 * 1000;
+      let timeoutId = null;
+      
+      // 清理函数
+      const cleanup = () => {
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+          timeoutId = null;
+        }
+      };
+      
       let lastUpdateTime = 0;
       
       xhr.upload.addEventListener('progress', (e) => {
@@ -394,9 +406,23 @@ const uploadToAliyunOSS = async (file, filename) => {
             lastUpdateTime = now;
           }
         }
+        // 重置超时计时器（有进度说明连接正常）
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+          timeoutId = setTimeout(() => {
+            cleanup();
+            xhr.abort();
+            const appError = handleError(new Error('上传超时，请检查网络连接或文件大小'), {
+              context: 'uploadToAliyunOSS.timeout',
+              type: ErrorType.NETWORK,
+            });
+            reject(appError);
+          }, timeout);
+        }
       });
       
       xhr.addEventListener('load', () => {
+        cleanup();
         console.log('[uploadToAliyunOSS] 后端响应状态:', xhr.status, xhr.statusText);
         
         if (xhr.status >= 200 && xhr.status < 300) {
@@ -422,7 +448,7 @@ const uploadToAliyunOSS = async (file, filename) => {
             reject(appError);
           }
         } else {
-          const errorText = xhr.responseText;
+          const errorText = xhr.responseText || '';
           let errorData;
           const parseResult = safeSync(() => {
             return JSON.parse(errorText);
@@ -430,7 +456,7 @@ const uploadToAliyunOSS = async (file, filename) => {
             context: 'uploadToAliyunOSS.parseError',
             throwError: false,
           });
-          errorData = parseResult.error ? { error: errorText } : parseResult;
+          errorData = parseResult.error ? { error: errorText || xhr.statusText } : parseResult;
           
           const appError = handleError(new Error(errorData.error || `上传失败: ${xhr.statusText} (${xhr.status})`), {
             context: 'uploadToAliyunOSS.response',
@@ -440,8 +466,13 @@ const uploadToAliyunOSS = async (file, filename) => {
         }
       });
       
-      xhr.addEventListener('error', () => {
-        const appError = handleError(new Error('网络错误'), {
+      xhr.addEventListener('error', (e) => {
+        cleanup();
+        console.error('[uploadToAliyunOSS] 网络错误详情:', e);
+        const errorMessage = xhr.status === 0 
+          ? '无法连接到服务器，请检查网络连接或服务器地址'
+          : '网络错误，请稍后重试';
+        const appError = handleError(new Error(errorMessage), {
           context: 'uploadToAliyunOSS.network',
           type: ErrorType.NETWORK,
         });
@@ -449,11 +480,46 @@ const uploadToAliyunOSS = async (file, filename) => {
       });
       
       xhr.addEventListener('abort', () => {
+        cleanup();
         reject(new Error('上传已取消'));
       });
       
-      xhr.open('POST', apiUrl);
-      xhr.send(formData);
+      xhr.addEventListener('timeout', () => {
+        cleanup();
+        const appError = handleError(new Error('上传超时，请检查网络连接或文件大小'), {
+          context: 'uploadToAliyunOSS.timeout',
+          type: ErrorType.NETWORK,
+        });
+        reject(appError);
+      });
+      
+      // 设置超时
+      xhr.timeout = timeout;
+      
+      // 初始化超时计时器
+      timeoutId = setTimeout(() => {
+        cleanup();
+        xhr.abort();
+        const appError = handleError(new Error('上传超时，请检查网络连接或文件大小'), {
+          context: 'uploadToAliyunOSS.timeout',
+          type: ErrorType.NETWORK,
+        });
+        reject(appError);
+      }, timeout);
+      
+      try {
+        xhr.open('POST', apiUrl);
+        // 不设置 Content-Type，让浏览器自动设置（包含 boundary）
+        // 这样可以避免 HTTP/2 协议错误
+        xhr.send(formData);
+      } catch (error) {
+        cleanup();
+        const appError = handleError(error, {
+          context: 'uploadToAliyunOSS.send',
+          type: ErrorType.NETWORK,
+        });
+        reject(appError);
+      }
     });
   }
   
