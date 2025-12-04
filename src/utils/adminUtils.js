@@ -169,8 +169,40 @@ export const deleteOSSFile = async (url) => {
     return;
   }
   
+  // 获取后端 API URL（根据环境自动选择）
+  const getBackendBaseUrl = () => {
+    const configuredUrl = StorageString.get(STORAGE_KEYS.ALIYUN_OSS_BACKEND_URL, '');
+    if (configuredUrl) {
+      // 如果配置的是完整 URL，提取基础 URL
+      if (configuredUrl.startsWith('http://') || configuredUrl.startsWith('https://')) {
+        // 移除路径部分，只保留基础 URL
+        try {
+          const url = new URL(configuredUrl);
+          return `${url.protocol}//${url.host}`;
+        } catch {
+          return configuredUrl;
+        }
+      }
+      return configuredUrl;
+    }
+    
+    // 检测是否为生产环境
+    const isProduction = import.meta.env.PROD || 
+      (typeof window !== 'undefined' && 
+       window.location.hostname !== 'localhost' && 
+       window.location.hostname !== '127.0.0.1');
+    
+    if (isProduction) {
+      // 生产环境：使用当前域名（假设后端和前端在同一域名下）
+      return '';
+    }
+    
+    // 开发环境：默认使用 localhost:3002
+    return 'http://localhost:3002';
+  };
+  
   try {
-    const backendUrl = StorageString.get(STORAGE_KEYS.ALIYUN_OSS_BACKEND_URL, 'http://localhost:3002');
+    const backendUrl = getBackendBaseUrl();
     
     // 尝试删除多个可能的路径
     const pathsToTry = [

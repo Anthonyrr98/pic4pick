@@ -324,6 +324,35 @@ const uploadToSupabase = async (file, filename, onProgress) => {
   });
 };
 
+// 获取后端 API URL（根据环境自动选择）
+const getBackendApiUrl = (path = '/api/upload/oss') => {
+  // 优先使用用户配置的 URL
+  const configuredUrl = StorageString.get(STORAGE_KEYS.ALIYUN_OSS_BACKEND_URL, '');
+  if (configuredUrl) {
+    // 如果配置的是完整 URL，直接使用
+    if (configuredUrl.startsWith('http://') || configuredUrl.startsWith('https://')) {
+      return configuredUrl.endsWith(path) ? configuredUrl : `${configuredUrl}${path}`;
+    }
+    // 如果配置的是相对路径，添加路径
+    return configuredUrl.endsWith(path) ? configuredUrl : `${configuredUrl}${path}`;
+  }
+  
+  // 检测是否为生产环境
+  const isProduction = import.meta.env.PROD || 
+    (typeof window !== 'undefined' && 
+     window.location.hostname !== 'localhost' && 
+     window.location.hostname !== '127.0.0.1');
+  
+  if (isProduction) {
+    // 生产环境：使用相对路径（假设后端和前端在同一域名下）
+    // 或者用户需要在管理面板中配置完整的后端 URL
+    return path;
+  }
+  
+  // 开发环境：默认使用 localhost:3002
+  return `http://localhost:3002${path}`;
+};
+
 // 阿里云 OSS 上传
 const uploadToAliyunOSS = async (file, filename) => {
   const region = StorageString.get(STORAGE_KEYS.ALIYUN_OSS_REGION, '');
@@ -343,8 +372,8 @@ const uploadToAliyunOSS = async (file, filename) => {
   
   // 如果使用后端代理上传（推荐，默认模式）
   if (useBackend) {
-    // 默认使用完整 URL，如果前后端在同一端口可通过代理配置覆盖
-    const apiUrl = StorageString.get(STORAGE_KEYS.ALIYUN_OSS_BACKEND_URL, 'http://localhost:3002/api/upload/oss');
+    // 根据环境自动选择 API URL
+    const apiUrl = getBackendApiUrl('/api/upload/oss');
     console.log('[uploadToAliyunOSS] 使用后端代理，API 地址:', apiUrl);
     
     const formData = new FormData();
