@@ -524,8 +524,8 @@ const uploadToAliyunOSS = async (file, filename, onProgress) => {
             }
 
     return {
-      url: signData.publicUrl || signData.uploadUrl,
-      thumbnailUrl: signData.thumbnailUrl || null,
+      url: ensureHttps(signData.publicUrl || signData.uploadUrl),
+      thumbnailUrl: signData.thumbnailUrl ? ensureHttps(signData.thumbnailUrl) : null,
     };
   }
   
