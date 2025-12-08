@@ -43,6 +43,11 @@ export const ConfigPanel = ({
     return StorageString.get(STORAGE_KEYS.ALIYUN_OSS_BACKEND_URL, '');
   });
   const [backendUrlMessage, setBackendUrlMessage] = useState({ type: '', text: '' });
+  // OSS 上传模式：签名直传（默认）或后端代理
+  const [ossMode, setOssMode] = useState(() => {
+    const stored = StorageString.get('aliyun_oss_use_sign', '');
+    return stored === 'false' ? 'proxy' : 'sign';
+  });
 
   const handleLogoUploadClick = () => {
     if (logoFileInputRef.current) {
@@ -309,6 +314,81 @@ export const ConfigPanel = ({
             <li>如果使用 Supabase Edge Functions，可以留空，系统会自动检测并使用</li>
             <li>开发环境默认使用 <code>http://localhost:3002/api/upload/oss</code></li>
           </ul>
+        </div>
+      </section>
+
+      {/* OSS 上传模式切换 */}
+      <section className="admin-settings-card">
+        <div className="admin-settings-card-header">
+          <div>
+            <h2 className="admin-settings-card-title">OSS 上传模式</h2>
+            <p className="admin-settings-card-subtitle">
+              默认使用“签名直传”减少中转流量；如需旧的“后端代理”模式可切换。
+            </p>
+          </div>
+        </div>
+
+        <div className="form-grid">
+          <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+            <label>上传模式</label>
+            <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <input
+                  type="radio"
+                  name="ossMode"
+                  value="sign"
+                  checked={ossMode === 'sign'}
+                  onChange={() => setOssMode('sign')}
+                />
+                <span>签名直传（推荐）</span>
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <input
+                  type="radio"
+                  name="ossMode"
+                  value="proxy"
+                  checked={ossMode === 'proxy'}
+                  onChange={() => setOssMode('proxy')}
+                />
+                <span>后端代理（兼容旧模式）</span>
+              </label>
+            </div>
+            <div style={{ marginTop: '8px', fontSize: '0.85rem', color: 'var(--muted)' }}>
+              {ossMode === 'sign'
+                ? '前端先获取签名，再直接 PUT 到 OSS，避开中转流量。'
+                : '文件先上传到后端，再由后端转发到 OSS。'}
+            </div>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', gap: '12px', marginTop: '16px' }}>
+          <button
+            type="button"
+            className="btn-primary"
+            onClick={() => {
+              if (ossMode === 'sign') {
+                StorageString.remove('aliyun_oss_use_sign');
+              } else {
+                StorageString.set('aliyun_oss_use_sign', 'false');
+              }
+              setBackendUrlMessage({ type: 'success', text: '上传模式已保存，刷新页面后生效' });
+              setTimeout(() => setBackendUrlMessage({ type: '', text: '' }), 3000);
+            }}
+          >
+            保存模式
+          </button>
+          <button
+            type="button"
+            className="btn-secondary"
+            onClick={() => {
+              StorageString.remove('aliyun_oss_use_sign');
+              setOssMode('sign');
+              setBackendUrlMessage({ type: 'info', text: '已恢复默认：签名直传' });
+              setTimeout(() => setBackendUrlMessage({ type: '', text: '' }), 3000);
+            }}
+          >
+            恢复默认
+          </button>
         </div>
       </section>
 
