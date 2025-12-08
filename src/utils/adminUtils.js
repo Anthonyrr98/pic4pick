@@ -202,40 +202,57 @@ export const deleteOSSFile = async (url) => {
   };
   
   try {
-    const backendUrl = getBackendBaseUrl();
-    
+    // 计算后端删除接口基础 URL。
+    const getBackendDeleteUrl = () => {
+      const configuredUrl = StorageString.get(STORAGE_KEYS.ALIYUN_OSS_BACKEND_URL, '');
+      if (configuredUrl) {
+        // 兼容直接填签名接口 /api/upload/sign 的场景：仅取 origin
+        try {
+          const url = new URL(configuredUrl);
+          return `${url.origin}/api/upload/delete`;
+        } catch {
+          return '/api/upload/delete';
+        }
+      }
+      // 回退到旧的 /api/upload/oss 删除路径（同域）
+      return '/api/upload/oss';
+    };
+
+    const deleteEndpoint = getBackendDeleteUrl();
+
     // 尝试删除多个可能的路径
     const pathsToTry = [
       fileInfo.fullPath, // 完整路径
-      `origin/${fileInfo.filename}`, // origin 目录
-      `ore/${fileInfo.filename}`, // ore 目录
-      `pic4pick/${fileInfo.fullPath}`, // 带 pic4pick 前缀
-      `pic4pick/origin/${fileInfo.filename}`, // pic4pick/origin
-      `pic4pick/ore/${fileInfo.filename}`, // pic4pick/ore
+      `origin/${fileInfo.filename}`,
+      `ore/${fileInfo.filename}`,
+      `pic4pick/${fileInfo.fullPath}`,
+      `pic4pick/origin/${fileInfo.filename}`,
+      `pic4pick/ore/${fileInfo.filename}`,
     ];
     
     for (const pathToDelete of pathsToTry) {
       try {
-        const response = await fetch(`${backendUrl}/api/upload/oss/${encodeURIComponent(pathToDelete)}`, {
-          method: 'DELETE',
+        const resp = await fetch(deleteEndpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ objectKey: pathToDelete }),
         });
-        
-        if (response.ok) {
-          // 删除成功，继续尝试下一个路径（以防有多个副本）
-          continue;
-        } else if (response.status === 404) {
-          // 文件不存在，继续尝试下一个路径
-          continue;
-        } else {
-          const errorText = await response.text();
-          handleError(new Error(`OSS文件删除失败: ${response.status} - ${errorText}`), {
-            context: 'deleteOSSFile',
-            type: ErrorType.NETWORK,
-            silent: true,
-          });
+
+        if (resp.ok) {
+          continue; // 删除成功，尝试下一个可能的副本
         }
+        if (resp.status === 404) {
+          continue; // 不存在，尝试下一个
+        }
+
+        const errorText = await resp.text().catch(() => '');
+        handleError(new Error(`OSS文件删除失败: ${resp.status} - ${errorText}`), {
+          context: 'deleteOSSFile',
+          type: ErrorType.NETWORK,
+          silent: true,
+        });
       } catch (err) {
-        // 单个路径删除失败，继续尝试其他路径
+        // 单个路径失败，尝试下一种路径
         continue;
       }
     }
