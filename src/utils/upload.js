@@ -487,45 +487,69 @@ const uploadToAliyunOSS = async (file, filename, onProgress) => {
       }
     }
     
-    // 1) 请求签名
-    const signResponse = await fetch(signApiUrl, {
-          method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        filename,
-        contentType: file.type || 'application/octet-stream',
-      }),
-    });
-        
-    if (!signResponse.ok) {
-      const errorText = await signResponse.text().catch(() => '');
-      throw new Error(errorText || '获取上传签名失败');
-        }
-        
-    const signData = await signResponse.json();
-    if (!signData.success || !signData.uploadUrl) {
-      throw new Error(signData.error || '签名接口未返回 uploadUrl');
-    }
+    // 1) 原图签名 + 上传（放在 origin/）
+    const signFor = async (objectPath, contentType) => {
+      const resp = await fetch(signApiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filename: objectPath, contentType }),
+      });
+      if (!resp.ok) {
+        const txt = await resp.text().catch(() => '');
+        throw new Error(txt || '获取上传签名失败');
+      }
+      const data = await resp.json();
+      if (!data.success || !data.uploadUrl) {
+        throw new Error(data.error || '签名接口未返回 uploadUrl');
+      }
+      return data;
+    };
 
-    // 2) 直传 OSS
-    const putResponse = await fetch(signData.uploadUrl, {
-      method: 'PUT',
-      headers: signData.headers || { 'Content-Type': file.type || 'application/octet-stream' },
-      body: file,
-    });
+    const uploadWithSign = async (signData, blob) => {
+      const putResp = await fetch(signData.uploadUrl, {
+        method: 'PUT',
+        headers: signData.headers || { 'Content-Type': blob.type || 'application/octet-stream' },
+        body: blob,
+      });
+      if (!putResp.ok) {
+        const txt = await putResp.text().catch(() => '');
+        throw new Error(txt || `上传失败：${putResp.status} ${putResp.statusText}`);
+      }
+      return {
+        url: ensureHttps(signData.publicUrl || signData.uploadUrl),
+        thumbnailUrl: signData.thumbnailUrl ? ensureHttps(signData.thumbnailUrl) : null,
+      };
+    };
 
-    if (!putResponse.ok) {
-      const errorText = await putResponse.text().catch(() => '');
-      throw new Error(errorText || `上传失败：${putResponse.status} ${putResponse.statusText}`);
-    }
-
+    const originalPath = `origin/${filename}`;
+    const originSign = await signFor(originalPath, file.type || 'application/octet-stream');
+    const originResult = await uploadWithSign(originSign, file);
     if (onProgress) {
-      onProgress(100, file.size, file.size);
-            }
+      onProgress(60, file.size, file.size); // 原图完成，先给 60%
+    }
+
+    // 2) 生成缩略图并上传到 ore/
+    let thumbnailUrl = null;
+    try {
+      const thumbBlob = await compressImage(file, { maxWidth: 1200, maxHeight: 1200, quality: 0.82 });
+      const thumbPath = `ore/${filename}`;
+      const thumbSign = await signFor(thumbPath, thumbBlob.type || 'image/jpeg');
+      const thumbResult = await uploadWithSign(thumbSign, thumbBlob);
+      thumbnailUrl = thumbResult.url || thumbResult.thumbnailUrl || null;
+      if (onProgress) {
+        onProgress(100, file.size, file.size);
+      }
+    } catch (thumbError) {
+      console.warn('[uploadToAliyunOSS] 缩略图上传失败，继续使用原图:', thumbError);
+      thumbnailUrl = originResult.url;
+      if (onProgress) {
+        onProgress(100, file.size, file.size);
+      }
+    }
 
     return {
-      url: ensureHttps(signData.publicUrl || signData.uploadUrl),
-      thumbnailUrl: signData.thumbnailUrl ? ensureHttps(signData.thumbnailUrl) : null,
+      url: originResult.url,
+      thumbnailUrl: thumbnailUrl ? ensureHttps(thumbnailUrl) : null,
     };
   }
   
