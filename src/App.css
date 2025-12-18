@@ -2418,8 +2418,8 @@ main {
   .curation-panel-toggle {
     width: 60px;
     height: 28px;
-    /* 在手机上把按钮略微下移，避免贴着圆角被遮挡 */
-    top: 14px;
+    /* 在手机上把按钮明显下移，避免被导航/圆角遮住 */
+    top: 32px;
   }
 
   /* 地理位置弹窗优化 */
@@ -2662,8 +2662,8 @@ main {
   .curation-panel-toggle {
     width: 50px;
     height: 24px;
-    /* 小屏再下移一点，更容易点到 */
-    top: 12px;
+    /* 小屏再下移一些，让下拉按钮落在省份列表上方的位置 */
+    top: 28px;
   }
 
   .curation-panel-toggle-icon {
