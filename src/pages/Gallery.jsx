@@ -714,46 +714,59 @@ export function GalleryPage() {
   }, []);
 
   const cityPhotoMap = useMemo(() => {
+    /**
+     * 完全由照片数据动态生成的「省份-城市」映射：
+     * Map<key, { provinceId, provinceTitle, cityName, photos: Photo[] }>
+     * key 形如 `${provinceId}-${cityName}`，仅用于区分城市，不再依赖固定的省份列表顺序。
+     */
     const map = new Map();
     if (!approvedPhotos || approvedPhotos.length === 0) return map;
 
     approvedPhotos.forEach((photo) => {
-      let province = null;
+      let province = null; // { id, title }
       let cityName = null;
-      
-      // 优先使用经纬度判断省份和提取城市信息
+
+      // 1）优先使用经纬度判断省份
       if (photo.latitude != null && photo.longitude != null) {
         const lat = Number(photo.latitude);
         const lng = Number(photo.longitude);
-        if (!isNaN(lat) && !isNaN(lng)) {
+        if (!Number.isNaN(lat) && !Number.isNaN(lng)) {
           province = getProvinceFromCoords(lat, lng);
-          // 使用照片的经纬度作为城市坐标
           cityName = photo.location || photo.country || '未知地点';
         }
       }
-      
-      // 如果没有经纬度或无法判断省份，使用文本解析
+
+      // 2）如果没有经纬度或无法判断省份，使用文本解析
       if (!province) {
         const parts = extractLocationParts(photo.location, photo.country);
-        province = parts.province;
-        cityName = parts.county || parts.city || photo.location || photo.country || '未知地点';
+        // 旧实现里 parts.province 是从 provinceCityData 里取出的对象
+        // 这里继续沿用它的结构，只关心 id / title 两个字段
+        province = parts.province
+          ? { id: parts.province.id || parts.province.title, title: parts.province.title }
+          : null;
+        cityName =
+          parts.county ||
+          parts.city ||
+          photo.location ||
+          photo.country ||
+          '未知地点';
       }
-      
-      // 如果还是找不到，尝试匹配预定义的城市列表（向后兼容）
+
+      // 3）如果还是找不到，尝试匹配预定义的城市列表（向后兼容）
       if (!province) {
-      const location = normalizeText(photo.location);
-      const country = normalizeText(photo.country);
+        const location = normalizeText(photo.location);
+        const country = normalizeText(photo.country);
 
         for (const p of provinceCityData) {
           const targets = [...p.cities];
           if (MUNICIPALITY_PROVINCES.has(p.id)) {
             targets.push(p.title);
-        }
+          }
 
           for (const city of targets) {
             const cityLower = normalizeText(city);
-          if (location.includes(cityLower) || country.includes(cityLower)) {
-              province = p;
+            if (location.includes(cityLower) || country.includes(cityLower)) {
+              province = { id: p.id, title: p.title };
               cityName = city;
               break;
             }
@@ -761,84 +774,109 @@ export function GalleryPage() {
           if (province) break;
         }
       }
-      
-      // 如果找到了省份，添加到地图中
-      if (province) {
-            const key = `${province.id}-${cityName}`;
-            if (!map.has(key)) map.set(key, []);
-            map.get(key).push(photo);
-          }
+
+      // 4）如果最终能确定某个省份，则把照片归入对应的「省份-城市」桶里
+      if (province && cityName) {
+        const provinceId = province.id || province.title || 'unknown';
+        const provinceTitle = province.title || province.id || '未知地区';
+        const key = `${provinceId}-${cityName}`;
+
+        if (!map.has(key)) {
+          map.set(key, {
+            provinceId,
+            provinceTitle,
+            cityName,
+            photos: [],
+          });
+        }
+
+        map.get(key).photos.push(photo);
+      }
     });
 
-    // 按时间排序
-    map.forEach((photos) =>
-      photos.sort((a, b) => {
+    // 每个城市内部按时间从新到旧排序
+    map.forEach((group) => {
+      group.photos.sort((a, b) => {
         const at = a.createdAt ? new Date(a.createdAt).getTime() : 0;
         const bt = b.createdAt ? new Date(b.createdAt).getTime() : 0;
         return bt - at;
-      }),
-    );
+      });
+    });
 
     return map;
   }, [approvedPhotos, getProvinceFromCoords, extractLocationParts]);
 
   const curationGroups = useMemo(() => {
-    // 动态构建省份-城市分组
+    // 使用 cityPhotoMap 动态构建省份-城市分组，不再依赖固定的 provinceCityData 顺序
     const provinceMap = new Map();
-    
-    // 从 cityPhotoMap 中提取所有省份和城市
-    cityPhotoMap.forEach((photos, key) => {
-      const [provinceId, cityName] = key.split('-');
-      const province = provinceCityData.find(p => p.id === provinceId);
-      if (!province) return;
-      
+
+    cityPhotoMap.forEach((group) => {
+      const { provinceId, provinceTitle, cityName, photos } = group;
+      if (!provinceId || !provinceTitle || !cityName || !photos || photos.length === 0) return;
+
       if (!provinceMap.has(provinceId)) {
         provinceMap.set(provinceId, {
           id: provinceId,
-          title: province.title,
+          title: provinceTitle,
           cities: new Map(),
         });
       }
-      
+
       const provinceData = provinceMap.get(provinceId);
       if (!provinceData.cities.has(cityName)) {
         // 获取城市坐标：优先使用照片的经纬度，其次使用预定义的坐标
         let coords = cityMeta[cityName] || {};
-        if (!coords.lat && photos.length > 0 && photos[0].latitude && photos[0].longitude) {
+        if (
+          !coords.lat &&
+          photos.length > 0 &&
+          photos[0].latitude != null &&
+          photos[0].longitude != null
+        ) {
           coords = {
             lat: Number(photos[0].latitude),
             lng: Number(photos[0].longitude),
           };
         }
-        
+
         provinceData.cities.set(cityName, {
-              id: key,
-              label: cityName,
+          id: `${provinceId}-${cityName}`,
+          label: cityName,
           image: photos[0].thumbnail || photos[0].image,
           photoCount: photos.length,
-              lat: coords.lat ?? null,
-              lng: coords.lng ?? null,
-          provinceId: provinceId,
+          lat: coords.lat ?? null,
+          lng: coords.lng ?? null,
+          provinceId,
         });
+      } else {
+        // 如果城市已存在，累加照片数量（理论上不会出现不同 group 拆分同一城市，但这里做个保护）
+        const cityEntry = provinceData.cities.get(cityName);
+        cityEntry.photoCount += photos.length;
       }
     });
-    
-    // 转换为数组格式，并保持省份顺序
-    return provinceCityData
-      .map((province) => {
-        const provinceData = provinceMap.get(province.id);
-        if (!provinceData) return null;
-        
-        const items = Array.from(provinceData.cities.values())
-          .sort((a, b) => b.photoCount - a.photoCount); // 按照片数量排序
-        
-        return {
-          id: province.id,
-          title: province.title,
-          items,
-        };
-      })
-      .filter(Boolean);
+
+    // 转换为数组格式
+    const groups = Array.from(provinceMap.values()).map((provinceData) => {
+      const items = Array.from(provinceData.cities.values()).sort(
+        (a, b) => b.photoCount - a.photoCount,
+      ); // 省内城市按照片数量排序
+
+      const totalCount = items.reduce((sum, item) => sum + item.photoCount, 0);
+
+      return {
+        id: provinceData.id,
+        title: provinceData.title,
+        items,
+        totalCount,
+      };
+    });
+
+    // 省份整体按总照片数量排序（多的在上），数量相同时按名称排序
+    groups.sort((a, b) => {
+      if (b.totalCount !== a.totalCount) return b.totalCount - a.totalCount;
+      return a.title.localeCompare(b.title, 'zh-Hans-CN');
+    });
+
+    return groups;
   }, [cityPhotoMap]);
 
   useEffect(() => {
