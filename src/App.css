@@ -2392,9 +2392,9 @@ main {
   #explore-view .curation-panel {
     width: calc(100vw - 24px);
     left: 12px;
-    /* 面板整体下移：在手机上大概从屏幕 1/3 处开始，占据下方约 2/3 空间 */
-    top: 33vh;
-    bottom: 16px;
+    /* 面板只占据屏幕下方约 1/3：从 66vh 开始到底部 */
+    top: 66vh;
+    bottom: 0;
     max-height: none;
     padding: 16px;
     padding-bottom: 70px;
@@ -2404,8 +2404,8 @@ main {
   .explore-fullscreen .curation-panel {
     width: calc(100vw - 24px);
     left: 12px;
-    top: 33vh;
-    bottom: 16px;
+    top: 66vh;
+    bottom: 0;
     max-height: none;
   }
 
@@ -2418,8 +2418,8 @@ main {
   .curation-panel-toggle {
     width: 60px;
     height: 28px;
-    /* 在手机上把按钮明显下移，避免被导航/圆角遮住 */
-    top: 32px;
+    /* 面板整体下移后，小箭头贴近面板顶部一点，方便操作 */
+    top: 10px;
   }
 
   /* 地理位置弹窗优化 */
@@ -2626,9 +2626,9 @@ main {
     max-width: calc(100vw - 16px);
     left: 8px;
     right: 8px;
-    /* 小屏手机：同样让面板从屏幕约 1/3 处开始 */
-    top: 33vh;
-    bottom: 8px;
+    /* 小屏手机：同样只占据屏幕下方约 1/3 */
+    top: 66vh;
+    bottom: 0;
     max-height: none;
     padding: 12px;
     padding-bottom: 60px;
@@ -2642,8 +2642,8 @@ main {
     max-width: calc(100vw - 16px);
     left: 8px;
     right: 8px;
-    top: 33vh;
-    bottom: 8px;
+    top: 66vh;
+    bottom: 0;
     max-height: none;
     box-sizing: border-box;
     overflow-x: hidden;
@@ -2662,8 +2662,8 @@ main {
   .curation-panel-toggle {
     width: 50px;
     height: 24px;
-    /* 小屏再下移一些，让下拉按钮落在省份列表上方的位置 */
-    top: 28px;
+    /* 小屏：箭头也靠近面板顶部一点 */
+    top: 8px;
   }
 
   .curation-panel-toggle-icon {
