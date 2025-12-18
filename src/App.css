@@ -1757,16 +1757,18 @@ main {
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
+  /* 整个遮罩层直接使用磨砂效果，保证底部区域也被模糊覆盖 */
+  background-color: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
 }
 
 .lightbox::before {
   content: '';
   position: absolute;
   inset: 0;
-  /* 背景遮罩也加上模糊，这样在参数区下方、面板之外的区域同样有磨砂效果 */
-  background: rgba(0, 0, 0, 0.55);
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
+  /* 保持一层略深的遮罩色，但模糊效果交给 .lightbox 自身处理 */
+  background: rgba(0, 0, 0, 0.4);
   z-index: -1;
 }
 
