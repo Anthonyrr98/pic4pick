@@ -2343,7 +2343,10 @@ main {
     border-radius: 24px;
     max-width: 100%;
     width: 100%;
-    max-height: 95vh;
+    /* 小屏：整个弹层可以上下滚动，便于查看完整参数 */
+    max-height: 100vh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
   }
   .lightbox-content-wrapper {
     flex-direction: column;
