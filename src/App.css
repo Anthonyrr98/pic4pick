@@ -52,8 +52,12 @@ main {
   z-index: 5;
   /* 顶部位置在一个合理范围内，避免缩放导致面板跑到太高/太低 */
   top: clamp(96px, 14vh, 160px);
-  left: 32px;
-  width: 360px;
+  /* 使用左右间距而不是固定宽度，避免右边在缩放后被裁切 */
+  left: 24px;
+  right: 24px;
+  width: auto;
+  max-width: 420px;
+  margin: 0 auto;
   /* 通过 bottom 留白控制整体高度，让内部内容自行滚动 */
   bottom: 24px;
   max-height: none;
@@ -690,8 +694,11 @@ main {
   z-index: 5;
   /* 与 fullscreen 保持一致：顶部使用 clamp，底部预留 24px */
   top: clamp(96px, 14vh, 160px);
-  left: 32px;
-  width: 360px;
+  left: 24px;
+  right: 24px;
+  width: auto;
+  max-width: 420px;
+  margin: 0 auto;
   display: flex;
   flex-direction: column;
   bottom: 24px;
@@ -2387,8 +2394,10 @@ main {
   #explore-view .curation-panel {
     width: calc(100vw - 24px);
     left: 12px;
-    top: 260px;
-    max-height: calc(100vh - 280px);
+    /* 顶部/底部使用视口高度自适应，内部通过滚动展示全部小卡片 */
+    top: clamp(88px, 14vh, 140px);
+    bottom: 16px;
+    max-height: none;
     padding: 16px;
     padding-bottom: 70px;
     box-sizing: border-box;
@@ -2397,8 +2406,9 @@ main {
   .explore-fullscreen .curation-panel {
     width: calc(100vw - 24px);
     left: 12px;
-    top: 260px;
-    max-height: calc(100vh - 280px);
+    top: clamp(88px, 14vh, 140px);
+    bottom: 16px;
+    max-height: none;
   }
 
   #explore-view .curation-panel.collapsed {
@@ -2616,8 +2626,10 @@ main {
     max-width: calc(100vw - 16px);
     left: 8px;
     right: 8px;
-    top: 240px;
-    max-height: calc(100vh - 260px);
+    /* 顶部使用 clamp，底部预留 8px，避免缩放时小卡片被挡 */
+    top: clamp(80px, 13vh, 132px);
+    bottom: 8px;
+    max-height: none;
     padding: 12px;
     padding-bottom: 60px;
     border-radius: 16px;
@@ -2630,8 +2642,9 @@ main {
     max-width: calc(100vw - 16px);
     left: 8px;
     right: 8px;
-    top: 240px;
-    max-height: calc(100vh - 260px);
+    top: clamp(80px, 13vh, 132px);
+    bottom: 8px;
+    max-height: none;
     box-sizing: border-box;
     overflow-x: hidden;
   }
