@@ -1763,7 +1763,10 @@ main {
   content: '';
   position: absolute;
   inset: 0;
-  background: rgba(0, 0, 0, 0.5);
+  /* 背景遮罩也加上模糊，这样在参数区下方、面板之外的区域同样有磨砂效果 */
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
   z-index: -1;
 }
 
