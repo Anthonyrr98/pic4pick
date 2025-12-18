@@ -50,11 +50,13 @@ main {
 .explore-fullscreen .curation-panel {
   position: fixed;
   z-index: 5;
-  /* 使用视口百分比而不是固定像素，避免页面整体缩放时内容被挡住 */
-  top: 18vh;
+  /* 顶部位置在一个合理范围内，避免缩放导致面板跑到太高/太低 */
+  top: clamp(96px, 14vh, 160px);
   left: 32px;
   width: 360px;
-  max-height: 70vh;
+  /* 通过 bottom 留白控制整体高度，让内部内容自行滚动 */
+  bottom: 24px;
+  max-height: none;
 }
 
 .explore-fullscreen #mapCanvas {
@@ -686,13 +688,14 @@ main {
 #explore-view .curation-panel {
   position: absolute;
   z-index: 5;
-  /* 同样改成相对视口的距离，和上面的 fullscreen 设置保持一致 */
-  top: 18vh;
+  /* 与 fullscreen 保持一致：顶部使用 clamp，底部预留 24px */
+  top: clamp(96px, 14vh, 160px);
   left: 32px;
   width: 360px;
   display: flex;
   flex-direction: column;
-  max-height: 70vh;
+  bottom: 24px;
+  max-height: none;
   overflow-y: auto;
   overflow-x: hidden;
   background: #ffffff;
