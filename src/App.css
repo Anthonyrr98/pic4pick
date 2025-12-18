@@ -52,12 +52,11 @@ main {
   z-index: 5;
   /* 顶部位置在一个合理范围内，避免缩放导致面板跑到太高/太低 */
   top: clamp(96px, 14vh, 160px);
-  /* 使用左右间距而不是固定宽度，避免右边在缩放后被裁切 */
-  left: 24px;
-  right: 24px;
-  width: auto;
-  max-width: 420px;
-  margin: 0 auto;
+  /* 桌面端：靠左显示，宽度自适应且不贴边缘 */
+  left: 32px;
+  right: auto;
+  transform: none;
+  width: min(420px, calc(100vw - 64px));
   /* 通过 bottom 留白控制整体高度，让内部内容自行滚动 */
   bottom: 24px;
   max-height: none;
@@ -694,11 +693,10 @@ main {
   z-index: 5;
   /* 与 fullscreen 保持一致：顶部使用 clamp，底部预留 24px */
   top: clamp(96px, 14vh, 160px);
-  left: 24px;
-  right: 24px;
-  width: auto;
-  max-width: 420px;
-  margin: 0 auto;
+  left: 32px;
+  right: auto;
+  transform: none;
+  width: min(420px, calc(100vw - 64px));
   display: flex;
   flex-direction: column;
   bottom: 24px;
