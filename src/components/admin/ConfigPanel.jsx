@@ -67,15 +67,36 @@ export const ConfigPanel = ({
 
     const reader = new FileReader();
     reader.onload = async () => {
+      const dataUrl = reader.result?.toString() || '';
+
       try {
-        const dataUrl = reader.result?.toString() || '';
+        // 1）先写入本地缓存 & UI 预览
         saveBrandLogo(dataUrl);
         setBrandLogo(dataUrl);
-        setLogoMessage({ type: 'success', text: supabase ? 'Logo 已上传并同步到云端' : 'Logo 已更新' });
+
+        // 2）如果 Supabase 可用，再同步到云端 brand_settings 表
+        if (supabase) {
+          const { error } = await supabase
+            .from(BRAND_LOGO_SUPABASE_TABLE)
+            .upsert({
+              id: BRAND_LOGO_SUPABASE_ID,
+              logo_data: dataUrl,
+              logo_mime: file.type || null,
+              updated_at: new Date().toISOString(),
+            });
+
+          if (error) {
+            throw error;
+          }
+
+          setLogoMessage({ type: 'success', text: 'Logo 已上传并同步到云端' });
+        } else {
+          setLogoMessage({ type: 'success', text: 'Logo 已更新（本地浏览器有效）' });
+        }
       } catch (error) {
         const appError = handleError(error, {
           context: 'handleLogoUpload',
-          type: ErrorType.STORAGE,
+          type: ErrorType.NETWORK,
         });
         setLogoMessage({ type: 'error', text: `保存失败：${formatErrorMessage(appError)}` });
       }
