@@ -2348,6 +2348,10 @@ main {
     max-height: 100vh;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
+    /* 让整块面板（包括参数区域）都有更明显的磨砂玻璃效果 */
+    background: rgba(255, 255, 255, 0.18);
+    backdrop-filter: blur(26px) saturate(170%);
+    -webkit-backdrop-filter: blur(26px) saturate(170%);
   }
   .lightbox-content-wrapper {
     flex-direction: column;
