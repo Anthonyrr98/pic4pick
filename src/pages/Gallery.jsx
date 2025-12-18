@@ -651,7 +651,9 @@ export function GalleryPage() {
       { id: 'guangdong', title: '广东', latRange: [20.1, 25.5], lngRange: [109.6, 117.3] },
       { id: 'guangxi', title: '广西', latRange: [20.9, 26.4], lngRange: [104.3, 112.0] },
       { id: 'hainan', title: '海南', latRange: [18.1, 20.1], lngRange: [108.6, 111.0] },
-      { id: 'sichuan', title: '四川', latRange: [26.0, 34.3], lngRange: [97.3, 108.5] },
+      // 为了避免把云南西北部（如丽江一带，经度约 100°E）误判成四川，
+      // 略微收窄四川的西侧经度范围，让 100°E 左右更倾向归入云南。
+      { id: 'sichuan', title: '四川', latRange: [26.0, 34.3], lngRange: [100.8, 108.5] },
       { id: 'guizhou', title: '贵州', latRange: [24.6, 29.2], lngRange: [103.6, 109.3] },
       { id: 'yunnan', title: '云南', latRange: [21.1, 29.2], lngRange: [97.5, 106.2] },
       { id: 'shaanxi', title: '陕西', latRange: [31.4, 39.6], lngRange: [105.5, 111.3] },
