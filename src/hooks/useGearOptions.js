@@ -31,20 +31,31 @@ export const useGearOptions = (supabase) => {
       if (supabase) {
         (async () => {
           try {
+            // 使用 upsert，对于复合唯一索引 (type, name)，Supabase 会自动处理冲突
+            // 如果记录已存在（基于唯一索引），则不会插入新记录
             const { error } = await supabase
               .from('gear_presets')
               .upsert(
                 { type: 'camera', name: trimmed },
-                { onConflict: 'type,name', ignoreDuplicates: true }
+                { onConflict: 'type,name' }
               );
-            if (error && error.code !== '23505') {
-              handleError(error, {
-                context: 'addCameraOption.supabase',
-                type: ErrorType.NETWORK,
-                silent: true,
-              });
+            if (error) {
+              // 23505 是唯一约束冲突错误码，这是正常的（记录已存在）
+              if (error.code !== '23505') {
+                console.error('[addCameraOption] Supabase 错误:', error);
+                handleError(error, {
+                  context: 'addCameraOption.supabase',
+                  type: ErrorType.NETWORK,
+                  silent: true,
+                });
+              } else {
+                console.log('[addCameraOption] 相机预设已存在:', trimmed);
+              }
+            } else {
+              console.log('[addCameraOption] 成功添加相机预设到 gear_presets:', trimmed);
             }
           } catch (e) {
+            console.error('[addCameraOption] 异常:', e);
             handleError(e, {
               context: 'addCameraOption',
               type: ErrorType.UNKNOWN,
@@ -70,20 +81,31 @@ export const useGearOptions = (supabase) => {
       if (supabase) {
         (async () => {
           try {
+            // 使用 upsert，对于复合唯一索引 (type, name)，Supabase 会自动处理冲突
+            // 如果记录已存在（基于唯一索引），则不会插入新记录
             const { error } = await supabase
               .from('gear_presets')
               .upsert(
                 { type: 'lens', name: trimmed },
-                { onConflict: 'type,name', ignoreDuplicates: true }
+                { onConflict: 'type,name' }
               );
-            if (error && error.code !== '23505') {
-              handleError(error, {
-                context: 'addLensOption.supabase',
-                type: ErrorType.NETWORK,
-                silent: true,
-              });
+            if (error) {
+              // 23505 是唯一约束冲突错误码，这是正常的（记录已存在）
+              if (error.code !== '23505') {
+                console.error('[addLensOption] Supabase 错误:', error);
+                handleError(error, {
+                  context: 'addLensOption.supabase',
+                  type: ErrorType.NETWORK,
+                  silent: true,
+                });
+              } else {
+                console.log('[addLensOption] 镜头预设已存在:', trimmed);
+              }
+            } else {
+              console.log('[addLensOption] 成功添加镜头预设到 gear_presets:', trimmed);
             }
           } catch (e) {
+            console.error('[addLensOption] 异常:', e);
             handleError(e, {
               context: 'addLensOption',
               type: ErrorType.UNKNOWN,

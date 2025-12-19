@@ -1589,26 +1589,14 @@ export function AdminPage() {
 
     setAdminUploads((prev) => [newUpload, ...prev]);
 
-    // 记录常用相机/镜头
-    if (newUpload.camera) {
-      setCameraOptions((prev) => {
-        if (prev.includes(newUpload.camera)) return prev;
-        const next = [...prev, newUpload.camera];
-        try {
-          Storage.set(STORAGE_KEYS.ADMIN_CAMERA_OPTIONS, next);
-        } catch {}
-        return next;
-      });
+    // 记录常用相机/镜头到本地存储和 gear_presets 表
+    if (newUpload.camera && newUpload.camera.trim()) {
+      // 使用 addCameraOption 函数，它会同时更新本地存储和 Supabase gear_presets 表
+      addCameraOption(newUpload.camera.trim());
     }
-    if (newUpload.lens) {
-      setLensOptions((prev) => {
-        if (prev.includes(newUpload.lens)) return prev;
-        const next = [...prev, newUpload.lens];
-        try {
-          Storage.set(STORAGE_KEYS.ADMIN_LENS_OPTIONS, next);
-        } catch {}
-        return next;
-      });
+    if (newUpload.lens && newUpload.lens.trim()) {
+      // 使用 addLensOption 函数，它会同时更新本地存储和 Supabase gear_presets 表
+      addLensOption(newUpload.lens.trim());
     }
 
     if (supabase) {
