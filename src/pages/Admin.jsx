@@ -1258,23 +1258,42 @@ export function AdminPage() {
                   const addressComponent = data.regeocode.addressComponent;
                   const formattedAddress = data.regeocode.formatted_address;
                   
-                  // 提取国家/地区信息
-                  if (addressComponent.country) {
+                  // 提取省份信息（优先使用，最准确）
+                  if (addressComponent.province) {
+                    // 高德地图返回的省份可能包含"省"、"市"、"自治区"等后缀，需要清理
+                    let provinceName = addressComponent.province.replace(/省|市|自治区|特别行政区/g, '').trim();
+                    // 如果country字段为空或只包含"中国"，则使用省份作为country
+                    if (!updates.country || updates.country === '中国') {
+                      updates.country = provinceName;
+                      hasUpdates = true;
+                    }
+                  }
+                  
+                  // 提取国家/地区信息（如果省份未设置）
+                  if (!updates.country && addressComponent.country) {
                     updates.country = addressComponent.country;
                     hasUpdates = true;
                   }
                   
                   // 提取详细地址信息（优先使用区县+街道，如果没有则使用格式化地址）
                   let locationText = '';
-                  if (addressComponent.district && addressComponent.street) {
+                  // 优先使用城市信息（如果城市名存在且不是省份名）
+                  if (addressComponent.city && addressComponent.city !== addressComponent.province) {
+                    locationText = addressComponent.city;
+                    // 如果有区县信息，添加到城市后面
+                    if (addressComponent.district && addressComponent.district !== addressComponent.city) {
+                      locationText = `${addressComponent.city} · ${addressComponent.district}`;
+                    }
+                  } else if (addressComponent.district && addressComponent.street) {
                     locationText = `${addressComponent.district}${addressComponent.street}`;
                   } else if (addressComponent.district) {
                     locationText = addressComponent.district;
-                  } else if (addressComponent.city) {
-                    locationText = addressComponent.city;
                   } else if (formattedAddress) {
-                    // 使用格式化地址，但去掉国家信息
-                    locationText = formattedAddress.replace(/^中国\s*/, '').trim();
+                    // 使用格式化地址，但去掉国家信息和省份信息
+                    locationText = formattedAddress
+                      .replace(/^中国\s*/, '')
+                      .replace(new RegExp(`^${addressComponent.province || ''}\\s*`, 'g'), '')
+                      .trim();
                   }
                   
                   if (locationText) {
@@ -1282,7 +1301,13 @@ export function AdminPage() {
                     hasUpdates = true;
                   }
                   
-                  console.log('反向地理编码成功:', { country: updates.country, location: updates.location });
+                  console.log('反向地理编码成功:', { 
+                    province: addressComponent.province,
+                    city: addressComponent.city,
+                    district: addressComponent.district,
+                    country: updates.country, 
+                    location: updates.location 
+                  });
                 }
               }
             } else {

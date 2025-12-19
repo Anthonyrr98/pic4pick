@@ -659,8 +659,10 @@ export function GalleryPage() {
       { id: 'guizhou', title: '贵州', latRange: [24.6, 29.2], lngRange: [103.6, 109.3] },
       { id: 'yunnan', title: '云南', latRange: [21.1, 29.2], lngRange: [97.5, 106.2] },
       { id: 'shaanxi', title: '陕西', latRange: [31.4, 39.6], lngRange: [105.5, 111.3] },
-      { id: 'gansu', title: '甘肃', latRange: [32.1, 42.8], lngRange: [92.3, 108.7] },
+      // 调整顺序：青海优先于甘肃，避免西宁（青海省会）被误判为甘肃
+      // 西宁坐标约：36.6°N, 101.8°E
       { id: 'qinghai', title: '青海', latRange: [31.6, 39.2], lngRange: [89.4, 103.0] },
+      { id: 'gansu', title: '甘肃', latRange: [32.1, 42.8], lngRange: [92.3, 108.7] },
       { id: 'neimenggu', title: '内蒙古', latRange: [37.4, 53.3], lngRange: [97.2, 126.0] },
       { id: 'xinjiang', title: '新疆', latRange: [34.3, 49.2], lngRange: [73.5, 96.4] },
       { id: 'ningxia', title: '宁夏', latRange: [35.2, 39.4], lngRange: [104.2, 107.6] },
@@ -759,11 +761,20 @@ export function GalleryPage() {
       }
       
       // 3）如果还是找不到，尝试匹配预定义的城市列表（向后兼容）
+      // 注意：需要按照特定顺序匹配，避免城市名冲突（如西宁应该在青海，而不是甘肃）
       if (!province) {
       const location = normalizeText(photo.location);
       const country = normalizeText(photo.country);
 
-        for (const p of provinceCityData) {
+        // 优先匹配青海的城市（避免西宁被误判为甘肃）
+        const sortedProvinces = [...provinceCityData].sort((a, b) => {
+          // 青海优先
+          if (a.id === 'qinghai') return -1;
+          if (b.id === 'qinghai') return 1;
+          return 0;
+        });
+
+        for (const p of sortedProvinces) {
           const targets = [...p.cities];
           if (MUNICIPALITY_PROVINCES.has(p.id)) {
             targets.push(p.title);
