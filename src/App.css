@@ -160,6 +160,18 @@ main {
   color: var(--muted);
 }
 
+/* 在发现视图（explore-mode）下隐藏品牌文字和logo（电脑端） */
+.app-shell.explore-mode .brand-copy,
+.app-shell.explore-mode .brand-logo-img,
+.app-shell.explore-mode .logo-mark {
+  display: none !important;
+}
+
+/* 如果brand容器内没有内容，也不占据空间 */
+.app-shell.explore-mode .brand:empty {
+  display: none;
+}
+
 @media (max-width: 480px) {
   /* 仅在发现视图（explore-mode）下隐藏品牌区，图库视图仍显示 */
   .app-shell.explore-mode .brand {
