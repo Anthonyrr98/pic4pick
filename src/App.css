@@ -712,12 +712,12 @@ main {
   box-sizing: border-box;
   scrollbar-width: none; /* Firefox */
   -ms-overflow-style: none; /* IE and Edge */
-  /* 更慢、更顺滑的展开/收起动画 */
+  /* 更慢、更顺滑的展开/收起动画（1.4s） */
   transition:
-    top 1s cubic-bezier(0.19, 1, 0.22, 1),
-    bottom 1s cubic-bezier(0.19, 1, 0.22, 1),
-    max-height 1s cubic-bezier(0.19, 1, 0.22, 1),
-    padding 1s cubic-bezier(0.19, 1, 0.22, 1);
+    top 1.4s cubic-bezier(0.19, 1, 0.22, 1),
+    bottom 1.4s cubic-bezier(0.19, 1, 0.22, 1),
+    max-height 1.4s cubic-bezier(0.19, 1, 0.22, 1),
+    padding 1.4s cubic-bezier(0.19, 1, 0.22, 1);
 }
 
 #explore-view .curation-panel.collapsed {
