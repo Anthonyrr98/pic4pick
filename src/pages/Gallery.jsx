@@ -313,7 +313,7 @@ const provinceCityData = [
   { id: 'tianjin', title: '天津', cities: ['河西区', '滨海新区', '武清区'] },
   { id: 'shanghai', title: '上海', cities: ['浦东新区', '徐汇区', '嘉定区'] },
   { id: 'chongqing', title: '重庆', cities: ['渝中区', '南岸区', '江北区'] },
-  { id: 'hebei', title: '河北', cities: ['石家庄', '唐山', '秦皇岛'] },
+  { id: 'hebei', title: '河北', cities: ['石家庄', '唐山', '秦皇岛', '北戴河', '承德', '张家口', '保定'] },
   { id: 'shanxi', title: '山西', cities: ['太原', '大同', '晋中'] },
   { id: 'liaoning', title: '辽宁', cities: ['沈阳', '大连', '鞍山'] },
   { id: 'jilin', title: '吉林', cities: ['长春', '吉林市', '延吉'] },
@@ -365,6 +365,7 @@ const cityMeta = {
   '石家庄': { lat: 38.0428, lng: 114.5149 },
   '唐山': { lat: 39.6305, lng: 118.1805 },
   '秦皇岛': { lat: 39.9354, lng: 119.5996 },
+  '北戴河': { lat: 39.8231, lng: 119.4889 }, // 北戴河是秦皇岛的一个区，属于河北省
   '太原': { lat: 37.8706, lng: 112.5489 },
   '大同': { lat: 40.0768, lng: 113.3001 },
   '晋中': { lat: 37.687, lng: 112.752 },
@@ -659,11 +660,13 @@ export function GalleryPage() {
       { id: 'guizhou', title: '贵州', latRange: [24.6, 29.2], lngRange: [103.6, 109.3], priority: 2 },
       { id: 'shanxi', title: '山西', latRange: [34.5, 40.7], lngRange: [110.2, 114.6], priority: 2 },
       { id: 'shaanxi', title: '陕西', latRange: [31.4, 39.6], lngRange: [105.5, 111.3], priority: 2 },
-      { id: 'liaoning', title: '辽宁', latRange: [38.7, 43.4], lngRange: [118.8, 125.5], priority: 2 },
       { id: 'jilin', title: '吉林', latRange: [40.8, 46.3], lngRange: [121.3, 131.2], priority: 2 },
       
-      // 中等省份
-      { id: 'hebei', title: '河北', latRange: [36.0, 42.6], lngRange: [113.4, 119.8], priority: 3 },
+      // 中等省份（河北优先于辽宁，避免秦皇岛、北戴河被误判为辽宁）
+      // 秦皇岛坐标：39.9354°N, 119.5996°E
+      // 北戴河坐标：约 39.8°N, 119.5°E
+      { id: 'hebei', title: '河北', latRange: [36.0, 42.6], lngRange: [113.4, 120.0], priority: 2 }, // 扩展经度上限到120.0，确保包含秦皇岛
+      { id: 'liaoning', title: '辽宁', latRange: [38.7, 43.4], lngRange: [119.0, 125.5], priority: 3 }, // 调整经度下限到119.0，避免与河北重叠
       { id: 'heilongjiang', title: '黑龙江', latRange: [43.4, 53.6], lngRange: [121.1, 135.1], priority: 3 },
       { id: 'sichuan', title: '四川', latRange: [26.0, 34.3], lngRange: [100.8, 108.5], priority: 3 },
       { id: 'yunnan', title: '云南', latRange: [21.1, 29.2], lngRange: [97.5, 106.2], priority: 3 },
@@ -799,10 +802,11 @@ export function GalleryPage() {
           // 小省份
           'jiangxi': 2, 'zhejiang': 2, 'fujian': 2, 'anhui': 2, 'jiangsu': 2,
           'shandong': 2, 'henan': 2, 'hubei': 2, 'hunan': 2, 'guangdong': 2,
-          'guangxi': 2, 'guizhou': 2, 'shanxi': 2, 'shaanxi': 2, 'liaoning': 2,
+          'guangxi': 2, 'guizhou': 2, 'shanxi': 2, 'shaanxi': 2,
           'jilin': 2, 'hebei': 2, 'heilongjiang': 2, 'sichuan': 2, 'yunnan': 2,
           // 边界重叠的省份（需要特别注意）
           'qinghai': 3, // 青海优先于甘肃，避免西宁被误判
+          'liaoning': 3, // 辽宁优先级低于河北，避免秦皇岛、北戴河被误判
           'gansu': 4,
           'xizang': 4, 'xinjiang': 4,
           'neimenggu': 5, // 最大，最后匹配
