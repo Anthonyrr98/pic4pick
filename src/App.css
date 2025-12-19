@@ -2370,6 +2370,12 @@ main {
     max-height: 68vh;
     cursor: pointer;
     position: relative;
+    border-radius: 0;
+    box-shadow: none;
+    overflow: visible;
+  }
+  .lightbox-media img {
+    border-radius: 0;
   }
   /* 手机端：在照片底部添加一个小的向上箭头提示，表示可以点击查看参数 */
   .lightbox-media::after {
