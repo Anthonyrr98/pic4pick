@@ -83,8 +83,16 @@ main {
   display: flex;
   align-items: center;
   gap: clamp(24px, 5vw, 80px);
-  justify-content: center;
+  justify-content: space-between;
   flex-wrap: wrap;
+}
+
+/* 切换按钮定位到右上角 */
+.app-header .view-toggle {
+  position: absolute;
+  top: 32px;
+  right: clamp(24px, 5vw, 72px);
+  z-index: 10;
 }
 
 /* 发现视图下：header 浮在地图上方，背景透明 */
