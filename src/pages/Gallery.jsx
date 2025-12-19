@@ -576,6 +576,9 @@ export function GalleryPage() {
   const [activeCitySelection, setActiveCitySelection] = useState(null); // { provinceId, cityId }
   const [brandLogo, setBrandLogo] = useState(() => getStoredBrandLogo());
   const [brandText, setBrandText] = useState(() => getStoredBrandText());
+  const [isDesktop, setIsDesktop] = useState(() => 
+    typeof window !== 'undefined' ? window.innerWidth > 768 : false
+  );
 
   // 点赞记录（保存在本地，防止同一浏览器无限刷赞）
   const [likedPhotoIds, setLikedPhotoIds] = useState(() => {
@@ -1228,6 +1231,23 @@ export function GalleryPage() {
     return () => {
       window.removeEventListener(BRAND_LOGO_EVENT, handleLogoBroadcast);
       window.removeEventListener('storage', handleStorage);
+    };
+  }, []);
+
+  // 监听窗口大小变化，判断是否是桌面端
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const handleResize = () => {
+      setIsDesktop(window.innerWidth > 768);
+    };
+
+    // 初始化时检查一次
+    handleResize();
+
+    window.addEventListener('resize', handleResize);
+    return () => {
+      window.removeEventListener('resize', handleResize);
     };
   }, []);
 
@@ -2102,10 +2122,13 @@ export function GalleryPage() {
     <div className={`app-shell ${activeView === 'explore-view' ? 'explore-mode' : ''}`}>
       <header className="app-header">
         <div className="brand">
-          {brandLogo ? (
-            <img src={brandLogo} alt={`${brandText.siteTitle} logo`} className="brand-logo-img" />
-          ) : (
-            <div className="logo-mark" aria-hidden="true" />
+          {/* 仅在电脑端的图库界面显示logo */}
+          {isDesktop && activeView === 'gallery-view' && (
+            brandLogo ? (
+              <img src={brandLogo} alt={`${brandText.siteTitle} logo`} className="brand-logo-img" />
+            ) : (
+              <div className="logo-mark" aria-hidden="true" />
+            )
           )}
           <div className="brand-copy">
             <div className="brand-name">{brandText.siteTitle}</div>
