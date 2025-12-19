@@ -160,6 +160,12 @@ main {
   color: var(--muted);
 }
 
+@media (max-width: 480px) {
+  .brand {
+    display: none;
+  }
+}
+
 .primary-menu {
   display: flex;
   gap: 20px;
