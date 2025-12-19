@@ -323,8 +323,8 @@ const provinceCityData = [
   { id: 'anhui', title: '安徽', cities: ['合肥', '黄山', '芜湖'] },
   { id: 'fujian', title: '福建', cities: ['福州', '厦门', '泉州'] },
   { id: 'jiangxi', title: '江西', cities: ['南昌', '赣州', '景德镇'] },
-  { id: 'shandong', title: '山东', cities: ['济南', '青岛', '烟台'] },
-  { id: 'henan', title: '河南', cities: ['郑州', '洛阳', '开封'] },
+  { id: 'shandong', title: '山东', cities: ['济南', '青岛', '烟台', '日照', '威海', '潍坊', '淄博'] },
+  { id: 'henan', title: '河南', cities: ['郑州', '洛阳', '开封', '安阳', '新乡', '焦作'] },
   { id: 'hubei', title: '湖北', cities: ['武汉', '宜昌', '襄阳'] },
   { id: 'hunan', title: '湖南', cities: ['长沙', '张家界', '岳阳'] },
   { id: 'guangdong', title: '广东', cities: ['广州', '深圳', '珠海'] },
@@ -396,9 +396,16 @@ const cityMeta = {
   '济南': { lat: 36.6512, lng: 117.1201 },
   '青岛': { lat: 36.0671, lng: 120.3826 },
   '烟台': { lat: 37.4638, lng: 121.4479 },
+  '日照': { lat: 35.4169, lng: 119.5272 }, // 日照属于山东省
+  '威海': { lat: 37.5133, lng: 122.1204 },
+  '潍坊': { lat: 36.7070, lng: 119.1078 },
+  '淄博': { lat: 36.8135, lng: 118.0548 },
   '郑州': { lat: 34.7579, lng: 113.6655 },
   '洛阳': { lat: 34.6197, lng: 112.454 },
   '开封': { lat: 34.7973, lng: 114.3076 },
+  '安阳': { lat: 36.0969, lng: 114.3924 }, // 安阳属于河南省
+  '新乡': { lat: 35.3030, lng: 113.9268 },
+  '焦作': { lat: 35.2154, lng: 113.2418 },
   '武汉': { lat: 30.5928, lng: 114.3055 },
   '宜昌': { lat: 30.6919, lng: 111.2865 },
   '襄阳': { lat: 32.0089, lng: 112.1224 },
@@ -654,8 +661,13 @@ export function GalleryPage() {
       { id: 'fujian', title: '福建', latRange: [23.5, 28.3], lngRange: [115.8, 120.7], priority: 2 },
       { id: 'anhui', title: '安徽', latRange: [29.4, 34.7], lngRange: [114.9, 119.8], priority: 2 },
       { id: 'jiangsu', title: '江苏', latRange: [30.7, 35.1], lngRange: [116.2, 121.9], priority: 2 },
-      { id: 'shandong', title: '山东', latRange: [34.4, 38.4], lngRange: [114.3, 122.7], priority: 2 },
-      { id: 'henan', title: '河南', latRange: [31.2, 36.4], lngRange: [110.3, 116.6], priority: 2 },
+      // 调整山东和河南的经纬度范围，避免边界城市被误判
+      // 开封坐标：34.7973°N, 114.3076°E - 属于河南
+      // 安阳坐标：36.0969°N, 114.3924°E - 属于河南
+      // 石家庄坐标：38.0428°N, 114.5149°E - 属于河北
+      // 日照坐标：35.4169°N, 119.5272°E - 属于山东
+      { id: 'henan', title: '河南', latRange: [31.2, 36.5], lngRange: [110.3, 116.6], priority: 2 }, // 河南优先于山东，避免开封、安阳被误判
+      { id: 'shandong', title: '山东', latRange: [34.4, 38.4], lngRange: [115.0, 122.7], priority: 2 }, // 调整经度下限到115.0，避免与河南重叠
       { id: 'hubei', title: '湖北', latRange: [29.0, 33.3], lngRange: [108.2, 116.1], priority: 2 },
       { id: 'hunan', title: '湖南', latRange: [24.6, 30.1], lngRange: [108.8, 114.3], priority: 2 },
       { id: 'guangdong', title: '广东', latRange: [20.1, 25.5], lngRange: [109.6, 117.3], priority: 2 },
@@ -802,9 +814,10 @@ export function GalleryPage() {
           // 直辖市和特别行政区（最高优先级）
           'beijing': 1, 'tianjin': 1, 'shanghai': 1, 'chongqing': 1,
           'hongkong': 1, 'macao': 1, 'taiwan': 1, 'hainan': 1, 'ningxia': 1,
-          // 小省份
+          // 小省份（河南优先于山东，避免开封、安阳被误判）
           'jiangxi': 2, 'zhejiang': 2, 'fujian': 2, 'anhui': 2, 'jiangsu': 2,
-          'shandong': 2, 'henan': 2, 'hubei': 2, 'hunan': 2, 'guangdong': 2,
+          'henan': 2, // 河南优先于山东，避免开封、安阳被误判
+          'shandong': 2, 'hubei': 2, 'hunan': 2, 'guangdong': 2,
           'guangxi': 2, 'guizhou': 2, 'shanxi': 2, 'shaanxi': 2,
           'jilin': 2, 'hebei': 2, 'heilongjiang': 2, 'sichuan': 2, 'yunnan': 2,
           // 边界重叠的省份（需要特别注意）
