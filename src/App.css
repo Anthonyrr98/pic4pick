@@ -2366,11 +2366,53 @@ main {
     /* 手机端显示大图：占据更多上方区域，宽度铺满 */
     display: block;
     max-height: 68vh;
+    cursor: pointer;
+    position: relative;
   }
-  /* 手机端参数区整体更紧凑一些，占用更少高度 */
+  /* 手机端：在照片底部添加一个小的向上箭头提示，表示可以点击查看参数 */
+  .lightbox-media::after {
+    content: '↑';
+    position: absolute;
+    bottom: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 40px;
+    height: 40px;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-size: 1.2rem;
+    opacity: 0.8;
+    transition: opacity 0.3s ease, transform 0.3s ease;
+    pointer-events: none;
+    z-index: 10;
+  }
+  /* 当参数区域显示时，隐藏提示箭头 */
+  .lightbox-content-wrapper.meta-visible .lightbox-media::after {
+    opacity: 0;
+    transform: translateX(-50%) translateY(10px);
+  }
+  /* 手机端参数区：默认隐藏，点击照片后从下方滑入 */
   .lightbox-meta {
     width: 100%;
     gap: 12px;
+    max-height: 0;
+    overflow: hidden;
+    opacity: 0;
+    transform: translateY(100%);
+    transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+                opacity 0.3s ease,
+                transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .lightbox-meta.mobile-visible {
+    max-height: 1000px;
+    opacity: 1;
+    transform: translateY(0);
   }
   .lightbox-title-section {
     padding-bottom: 10px;

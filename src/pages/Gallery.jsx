@@ -554,6 +554,7 @@ export function GalleryPage() {
   const [lightboxPhoto, setLightboxPhoto] = useState(null);
   const [metaPopover, setMetaPopover] = useState(null); // { tab: 'basic' | 'geo', x, y }
   const [exifData, setExifData] = useState(null);
+  const [showMobileMeta, setShowMobileMeta] = useState(false); // 手机端参数区域显示状态
   const [approvedPhotos, setApprovedPhotos] = useState(() => (isSupabaseReady ? [] : loadApprovedPhotos()));
   const [supabaseError, setSupabaseError] = useState('');
   const [displayedCount, setDisplayedCount] = useState(12); // 初始显示的照片数量
@@ -1105,6 +1106,13 @@ export function GalleryPage() {
       browserLocation: browserLocation,
     };
   }, [lightboxPhoto, exifData, browserLocation]);
+
+  // 打开照片时，手机端默认隐藏参数
+  useEffect(() => {
+    if (lightboxPhoto) {
+      setShowMobileMeta(false);
+    }
+  }, [lightboxPhoto]);
 
   // 从图片读取EXIF数据
   useEffect(() => {
@@ -2350,6 +2358,7 @@ export function GalleryPage() {
           // 如果点击的是lightbox本身（不是子元素），才关闭
           if (e.target === e.currentTarget) {
             setLightboxPhoto(null);
+            setShowMobileMeta(false);
           }
         }}
       >
@@ -2359,6 +2368,7 @@ export function GalleryPage() {
           onClick={(e) => {
             e.stopPropagation();
             setLightboxPhoto(null);
+            setShowMobileMeta(false);
           }}
         >
           &times;
@@ -2370,19 +2380,35 @@ export function GalleryPage() {
           }}
           onClick={(e) => e.stopPropagation()}
         >
-          <div className="lightbox-content-wrapper">
-          <div className="lightbox-media">
+          <div className={`lightbox-content-wrapper ${showMobileMeta ? 'meta-visible' : ''}`}>
+          <div 
+            className="lightbox-media"
+            onClick={() => {
+              // 手机端点击照片时切换参数显示
+              if (window.innerWidth <= 768) {
+                setShowMobileMeta(prev => !prev);
+              }
+            }}
+          >
             {lightboxPhoto && <img src={lightboxPhoto.image} alt={lightboxPhoto.title} />}
           </div>
           {lightboxPhoto && (
-            <div className="lightbox-meta">
+            <div className={`lightbox-meta ${showMobileMeta ? 'mobile-visible' : ''}`}>
                 <div className="lightbox-title-section">
                 <h3>{lightboxPhoto.title}</h3>
                 <p className="subtitle">
                   {lightboxPhoto.country} · {lightboxPhoto.location}
                 </p>
               </div>
-                <div className="lightbox-params-grid">
+                <div 
+                  className="lightbox-params-grid"
+                  onClick={(e) => {
+                    // 手机端点击参数区域时也切换显示（避免误触关闭）
+                    if (window.innerWidth <= 768) {
+                      e.stopPropagation();
+                    }
+                  }}
+                >
                 <div
                     className="lightbox-param-card"
                   onClick={(event) => {
