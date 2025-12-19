@@ -2342,11 +2342,13 @@ main {
     grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
   }
   .lightbox {
-    padding: 16px;
+    padding: 0;
   }
   .lightbox-panel {
-    padding: 24px;
-    border-radius: 24px;
+    padding: 16px;
+    border-radius: 0;
+    border: none;
+    box-shadow: none;
     max-width: 100%;
     width: 100%;
     /* 小屏：整个弹层可以上下滚动，便于查看完整参数 */
