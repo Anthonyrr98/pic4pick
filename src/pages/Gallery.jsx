@@ -2130,10 +2130,13 @@ export function GalleryPage() {
               <div className="logo-mark" aria-hidden="true" />
             )
           )}
-          <div className="brand-copy">
-            <div className="brand-name">{brandText.siteTitle}</div>
-            <div className="brand-subtitle">{brandText.siteSubtitle}</div>
-          </div>
+          {/* 仅在电脑端的图库界面显示品牌文字 */}
+          {isDesktop && activeView === 'gallery-view' && (
+            <div className="brand-copy">
+              <div className="brand-name">{brandText.siteTitle}</div>
+              <div className="brand-subtitle">{brandText.siteSubtitle}</div>
+            </div>
+          )}
         </div>
         {/* 顶部导航暂时不需要额外菜单项，仅保留占位容器 */}
         <nav className="primary-menu" />
