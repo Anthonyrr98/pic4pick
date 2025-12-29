@@ -85,6 +85,7 @@ main {
   gap: clamp(24px, 5vw, 80px);
   justify-content: space-between;
   flex-wrap: wrap;
+  position: relative;
 }
 
 /* 切换按钮定位到右上角 */
@@ -93,6 +94,28 @@ main {
   top: 32px;
   right: clamp(24px, 5vw, 72px);
   z-index: 10;
+  margin-left: auto;
+}
+
+/* 桌面端：brand居中，确保与view-toggle不重叠 */
+.app-header .brand {
+  min-width: 0;
+}
+
+/* 移动端：brand在左侧 */
+@media (max-width: 1024px) {
+  .app-header .brand {
+    margin: 0;
+    margin-right: auto;
+    max-width: calc(100% - 200px);
+  }
+  
+  /* 后台页面在移动端也保持左侧布局 */
+  .admin-header .brand {
+    margin: 0;
+    margin-right: auto;
+    max-width: calc(100% - 120px);
+  }
 }
 
 /* 发现视图下：header 浮在地图上方，背景透明 */
@@ -133,6 +156,7 @@ main {
   align-items: center;
   gap: 16px;
   margin: 0 auto;
+  flex-shrink: 0;
 }
 
 .logo-mark {
@@ -166,6 +190,38 @@ main {
   font-size: 0.7rem;
   letter-spacing: 0.3rem;
   color: var(--muted);
+}
+
+/* 移动端品牌文字样式调整 */
+@media (max-width: 1024px) {
+  .brand-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .brand-name {
+    font-size: 1.1rem;
+    letter-spacing: 0.2rem;
+  }
+  .brand-subtitle {
+    font-size: 0.65rem;
+    letter-spacing: 0.15rem;
+  }
+  
+  /* 后台页面品牌文字在移动端也显示 */
+  .admin-header .brand-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .admin-header .brand-name {
+    font-size: 1.1rem;
+    letter-spacing: 0.2rem;
+  }
+  .admin-header .brand-subtitle {
+    font-size: 0.65rem;
+    letter-spacing: 0.15rem;
+  }
 }
 
 /* 在发现视图（explore-mode）下隐藏品牌文字和logo（电脑端） */
@@ -2338,16 +2394,37 @@ main {
 
 @media (max-width: 1024px) {
   .app-header {
-    flex-direction: column;
-    align-items: flex-start;
+    flex-direction: row;
+    align-items: center;
     gap: 12px;
+    justify-content: space-between;
   }
   .primary-menu {
     order: 3;
   }
   .view-toggle {
-    align-self: stretch;
+    position: absolute;
+    top: 32px;
+    right: clamp(24px, 5vw, 72px);
+    align-self: auto;
   }
+  .app-header .brand {
+    max-width: calc(100% - 180px);
+  }
+  
+  /* 后台页面移动端布局 */
+  .admin-header {
+    flex-direction: row;
+    align-items: center;
+    gap: 12px;
+    justify-content: space-between;
+  }
+  .admin-header .primary-menu {
+    position: absolute;
+    top: 32px;
+    right: clamp(24px, 5vw, 72px);
+  }
+}
   /* 移动端：回退为上下布局，卡片不再悬浮在地图上 */
   #explore-view {
     display: flex;
@@ -2372,6 +2449,13 @@ main {
 }
 
 @media (max-width: 768px) {
+  /* 统计卡片在移动端保持2列布局 */
+  .admin-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+  
   .gallery-grid {
     grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
   }
@@ -2626,6 +2710,69 @@ main {
 
 @media (max-width: 480px) {
   /* 小屏幕手机优化 */
+  /* Header布局优化：确保logo和切换按钮不重叠 */
+  .app-header {
+    padding: 16px 16px 12px;
+    gap: 8px;
+  }
+  .app-header .brand {
+    max-width: calc(100% - 140px);
+    gap: 8px;
+  }
+  .brand-logo-img,
+  .logo-mark {
+    width: 40px;
+    height: 40px;
+  }
+  .app-header .view-toggle {
+    top: 16px;
+    right: 16px;
+    padding: 4px;
+  }
+  .toggle-btn {
+    padding: 6px 12px;
+    font-size: 0.85rem;
+  }
+  .toggle-icon {
+    width: 16px;
+    height: 16px;
+  }
+  
+  /* 后台页面小屏幕优化 */
+  .admin-header {
+    padding: 16px 16px 12px;
+    gap: 8px;
+  }
+  .admin-header .brand {
+    max-width: calc(100% - 100px);
+    gap: 8px;
+  }
+  .admin-header .brand-logo-img,
+  .admin-header .logo-mark {
+    width: 40px;
+    height: 40px;
+  }
+  .admin-header .primary-menu {
+    top: 16px;
+    right: 16px;
+    font-size: 0.85rem;
+  }
+  .admin-header .brand-name {
+    font-size: 1rem;
+    letter-spacing: 0.15rem;
+  }
+  .admin-header .brand-subtitle {
+    font-size: 0.6rem;
+    letter-spacing: 0.1rem;
+  }
+  
+  /* 统计卡片在小屏幕保持2列布局 */
+  .admin-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+  
   /* 筛选器优化 */
   .tab-strip {
     gap: 6px;

@@ -2137,16 +2137,16 @@ export function GalleryPage() {
     <div className={`app-shell ${activeView === 'explore-view' ? 'explore-mode' : ''}`}>
       <header className="app-header">
         <div className="brand">
-          {/* 仅在电脑端的图库界面显示logo */}
-          {isDesktop && activeView === 'gallery-view' && (
+          {/* 在图库界面显示logo（桌面端和移动端都显示） */}
+          {activeView === 'gallery-view' && (
             brandLogo ? (
               <img src={brandLogo} alt={`${brandText.siteTitle} logo`} className="brand-logo-img" />
             ) : (
               <div className="logo-mark" aria-hidden="true" />
             )
           )}
-          {/* 仅在电脑端的图库界面显示品牌文字 */}
-          {isDesktop && activeView === 'gallery-view' && (
+          {/* 在图库界面显示品牌文字（桌面端和移动端都显示） */}
+          {activeView === 'gallery-view' && (
             <div className="brand-copy">
               <div className="brand-name">{brandText.siteTitle}</div>
               <div className="brand-subtitle">{brandText.siteSubtitle}</div>
