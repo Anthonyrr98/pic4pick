@@ -3995,3 +3995,96 @@ main {
   scrollbar-width: none; /* Firefox */
   -ms-overflow-style: none; /* IE and Edge */
 }
+
+/* 登录页样式 */
+.login-section {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 16px;
+  background: radial-gradient(circle at top, rgba(255, 255, 255, 0.04), transparent 55%),
+    radial-gradient(circle at bottom, rgba(207, 165, 106, 0.1), transparent 60%),
+    var(--bg, #111218);
+}
+
+.login-container {
+  width: 100%;
+  max-width: 420px;
+  background: linear-gradient(145deg, rgba(17, 18, 24, 0.98), rgba(10, 11, 16, 0.98));
+  border-radius: 24px;
+  padding: 28px 26px 30px;
+  box-shadow: 0 26px 70px rgba(0, 0, 0, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+.login-header {
+  text-align: left;
+  margin-bottom: 24px;
+}
+
+.login-header h1 {
+  margin: 0 0 8px;
+  font-size: 1.6rem;
+  letter-spacing: 0.08em;
+}
+
+.login-header p {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.login-container form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.login-container .form-group label {
+  font-size: 0.9rem;
+}
+
+.login-container .form-group input {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.12);
+  color: #f9fafb;
+}
+
+.login-container .form-group input::placeholder {
+  color: rgba(148, 163, 184, 0.8);
+}
+
+.login-container .form-group input:focus {
+  border-color: var(--accent, #cfa56a);
+  box-shadow: 0 0 0 1px rgba(207, 165, 106, 0.6);
+  background: rgba(15, 23, 42, 0.9);
+}
+
+.login-container .btn-primary {
+  margin-top: 8px;
+  width: 100%;
+}
+
+.error-message {
+  padding: 10px 12px;
+  border-radius: 12px;
+  font-size: 0.85rem;
+  margin-bottom: 4px;
+  background: rgba(248, 113, 113, 0.1);
+  border: 1px solid rgba(248, 113, 113, 0.3);
+  color: #fecaca;
+}
+
+@media (max-width: 480px) {
+  .login-container {
+    padding: 22px 18px 24px;
+    border-radius: 18px;
+  }
+
+  .login-header h1 {
+    font-size: 1.4rem;
+  }
+}

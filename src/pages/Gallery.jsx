@@ -572,11 +572,16 @@ export function GalleryPage() {
   const mapInstance = useRef(null); // 发现页主地图：高德 Map 实例
   const tabStripRef = useRef(null); // 标签页容器引用
   const exploreMarkersRef = useRef([]); // 发现页自定义圆点
+  const exploreMaplibreMarkersRef = useRef([]); // 发现页备用底图（MapLibre）标记
   const currentLocationMarkerRef = useRef(null); // 当前浏览器位置标记
+  const currentLocationMaplibreMarkerRef = useRef(null); // 备用底图的当前位置标记
   const geoMapContainerRef = useRef(null);
   const geoMapInstance = useRef(null);
+  const maplibreExploreInstance = useRef(null); // 发现页备用底图（MapLibre）实例
   const [browserLocation, setBrowserLocation] = useState(null); // { lat, lon }
   const [isMapReady, setIsMapReady] = useState(false); // 高德地图是否已初始化完成
+  const [exploreMapProvider, setExploreMapProvider] = useState(null); // 'amap' | 'maplibre' | null
+  const [exploreMapHint, setExploreMapHint] = useState('');
   const [locationPanel, setLocationPanel] = useState(null); // { title, subtitle, photos: [], emptyMessage? }
   const [expandedCategories, setExpandedCategories] = useState({});
   const [isPanelCollapsed, setIsPanelCollapsed] = useState(false);
@@ -1558,33 +1563,125 @@ export function GalleryPage() {
     };
   }, [hasMore, isLoadingMore, loadMore]);
 
-  // 发现视图主地图：使用高德 JS API，而不是 MapLibre（仅在发现视图时初始化）
+  // 发现视图主地图：优先使用高德 JS API；若未配置 Key 或加载失败，回退到 MapLibre + 栅格瓦片
   useEffect(() => {
-    // 只在发现视图时初始化地图
     if (activeView !== 'explore-view') {
-      // 如果切换到图库视图，清理地图
-      if (mapInstance.current) {
-        setIsMapReady(false);
-        if (typeof mapInstance.current.destroy === 'function') {
-          mapInstance.current.destroy();
-        }
-        mapInstance.current = null;
+      // 切换回图库：清理两种地图实例
+      setIsMapReady(false);
+      setExploreMapProvider(null);
+      setExploreMapHint('');
+
+      if (mapInstance.current && typeof mapInstance.current.destroy === 'function') {
+        mapInstance.current.destroy();
       }
+      mapInstance.current = null;
+
+      exploreMarkersRef.current.forEach((marker) => marker?.setMap?.(null));
+      exploreMarkersRef.current = [];
+
+      if (maplibreExploreInstance.current) {
+        exploreMaplibreMarkersRef.current.forEach((m) => m.remove());
+        exploreMaplibreMarkersRef.current = [];
+        maplibreExploreInstance.current.remove();
+        maplibreExploreInstance.current = null;
+      }
+
+      if (currentLocationMarkerRef.current) {
+        currentLocationMarkerRef.current.setMap(null);
+        currentLocationMarkerRef.current = null;
+      }
+      if (currentLocationMaplibreMarkerRef.current) {
+        currentLocationMaplibreMarkerRef.current.remove();
+        currentLocationMaplibreMarkerRef.current = null;
+      }
+
       return;
     }
 
-    if (!mapContainerRef.current || mapInstance.current) return;
+    if (!mapContainerRef.current) return;
+    if (mapInstance.current || maplibreExploreInstance.current) return;
+
+    let cancelled = false;
+
+    const destroyAMap = () => {
+      if (mapInstance.current && typeof mapInstance.current.destroy === 'function') {
+        mapInstance.current.destroy();
+      }
+      mapInstance.current = null;
+      exploreMarkersRef.current.forEach((marker) => marker?.setMap?.(null));
+      exploreMarkersRef.current = [];
+      if (currentLocationMarkerRef.current) {
+        currentLocationMarkerRef.current.setMap(null);
+        currentLocationMarkerRef.current = null;
+      }
+    };
+
+    const destroyMapLibre = () => {
+      if (!maplibreExploreInstance.current) return;
+      exploreMaplibreMarkersRef.current.forEach((m) => m.remove());
+      exploreMaplibreMarkersRef.current = [];
+      if (currentLocationMaplibreMarkerRef.current) {
+        currentLocationMaplibreMarkerRef.current.remove();
+        currentLocationMaplibreMarkerRef.current = null;
+      }
+      maplibreExploreInstance.current.remove();
+      maplibreExploreInstance.current = null;
+    };
+
+    const initMapLibreFallback = (hintText) => {
+      if (cancelled) return;
+      if (!mapContainerRef.current || maplibreExploreInstance.current) return;
+
+      // 如果高德实例已存在，先清理，避免同一个容器被两套 SDK 同时占用
+      destroyAMap();
+
+      maplibreExploreInstance.current = new maplibregl.Map({
+        container: mapContainerRef.current,
+        style: {
+          version: 8,
+          sources: {
+            'gaode-tiles': {
+              type: 'raster',
+              tiles: [
+                'https://webrd01.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=7&x={x}&y={y}&z={z}',
+                'https://webrd02.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=7&x={x}&y={y}&z={z}',
+                'https://webrd03.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=7&x={x}&y={y}&z={z}',
+                'https://webrd04.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=7&x={x}&y={y}&z={z}',
+              ],
+              tileSize: 256,
+              attribution: '© 高德地图',
+            },
+          },
+          layers: [
+            {
+              id: 'gaode-tiles-layer',
+              type: 'raster',
+              source: 'gaode-tiles',
+              minzoom: 3,
+              maxzoom: 18,
+            },
+          ],
+        },
+        center: [105, 35],
+        zoom: 3.2,
+        attributionControl: true,
+      });
+
+      setExploreMapProvider('maplibre');
+      setExploreMapHint(hintText || '');
+      setIsMapReady(true);
+
+      setTimeout(() => {
+        if (maplibreExploreInstance.current) {
+          maplibreExploreInstance.current.resize();
+        }
+      }, 80);
+    };
 
     const initGaodeMap = async () => {
       const amapKey = getEnvValue('VITE_AMAP_KEY', '');
       if (!amapKey) {
-        // 配置缺失，静默处理
-        return;
-      }
-
-      // 确保容器已准备好
-      if (!mapContainerRef.current) {
-        setTimeout(initGaodeMap, 100);
+        initMapLibreFallback('未配置高德地图 Key，已启用备用底图（可在后台配置面板填写 VITE_AMAP_KEY）。');
         return;
       }
 
@@ -1611,9 +1708,9 @@ export function GalleryPage() {
 
       try {
         await ensureAMapLoaded();
-        const AMap = window.AMap;
+        if (cancelled) return;
 
-        // 再次检查容器是否存在
+        const AMap = window.AMap;
         if (!mapContainerRef.current) {
           throw handleError(new Error('地图容器在初始化时不存在'), {
             context: 'initGaodeMap.container',
@@ -1621,58 +1718,62 @@ export function GalleryPage() {
           });
         }
 
+        // 如果备用底图已存在，先清理
+        destroyMapLibre();
+
         const map = new AMap.Map(mapContainerRef.current, {
           viewMode: '2D',
           zoom: 3.2,
-          center: [105, 35], // 以中国为视觉中心
+          center: [105, 35],
           resizeEnable: true,
-          mapStyle: 'amap://styles/whitesmoke', // 干净的浅色主题
+          mapStyle: 'amap://styles/whitesmoke',
         });
 
         mapInstance.current = map;
+        setExploreMapProvider('amap');
+        setExploreMapHint('');
         setIsMapReady(true);
-        
-        // 确保地图正确显示
+
         setTimeout(() => {
           if (mapInstance.current) {
             mapInstance.current.resize();
           }
-        }, 100);
+        }, 80);
       } catch (error) {
         handleError(error, {
           context: 'initGaodeMap',
           type: ErrorType.NETWORK,
-          silent: false,
+          silent: true,
         });
-          }
+        initMapLibreFallback('高德地图加载失败，已自动切换到备用底图。');
+      }
     };
 
-    // 延迟初始化，确保 DOM 已渲染
     const timer = setTimeout(() => {
-    initGaodeMap();
+      initGaodeMap();
     }, 50);
 
     return () => {
+      cancelled = true;
       clearTimeout(timer);
       setIsMapReady(false);
-      if (mapInstance.current && typeof mapInstance.current.destroy === 'function') {
-        mapInstance.current.destroy();
-        mapInstance.current = null;
-          }
+      setExploreMapProvider(null);
+      setExploreMapHint('');
+      destroyAMap();
+      destroyMapLibre();
     };
   }, [activeView]);
 
   // 在高德地图上绘制主题色小圆点，点击弹出该地点的图片面板（仅在发现视图）
   useEffect(() => {
     if (activeView !== 'explore-view') return;
-    if (!isMapReady || !mapInstance.current || !window.AMap) return;
+    if (!isMapReady) return;
 
-    const AMap = window.AMap;
-    const map = mapInstance.current;
-
-    // 清除旧的自定义标记
-    exploreMarkersRef.current.forEach((marker) => marker.setMap(null));
+    // 清除旧的自定义标记（两种底图）
+    exploreMarkersRef.current.forEach((marker) => marker?.setMap?.(null));
     exploreMarkersRef.current = [];
+    exploreMaplibreMarkersRef.current.forEach((m) => m.remove());
+    exploreMaplibreMarkersRef.current = [];
 
     if (!photosByLocation || photosByLocation.length === 0) return;
 
@@ -1697,12 +1798,25 @@ export function GalleryPage() {
         transform: scale(0);
       `;
 
-      const marker = new AMap.Marker({
-        position: [group.lng, group.lat],
-        content: el,
-        offset: new AMap.Pixel(-6, -6),
-        map,
-      });
+      if (exploreMapProvider === 'amap') {
+        if (!mapInstance.current || !window.AMap) return;
+        const AMap = window.AMap;
+        const marker = new AMap.Marker({
+          position: [group.lng, group.lat],
+          content: el,
+          offset: new AMap.Pixel(-6, -6),
+          map: mapInstance.current,
+        });
+        exploreMarkersRef.current.push(marker);
+      } else if (exploreMapProvider === 'maplibre') {
+        if (!maplibreExploreInstance.current) return;
+        const marker = new maplibregl.Marker({ element: el, anchor: 'center' })
+          .setLngLat([group.lng, group.lat])
+          .addTo(maplibreExploreInstance.current);
+        exploreMaplibreMarkersRef.current.push(marker);
+      } else {
+        return;
+      }
 
       el.addEventListener('click', () => {
         showLocationPanel({
@@ -1717,7 +1831,6 @@ export function GalleryPage() {
         });
       });
 
-      exploreMarkersRef.current.push(marker);
       markerElements.push(el);
     });
 
@@ -1737,7 +1850,7 @@ export function GalleryPage() {
         }, index * 10); // 每个标记延迟10ms，更快地依次出现
       }
     });
-  }, [photosByLocation, activeView, isMapReady, showLocationPanel]);
+  }, [photosByLocation, activeView, isMapReady, showLocationPanel, exploreMapProvider]);
 
   // 当前浏览器位置：在地图上显示一个浅蓝色小圆点（仅在发现视图）
   useEffect(() => {
@@ -1747,21 +1860,27 @@ export function GalleryPage() {
         currentLocationMarkerRef.current.setMap(null);
         currentLocationMarkerRef.current = null;
       }
+      if (currentLocationMaplibreMarkerRef.current) {
+        currentLocationMaplibreMarkerRef.current.remove();
+        currentLocationMaplibreMarkerRef.current = null;
+      }
       return;
     }
     
-    if (!isMapReady || !mapInstance.current || !window.AMap) return;
+    if (!isMapReady) return;
     if (!browserLocation) {
       console.log('等待浏览器位置...');
       return;
     }
 
-    const AMap = window.AMap;
-
     // 清除旧标记
     if (currentLocationMarkerRef.current) {
       currentLocationMarkerRef.current.setMap(null);
       currentLocationMarkerRef.current = null;
+    }
+    if (currentLocationMaplibreMarkerRef.current) {
+      currentLocationMaplibreMarkerRef.current.remove();
+      currentLocationMaplibreMarkerRef.current = null;
     }
 
     const el = document.createElement('div');
@@ -1778,24 +1897,38 @@ export function GalleryPage() {
       display: block;
     `;
 
-    const marker = new AMap.Marker({
-      position: [browserLocation.lon, browserLocation.lat],
-      content: el,
-      offset: new AMap.Pixel(-6, -6),
-      map: mapInstance.current,
-      zIndex: 1000, // 确保标记在最上层
-    });
-
-    currentLocationMarkerRef.current = marker;
-    console.log('当前位置标记已创建:', browserLocation);
+    if (exploreMapProvider === 'amap') {
+      if (!mapInstance.current || !window.AMap) return;
+      const AMap = window.AMap;
+      const marker = new AMap.Marker({
+        position: [browserLocation.lon, browserLocation.lat],
+        content: el,
+        offset: new AMap.Pixel(-6, -6),
+        map: mapInstance.current,
+        zIndex: 1000, // 确保标记在最上层
+      });
+      currentLocationMarkerRef.current = marker;
+      console.log('当前位置标记已创建:', browserLocation);
+    } else if (exploreMapProvider === 'maplibre') {
+      if (!maplibreExploreInstance.current) return;
+      const marker = new maplibregl.Marker({ element: el, anchor: 'center' })
+        .setLngLat([browserLocation.lon, browserLocation.lat])
+        .addTo(maplibreExploreInstance.current);
+      currentLocationMaplibreMarkerRef.current = marker;
+      console.log('当前位置标记已创建（备用底图）:', browserLocation);
+    }
 
     return () => {
       if (currentLocationMarkerRef.current) {
         currentLocationMarkerRef.current.setMap(null);
         currentLocationMarkerRef.current = null;
       }
+      if (currentLocationMaplibreMarkerRef.current) {
+        currentLocationMaplibreMarkerRef.current.remove();
+        currentLocationMaplibreMarkerRef.current = null;
+      }
     };
-  }, [browserLocation, isMapReady, activeView]);
+  }, [browserLocation, isMapReady, activeView, exploreMapProvider]);
 
   // 发现视图下：确保地图铺满整个视口（header浮在上方）
   useEffect(() => {
@@ -1824,6 +1957,9 @@ export function GalleryPage() {
         if (mapInstance.current) {
           mapInstance.current.resize();
         }
+        if (maplibreExploreInstance.current) {
+          maplibreExploreInstance.current.resize();
+        }
       }, 100);
     };
 
@@ -1840,9 +1976,13 @@ export function GalleryPage() {
   }, [activeView, mapInstance.current]);
 
   useEffect(() => {
-    if (!mapInstance.current) return;
     const timeout = setTimeout(() => {
-      mapInstance.current.resize();
+      if (mapInstance.current) {
+        mapInstance.current.resize();
+      }
+      if (maplibreExploreInstance.current) {
+        maplibreExploreInstance.current.resize();
+      }
     }, 300);
     return () => clearTimeout(timeout);
   }, [activeView]);
@@ -2437,6 +2577,29 @@ export function GalleryPage() {
             ))}
           </aside>
           <div className="map-wrapper">
+            {exploreMapHint && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: '18px',
+                  right: '18px',
+                  zIndex: 8,
+                  padding: '10px 12px',
+                  borderRadius: '14px',
+                  background: 'rgba(17, 18, 24, 0.72)',
+                  color: '#fff',
+                  border: '1px solid rgba(255, 255, 255, 0.12)',
+                  boxShadow: '0 10px 28px rgba(0, 0, 0, 0.35)',
+                  backdropFilter: 'blur(10px)',
+                  WebkitBackdropFilter: 'blur(10px)',
+                  maxWidth: 'min(420px, calc(100vw - 48px))',
+                  fontSize: '0.85rem',
+                  lineHeight: 1.35,
+                }}
+              >
+                {exploreMapHint}
+              </div>
+            )}
             <div id="mapCanvas" ref={mapContainerRef}></div>
           </div>
         </section>

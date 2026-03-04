@@ -45,9 +45,71 @@ export const ConfigPanel = ({
   const [backendUrlMessage, setBackendUrlMessage] = useState({ type: '', text: '' });
   // OSS 上传模式：签名直传（默认）或后端代理
   const [ossMode, setOssMode] = useState(() => {
-    const stored = StorageString.get('aliyun_oss_use_sign', '');
+    const stored = StorageString.get(STORAGE_KEYS.ALIYUN_OSS_USE_SIGN, '');
     return stored === 'false' ? 'proxy' : 'sign';
   });
+
+  // 若 Supabase 可用：从云端 brand_settings 回填后端 URL / 上传模式
+  useEffect(() => {
+    if (!supabase) return;
+
+    let cancelled = false;
+
+    const loadRemoteOssConfig = async () => {
+      try {
+        const { data, error } = await supabase
+          .from(BRAND_LOGO_SUPABASE_TABLE)
+          .select('aliyun_oss_backend_url, aliyun_oss_use_sign')
+          .eq('id', BRAND_LOGO_SUPABASE_ID)
+          .maybeSingle();
+
+        if (cancelled) return;
+        if (error) {
+          // 不阻塞页面：失败则维持本地配置
+          return;
+        }
+
+        if (data?.aliyun_oss_backend_url != null && data.aliyun_oss_backend_url !== '') {
+          const url = String(data.aliyun_oss_backend_url);
+          setBackendUrl(url);
+          StorageString.set(STORAGE_KEYS.ALIYUN_OSS_BACKEND_URL, url);
+        }
+
+        // NULL 表示默认（签名直传）；false 表示代理
+        if (typeof data?.aliyun_oss_use_sign === 'boolean') {
+          if (data.aliyun_oss_use_sign === false) {
+            setOssMode('proxy');
+            StorageString.set(STORAGE_KEYS.ALIYUN_OSS_USE_SIGN, 'false');
+          } else {
+            setOssMode('sign');
+            StorageString.remove(STORAGE_KEYS.ALIYUN_OSS_USE_SIGN);
+          }
+        }
+      } catch (e) {
+        // 静默失败：不影响使用
+      }
+    };
+
+    loadRemoteOssConfig();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [supabase]);
+
+  const saveOssConfigToSupabase = async ({ nextBackendUrl, nextOssMode }) => {
+    if (!supabase) return;
+
+    const payload = {
+      id: BRAND_LOGO_SUPABASE_ID,
+      aliyun_oss_backend_url: nextBackendUrl ? nextBackendUrl : null,
+      aliyun_oss_use_sign: nextOssMode === 'proxy' ? false : true,
+      updated_at: new Date().toISOString(),
+    };
+
+    const { error } = await supabase.from(BRAND_LOGO_SUPABASE_TABLE).upsert(payload);
+    if (error) throw error;
+  };
 
   const handleLogoUploadClick = () => {
     if (logoFileInputRef.current) {
@@ -135,12 +197,12 @@ export const ConfigPanel = ({
   };
 
   const handleSaveEnvConfig = () => {
-    const updates = {};
-    Object.keys(envConfigForm).forEach((key) => {
-      if (envConfigForm[key]) {
-        updates[key] = envConfigForm[key];
-      }
-    });
+    // 表单字段名（supabaseUrl/amapKey）需要映射到真正的 Vite 环境变量键名（VITE_*）
+    const updates = {
+      VITE_SUPABASE_URL: envConfigForm.supabaseUrl || '',
+      VITE_SUPABASE_ANON_KEY: envConfigForm.supabaseAnonKey || '',
+      VITE_AMAP_KEY: envConfigForm.amapKey || '',
+    };
     updateEnvOverrides(updates);
     setEnvConfigMessage({ type: 'success', text: '环境变量配置已保存，请刷新页面生效' });
     setTimeout(() => setEnvConfigMessage({ type: '', text: '' }), 3000);
@@ -300,15 +362,30 @@ export const ConfigPanel = ({
           <button
             type="button"
             className="btn-primary"
-            onClick={() => {
-              if (backendUrl) {
-                StorageString.set(STORAGE_KEYS.ALIYUN_OSS_BACKEND_URL, backendUrl.trim());
-                setBackendUrlMessage({ type: 'success', text: '后端 URL 已保存，刷新页面后生效' });
-              } else {
-                StorageString.remove(STORAGE_KEYS.ALIYUN_OSS_BACKEND_URL);
-                setBackendUrlMessage({ type: 'info', text: '已清除后端 URL 配置，将使用默认值' });
+            onClick={async () => {
+              try {
+                const nextUrl = backendUrl ? backendUrl.trim() : '';
+                if (nextUrl) {
+                  StorageString.set(STORAGE_KEYS.ALIYUN_OSS_BACKEND_URL, nextUrl);
+                } else {
+                  StorageString.remove(STORAGE_KEYS.ALIYUN_OSS_BACKEND_URL);
+                }
+
+                await saveOssConfigToSupabase({ nextBackendUrl: nextUrl, nextOssMode: ossMode });
+
+                setBackendUrlMessage({
+                  type: 'success',
+                  text: supabase ? '后端 URL 已保存并同步到云端（刷新页面后生效）' : '后端 URL 已保存（刷新页面后生效）',
+                });
+              } catch (error) {
+                const appError = handleError(error, {
+                  context: 'saveBackendUrl',
+                  type: ErrorType.NETWORK,
+                });
+                setBackendUrlMessage({ type: 'error', text: `保存失败：${formatErrorMessage(appError)}` });
+              } finally {
+                setTimeout(() => setBackendUrlMessage({ type: '', text: '' }), 3000);
               }
-              setTimeout(() => setBackendUrlMessage({ type: '', text: '' }), 3000);
             }}
           >
             保存配置
@@ -316,11 +393,21 @@ export const ConfigPanel = ({
           <button
             type="button"
             className="btn-secondary"
-            onClick={() => {
-              StorageString.remove(STORAGE_KEYS.ALIYUN_OSS_BACKEND_URL);
-              setBackendUrl('');
-              setBackendUrlMessage({ type: 'info', text: '已清除配置，将使用默认值' });
-              setTimeout(() => setBackendUrlMessage({ type: '', text: '' }), 3000);
+            onClick={async () => {
+              try {
+                StorageString.remove(STORAGE_KEYS.ALIYUN_OSS_BACKEND_URL);
+                setBackendUrl('');
+                await saveOssConfigToSupabase({ nextBackendUrl: '', nextOssMode: ossMode });
+                setBackendUrlMessage({ type: 'info', text: supabase ? '已清除并同步到云端，将使用默认值' : '已清除配置，将使用默认值' });
+              } catch (error) {
+                const appError = handleError(error, {
+                  context: 'clearBackendUrl',
+                  type: ErrorType.NETWORK,
+                });
+                setBackendUrlMessage({ type: 'error', text: `清除失败：${formatErrorMessage(appError)}` });
+              } finally {
+                setTimeout(() => setBackendUrlMessage({ type: '', text: '' }), 3000);
+              }
             }}
           >
             清除配置
@@ -386,14 +473,25 @@ export const ConfigPanel = ({
           <button
             type="button"
             className="btn-primary"
-            onClick={() => {
-              if (ossMode === 'sign') {
-                StorageString.remove('aliyun_oss_use_sign');
-              } else {
-                StorageString.set('aliyun_oss_use_sign', 'false');
+            onClick={async () => {
+              try {
+                if (ossMode === 'sign') {
+                  StorageString.remove(STORAGE_KEYS.ALIYUN_OSS_USE_SIGN);
+                } else {
+                  StorageString.set(STORAGE_KEYS.ALIYUN_OSS_USE_SIGN, 'false');
+                }
+
+                await saveOssConfigToSupabase({ nextBackendUrl: backendUrl ? backendUrl.trim() : '', nextOssMode: ossMode });
+                setBackendUrlMessage({ type: 'success', text: supabase ? '上传模式已保存并同步到云端（刷新页面后生效）' : '上传模式已保存（刷新页面后生效）' });
+              } catch (error) {
+                const appError = handleError(error, {
+                  context: 'saveOssMode',
+                  type: ErrorType.NETWORK,
+                });
+                setBackendUrlMessage({ type: 'error', text: `保存失败：${formatErrorMessage(appError)}` });
+              } finally {
+                setTimeout(() => setBackendUrlMessage({ type: '', text: '' }), 3000);
               }
-              setBackendUrlMessage({ type: 'success', text: '上传模式已保存，刷新页面后生效' });
-              setTimeout(() => setBackendUrlMessage({ type: '', text: '' }), 3000);
             }}
           >
             保存模式
@@ -401,11 +499,21 @@ export const ConfigPanel = ({
           <button
             type="button"
             className="btn-secondary"
-            onClick={() => {
-              StorageString.remove('aliyun_oss_use_sign');
-              setOssMode('sign');
-              setBackendUrlMessage({ type: 'info', text: '已恢复默认：签名直传' });
-              setTimeout(() => setBackendUrlMessage({ type: '', text: '' }), 3000);
+            onClick={async () => {
+              try {
+                StorageString.remove(STORAGE_KEYS.ALIYUN_OSS_USE_SIGN);
+                setOssMode('sign');
+                await saveOssConfigToSupabase({ nextBackendUrl: backendUrl ? backendUrl.trim() : '', nextOssMode: 'sign' });
+                setBackendUrlMessage({ type: 'info', text: supabase ? '已恢复默认并同步到云端：签名直传' : '已恢复默认：签名直传' });
+              } catch (error) {
+                const appError = handleError(error, {
+                  context: 'resetOssMode',
+                  type: ErrorType.NETWORK,
+                });
+                setBackendUrlMessage({ type: 'error', text: `恢复失败：${formatErrorMessage(appError)}` });
+              } finally {
+                setTimeout(() => setBackendUrlMessage({ type: '', text: '' }), 3000);
+              }
             }}
           >
             恢复默认
