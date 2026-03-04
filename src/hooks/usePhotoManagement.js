@@ -55,6 +55,9 @@ export const usePhotoManagement = (supabase, refreshSupabaseData, setSubmitMessa
     if (!itemToApprove) return;
 
     const approvedItem = { ...itemToApprove, status: 'approved' };
+
+    // 先乐观更新：立即从待审核列表移除，避免“点了没消失”的体验
+    setAdminUploads((prev) => prev.filter((item) => item.id !== id));
     
     // 添加到已审核列表
     setApprovedPhotos((prev) => {
@@ -131,13 +134,12 @@ export const usePhotoManagement = (supabase, refreshSupabaseData, setSubmitMessa
         
         // 回滚本地状态更改
         setApprovedPhotos((prev) => prev.filter((item) => item.id !== id));
+        setAdminUploads((prev) => [itemToApprove, ...prev]);
         
         return;
       }
     }
     
-    // 从待审核列表移除
-    setAdminUploads((prev) => prev.filter((item) => item.id !== id));
     setSubmitMessage({ type: 'success', text: '作品已通过审核，已添加到前端图库' });
   }, [adminUploads, supabase, refreshSupabaseData, setSubmitMessage]);
 
