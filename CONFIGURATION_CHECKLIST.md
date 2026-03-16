@@ -266,6 +266,46 @@ ALIYUN_OSS_ACCESS_KEY_SECRET=your-access-key-secret
 
 ---
 
+## 本地开发故障排除
+
+### 1. `net::ERR_CONNECTION_REFUSED`（如 `http://localhost:3002/api/upload/sign`）
+
+**原因**：后端未启动，前端请求不到签名/上传接口。
+
+**处理**：在项目根目录执行：
+
+```bash
+npm run server
+```
+
+或在单独终端执行：
+
+```bash
+cd server
+npm run dev
+```
+
+后端默认端口为 **3002**（与 vite 代理一致）。确保终端中看到类似 “服务器运行在 http://0.0.0.0:3002” 再刷新前端。
+
+### 2. Supabase CORS：`No 'Access-Control-Allow-Origin' header`
+
+**原因**：从 `http://localhost:5173` 访问 Supabase 时，若未把该来源加入允许列表，或接口返回 401/403 且未带 CORS 头，浏览器会报 CORS 错误。
+
+**处理**：
+
+1. **在 Supabase 中允许本地来源**  
+   - 打开 [Supabase Dashboard](https://supabase.com/dashboard) → 选择项目  
+   - **Project Settings** → **API**  
+   - 在 **CORS / Allowed origins**（或类似名称）中增加：`http://localhost:5173`  
+   - 保存后重试
+
+2. **先排除鉴权问题**  
+   - 若仍报 CORS，可能是接口返回 401/403，而错误响应未带 CORS 头  
+   - 在管理后台「配置」中确认 **Supabase URL** 与 **Anon Key** 与 Dashboard → Project Settings → API 中一致  
+   - 确认 `photos`、`gear_presets` 等表已按文档配置 RLS 策略，允许 anon 的 SELECT/INSERT/UPDATE
+
+---
+
 ## 完成检查
 
 完成以上所有配置后，您的应用应该能够：
@@ -278,4 +318,5 @@ ALIYUN_OSS_ACCESS_KEY_SECRET=your-access-key-secret
 - [ARCHITECTURE.md](./ARCHITECTURE.md) - 架构说明
 - [server/DEPLOYMENT_GUIDE.md](./server/DEPLOYMENT_GUIDE.md) - 后端部署指南
 - [BACKEND_SETUP.md](./BACKEND_SETUP.md) - 后端配置指南
+- [docs/MIGRATION_DOMESTIC_DATABASE.md](./docs/MIGRATION_DOMESTIC_DATABASE.md) - **数据库迁移至国内服务器指南**
 

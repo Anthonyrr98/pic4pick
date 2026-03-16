@@ -3355,11 +3355,16 @@ main {
   position: relative;
   border-radius: 12px;
   overflow: hidden;
-  max-height: 400px;
+  max-height: 500px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .preview-container img {
-  width: 100%;
+  max-width: 100%;
+  max-height: 500px;
+  width: auto;
   height: auto;
   display: block;
   object-fit: contain;

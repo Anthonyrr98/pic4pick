@@ -29,7 +29,6 @@ import { useLocationPicker } from '../hooks/useLocationPicker';
 import { useGearOptions } from '../hooks/useGearOptions';
 import { useBrandConfig } from '../hooks/useBrandConfig';
 import { useFileUpload } from '../hooks/useFileUpload';
-import { ToolsPanel } from '../components/admin/ToolsPanel';
 import { ConfigPanel } from '../components/admin/ConfigPanel';
 
 const tabs = [
@@ -76,9 +75,6 @@ export function AdminPage() {
     tags: '',
     preview: '',
     file: null,
-    uploadMode: 'file', // 'file' | 'url'
-    imageUrl: '', // 原图直链 URL
-    thumbnailUrl: '', // 缩略图直链 URL
     latitude: null,
     longitude: null,
     altitude: null,
@@ -119,7 +115,7 @@ export function AdminPage() {
   const [isSearching, setIsSearching] = useState(false);
   const [searchResults, setSearchResults] = useState([]);
   const [submitMessage, setSubmitMessage] = useState({ type: '', text: '' });
-  const [activeTab, setActiveTab] = useState('upload'); // 'upload' | 'pending' | 'approved' | 'rejected' | 'tools' | 'config'
+  const [activeTab, setActiveTab] = useState('upload'); // 'upload' | 'pending' | 'approved' | 'rejected' | 'config'
   // 使用文件上传管理 hook
   const {
     isUploading,
@@ -157,7 +153,7 @@ export function AdminPage() {
     setBrandTextMessage,
   } = useBrandConfig(supabase);
 
-  // 工具：图片压缩模块状态（已移至 ToolsPanel 组件）
+  // 工具：图片压缩模块（已移除）
 
   // 照片管理 hook（先调用，获取 setter 函数）
   // 注意：refreshSupabaseData 稍后定义，使用 useRef 传递
@@ -1168,7 +1164,7 @@ export function AdminPage() {
     const reader = new FileReader();
     reader.onload = async () => {
       const preview = reader.result?.toString() || '';
-      setUploadForm((prev) => ({ ...prev, file, preview, imageUrl: '' }));
+      setUploadForm((prev) => ({ ...prev, file, preview }));
       
       // 读取EXIF数据获取地理位置和相机参数
       try {
@@ -1466,45 +1462,6 @@ export function AdminPage() {
     reader.readAsDataURL(file);
   };
 
-  const handleUrlChange = (event) => {
-    const url = event.target.value.trim();
-    setUploadForm((prev) => ({ ...prev, imageUrl: url }));
-  };
-
-  const handleThumbnailUrlChange = (event) => {
-    const url = event.target.value.trim();
-    setUploadForm((prev) => ({ ...prev, thumbnailUrl: url }));
-    
-    // 如果缩略图 URL 有效，设置预览
-    if (url) {
-      try {
-        new URL(url);
-        setUploadForm((prev) => ({ ...prev, preview: url, file: null }));
-        if (submitMessage.type === 'error') {
-          setSubmitMessage({ type: '', text: '' });
-        }
-      } catch {
-        // URL格式无效，不设置预览
-        setUploadForm((prev) => ({ ...prev, preview: '' }));
-      }
-    } else {
-      setUploadForm((prev) => ({ ...prev, preview: '' }));
-    }
-  };
-
-  const handleUploadModeChange = (mode) => {
-    setUploadForm((prev) => ({
-      ...prev,
-      uploadMode: mode,
-      file: null,
-      preview: '',
-      imageUrl: '',
-      thumbnailUrl: '',
-    }));
-    const fileInput = document.getElementById('file-upload');
-    if (fileInput) fileInput.value = '';
-  };
-
   const handleUpload = async (event) => {
     event.preventDefault();
     
@@ -1525,42 +1482,21 @@ export function AdminPage() {
       setSubmitMessage({ type: 'error', text: '请填写拍摄日期' });
       return;
     }
-    // 验证文件或URL
-    if (uploadForm.uploadMode === 'file') {
-      if (!uploadForm.file) {
-        setSubmitMessage({ type: 'error', text: '请上传照片' });
-        return;
-      }
-    } else {
-      if (!uploadForm.thumbnailUrl?.trim()) {
-        setSubmitMessage({ type: 'error', text: '请输入缩略图直链地址' });
-        return;
-      }
-      if (!uploadForm.imageUrl?.trim()) {
-        setSubmitMessage({ type: 'error', text: '请输入原图直链地址' });
-        return;
-      }
-      // 验证URL格式
-      try {
-        new URL(uploadForm.thumbnailUrl.trim());
-        new URL(uploadForm.imageUrl.trim());
-      } catch {
-        setSubmitMessage({ type: 'error', text: '请输入有效的缩略图和原图 URL 地址' });
+    if (!uploadForm.file) {
+      setSubmitMessage({ type: 'error', text: '请上传照片' });
       return;
-    }
     }
 
     setIsUploading(true);
     setSubmitMessage({ type: '', text: '' });
     setUploadProgress(0);
-    setUploadingFileName(uploadForm.uploadMode === 'file' ? uploadForm.file?.name || null : null);
+    setUploadingFileName(uploadForm.file?.name || null);
 
     try {
       let imageURL = '';
       let thumbnailURL = '';
       
-      if (uploadForm.uploadMode === 'file') {
-        // 文件上传模式
+      {
         const fileExtension = uploadForm.file.name.split('.').pop();
         const filename = `${crypto.randomUUID()}.${fileExtension}`;
         
@@ -1601,12 +1537,7 @@ export function AdminPage() {
           }
           // 继续使用 base64 预览
         }
-      } else {
-        // 直链上传模式
-        thumbnailURL = uploadForm.thumbnailUrl.trim();
-        imageURL = uploadForm.imageUrl.trim();
-        setSubmitMessage({ type: 'success', text: '使用直链地址' });
-    }
+      }
 
     const newUpload = {
       id: crypto.randomUUID(),
@@ -1673,12 +1604,9 @@ export function AdminPage() {
         console.log('payload 中的相机信息:', payload.camera);
         console.log('payload 中的镜头信息:', payload.lens);
         
-        const { data, error } = await supabase.from('photos').upsert(payload);
+        const { error } = await supabase.from('photos').insert(payload);
         if (error) {
-          throw handleError(error, {
-            context: 'handleSubmit.supabase',
-            type: ErrorType.NETWORK,
-          });
+          throw error;
         }
         await refreshSupabaseData();
       } catch (error) {
@@ -1686,7 +1614,10 @@ export function AdminPage() {
           context: 'handleSubmit.supabase',
           type: ErrorType.NETWORK,
         });
-        setSubmitMessage({ type: 'error', text: `上传到云端失败：${formatErrorMessage(appError)}` });
+        const msg = formatErrorMessage(appError);
+        const isUniqueViolation = (error?.code || '').includes('23505') || (error?.message || msg || '').toLowerCase().includes('unique') || (error?.message || '').includes('duplicate');
+        const hint = isUniqueViolation ? ' 可能是图片 URL 重复或数据库唯一约束冲突，请检查是否重复上传。' : '';
+        setSubmitMessage({ type: 'error', text: `上传到云端失败：${msg}${hint}` });
       }
     }
       setSubmitMessage({ type: 'success', text: '提交成功！作品已添加到待审核列表' });
@@ -1701,9 +1632,6 @@ export function AdminPage() {
       tags: '',
       preview: '',
       file: null,
-      uploadMode: 'file',
-      imageUrl: '',
-      thumbnailUrl: '',
       latitude: null,
       longitude: null,
       altitude: null,
@@ -2273,24 +2201,7 @@ export function AdminPage() {
               <span className="stat-hint">含待审核 {pendingReviewCount}</span>
             </div>
           </a>
-          <div
-            className="stat-card stat-warning stat-clickable"
-            onClick={() => setActiveTab('tools')}
-          >
-            <div className="stat-icon">
-              <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M4 7H20" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                <path d="M6 10H18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                <path d="M8 13H16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                <path d="M10 16H14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-            </div>
-            <div className="stat-content">
-              <p className="stat-label">工具</p>
-              <h3>图片压缩</h3>
-              <span className="stat-hint">生成缩略图</span>
-            </div>
-          </div>
+          {/* 工具统计卡片已删除 */}
           <div className="stat-card stat-info">
             <div className="stat-icon">
               <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -2413,7 +2324,7 @@ export function AdminPage() {
             </svg>
             <span>已拒绝 ({rejectedCount})</span>
               </button>
-              <button
+          <button
             className={`admin-tab ${activeTab === 'config' ? 'active' : ''}`}
             onClick={() => setActiveTab('config')}
           >
@@ -2434,31 +2345,8 @@ export function AdminPage() {
               />
             </svg>
             <span>配置</span>
-            </button>
-            <button
-            className={`admin-tab ${activeTab === 'tools' ? 'active' : ''}`}
-            onClick={() => setActiveTab('tools')}
-          >
-            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" width="18" height="18">
-              {/* 扳手 + 螺母图标，更符合"工具"含义 */}
-              <path
-                d="M21 7.5L18.5 10L15 6.5L17.5 4C16.9 3.7 16.24 3.5 15.5 3.5C13.57 3.5 12 5.07 12 7C12 7.42 12.07 7.82 12.2 8.2L6.41 14C5.77 14.64 5.77 15.68 6.41 16.32L7.68 17.59C8.32 18.23 9.36 18.23 10 17.59L15.8 11.8C16.18 11.93 16.58 12 17 12C18.93 12 20.5 10.43 20.5 8.5C20.5 7.76 20.3 7.1 21 7.5Z"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-              <circle
-                cx="6"
-                cy="6"
-                r="2.25"
-                stroke="currentColor"
-                strokeWidth="1.5"
-              />
-            </svg>
-            <span>工具</span>
-                    </button>
-              </div>
+          </button>
+        </div>
 
         {/* 内容区域 / 配置区域 */}
         {activeTab === 'config' ? (
@@ -2484,7 +2372,6 @@ export function AdminPage() {
                 </div>
         ) : (
         <div className="admin-content-wrapper">
-            {activeTab === 'tools' && <ToolsPanel />}
           {activeTab === 'upload' && (
             <form className="admin-upload-form" onSubmit={handleUpload}>
               <div className="form-section">
@@ -2516,55 +2403,7 @@ export function AdminPage() {
                   </div>
               </div>
 
-                {/* 上传方式切换（文件 / 直链） */}
-                <div style={{ 
-                  display: 'flex', 
-                  gap: '12px', 
-                  marginBottom: '20px',
-                  padding: '8px',
-                  background: 'rgba(255, 255, 255, 0.05)',
-                  borderRadius: '8px'
-                }}>
-          <button
-                  type="button"
-                    onClick={() => handleUploadModeChange('file')}
-                    style={{
-                      flex: 1,
-                      padding: '10px 16px',
-                      background: uploadForm.uploadMode === 'file' ? 'var(--accent)' : 'transparent',
-                      border: '1px solid var(--border)',
-                      borderRadius: '6px',
-                      color: uploadForm.uploadMode === 'file' ? 'var(--bg)' : 'var(--text)',
-                      cursor: 'pointer',
-                      fontSize: '0.95rem',
-                      fontWeight: uploadForm.uploadMode === 'file' ? '600' : '400',
-                      transition: 'all 0.2s'
-                    }}
-                  >
-                    文件上传
-          </button>
-          <button
-                  type="button"
-                    onClick={() => handleUploadModeChange('url')}
-                    style={{
-                      flex: 1,
-                      padding: '10px 16px',
-                      background: uploadForm.uploadMode === 'url' ? 'var(--accent)' : 'transparent',
-                      border: '1px solid var(--border)',
-                      borderRadius: '6px',
-                      color: uploadForm.uploadMode === 'url' ? 'var(--bg)' : 'var(--text)',
-                      cursor: 'pointer',
-                      fontSize: '0.95rem',
-                      fontWeight: uploadForm.uploadMode === 'url' ? '600' : '400',
-                      transition: 'all 0.2s'
-                    }}
-                  >
-                    直链上传
-                </button>
-        </div>
-
-                {uploadForm.uploadMode === 'file' ? (
-                  <div className="upload-dropzone-new">
+                <div className="upload-dropzone-new">
                     <input type="file" accept="image/*" onChange={handleFileChange} id="file-upload" />
                     <label htmlFor="file-upload" className="dropzone-label">
                       {uploadForm.preview ? (
@@ -2600,34 +2439,8 @@ export function AdminPage() {
                           </div>
                         )}
                     </label>
-                      </div>
-                    ) : (
-                  <div className="form-grid">
-                    <div className="form-group">
-                      <label>缩略图直链地址 <span className="required">*</span></label>
-                      <input
-                        type="url"
-                        name="thumbnailUrl"
-                        placeholder="https://example.com/thumbnail.jpg"
-                        value={uploadForm.thumbnailUrl}
-                        onChange={handleFormChange}
-                        required={uploadForm.uploadMode === 'url'}
-                      />
-                    </div>
-                    <div className="form-group">
-                      <label>原图直链地址 <span className="required">*</span></label>
-                      <input
-                        type="url"
-                        name="imageUrl"
-                        placeholder="https://example.com/image.jpg"
-                        value={uploadForm.imageUrl}
-                        onChange={handleFormChange}
-                        required={uploadForm.uploadMode === 'url'}
-                      />
-                        </div>
-                      </div>
-                    )}
                 </div>
+              </div>
 
               <div className="form-section">
                 <h2 className="form-section-title">
@@ -3028,8 +2841,6 @@ export function AdminPage() {
                       tags: '',
                       preview: '',
                       file: null,
-                      uploadMode: 'file',
-                      imageUrl: '',
                       latitude: null,
                       longitude: null,
                       altitude: null,

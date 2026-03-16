@@ -83,44 +83,45 @@ export const usePhotoManagement = (supabase, refreshSupabaseData, setSubmitMessa
         // 使用 upsert 而不是 update，这样如果记录不存在会创建，存在则更新
         // 移除 reject_reason 字段（如果数据库中没有该字段）
         const { reject_reason, ...updatePayload } = payload;
-        const { error, data } = await supabase
+        const { error } = await supabase
           .from('photos')
-          .upsert({
-            ...updatePayload,
-            status: 'approved',
-            // 只在字段存在时更新 reject_reason
-            // reject_reason: null, // 暂时注释，如果数据库没有该字段会报错
-          }, {
-            onConflict: 'id' // 如果 id 已存在则更新
-          })
-          .select();
+          .upsert(
+            {
+              ...updatePayload,
+              status: 'approved',
+            },
+            {
+              onConflict: 'id', // 如果 id 已存在则更新
+            },
+          );
         
         if (error) {
-          // 提取 Supabase 错误信息
-          const errorMessage = error.message || error.details || '更新失败';
-          const errorDetails = error.hint ? ` (${error.hint})` : '';
-          throw handleError(new Error(`${errorMessage}${errorDetails}`), {
-            context: 'handleApprove.supabase',
-            type: ErrorType.NETWORK,
-          });
+          const message = (error.message || error.details || '').toLowerCase();
+          const isTimeout =
+            message.includes('statement timeout') ||
+            message.includes('canceling statement due to statement timeout');
+
+          if (isTimeout) {
+            // 对于超时，前端保持乐观状态，仅提示用户稍后在 Supabase 控制台确认
+            setSubmitMessage({
+              type: 'error',
+              text: '云端审核可能已成功，但查询超时，请稍后在 Supabase 控制台确认状态。',
+            });
+          } else {
+            throw handleError(new Error(error.message || error.details || '更新失败'), {
+              context: 'handleApprove.supabase',
+              type: ErrorType.NETWORK,
+            });
+          }
         }
-        
-        // 验证操作是否成功（upsert 应该总是返回数据）
-        if (!data || data.length === 0) {
-          console.warn('审核操作完成，但 Supabase 未返回数据。这可能是因为记录已存在且未更改。');
-          // 不抛出错误，继续执行（可能是记录已存在且状态相同）
-        }
-        
-        await refreshSupabaseData();
       } catch (error) {
-        // 记录详细错误信息
         console.error('审核失败详情:', error);
-        
+
         const appError = handleError(error, {
           context: 'handleApprove',
           type: ErrorType.NETWORK,
         });
-        
+
         // 显示更详细的错误信息
         let errorText = formatErrorMessage(appError);
         if (error.originalError) {
@@ -129,13 +130,13 @@ export const usePhotoManagement = (supabase, refreshSupabaseData, setSubmitMessa
             errorText = `${errorText}: ${originalMessage}`;
           }
         }
-        
+
         setSubmitMessage({ type: 'error', text: `云端审核失败：${errorText}` });
-        
+
         // 回滚本地状态更改
         setApprovedPhotos((prev) => prev.filter((item) => item.id !== id));
         setAdminUploads((prev) => [itemToApprove, ...prev]);
-        
+
         return;
       }
     }

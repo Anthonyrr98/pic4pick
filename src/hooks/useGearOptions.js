@@ -38,44 +38,24 @@ export const useGearOptions = (supabase) => {
         if (supabase) {
           (async () => {
             try {
-              // 尝试使用索引名称作为 onConflict
-              const { error, data } = await supabase
+              const { error } = await supabase
                 .from('gear_presets')
                 .upsert(
                   { type: 'camera', name: trimmed },
-                  { onConflict: 'gear_presets_type_name_idx' }
+                  { onConflict: 'type,name' }
                 );
-              
-              console.log('[addCameraOption] Supabase 响应（已存在情况）:', { error, data });
-              
               if (error) {
-                // 如果使用索引名称失败，尝试不使用 onConflict（让 Supabase 自动检测）
-                console.log('[addCameraOption] 使用索引名称失败，尝试不使用 onConflict');
-                const { error: error2, data: data2 } = await supabase
-                  .from('gear_presets')
-                  .upsert({ type: 'camera', name: trimmed });
-                
-                console.log('[addCameraOption] Supabase 响应（无 onConflict）:', { error: error2, data: data2 });
-                
-                if (error2) {
-                  if (error2.code !== '23505') {
-                    console.error('[addCameraOption] Supabase 错误:', error2);
-                    handleError(error2, {
-                      context: 'addCameraOption.supabase',
-                      type: ErrorType.NETWORK,
-                      silent: true,
-                    });
-                  } else {
-                    console.log('[addCameraOption] 相机预设已存在于数据库:', trimmed);
-                  }
+                if (error.code === '23505' || String(error.code) === '409') {
+                  console.log('[addCameraOption] 相机预设已存在于数据库:', trimmed);
                 } else {
-                  console.log('[addCameraOption] ✅ 成功同步相机预设到 gear_presets:', trimmed);
+                  handleError(error, {
+                    context: 'addCameraOption.supabase',
+                    type: ErrorType.NETWORK,
+                    silent: true,
+                  });
                 }
-              } else {
-                console.log('[addCameraOption] ✅ 成功同步相机预设到 gear_presets:', trimmed);
               }
             } catch (e) {
-              console.error('[addCameraOption] 异常:', e);
               handleError(e, {
                 context: 'addCameraOption',
                 type: ErrorType.UNKNOWN,
@@ -94,45 +74,24 @@ export const useGearOptions = (supabase) => {
       if (supabase) {
         (async () => {
           try {
-            console.log('[addCameraOption] 开始同步到 Supabase gear_presets:', { type: 'camera', name: trimmed });
-            // 尝试使用索引名称作为 onConflict
-            let { error, data } = await supabase
+            const { error } = await supabase
               .from('gear_presets')
               .upsert(
                 { type: 'camera', name: trimmed },
-                { onConflict: 'gear_presets_type_name_idx' }
+                { onConflict: 'type,name' }
               );
-            
-            console.log('[addCameraOption] Supabase 响应（使用索引名称）:', { error, data });
-            
-            // 如果使用索引名称失败，尝试不使用 onConflict（让 Supabase 自动检测唯一约束）
             if (error) {
-              console.log('[addCameraOption] 使用索引名称失败，尝试不使用 onConflict');
-              const result = await supabase
-                .from('gear_presets')
-                .upsert({ type: 'camera', name: trimmed });
-              error = result.error;
-              data = result.data;
-              console.log('[addCameraOption] Supabase 响应（无 onConflict）:', { error, data });
-            }
-            
-            if (error) {
-              // 23505 是唯一约束冲突错误码，这是正常的（记录已存在）
-              if (error.code !== '23505') {
-                console.error('[addCameraOption] Supabase 错误:', error);
+              if (error.code === '23505' || String(error.code) === '409') {
+                console.log('[addCameraOption] 相机预设已存在于数据库:', trimmed);
+              } else {
                 handleError(error, {
                   context: 'addCameraOption.supabase',
                   type: ErrorType.NETWORK,
                   silent: true,
                 });
-              } else {
-                console.log('[addCameraOption] 相机预设已存在于数据库:', trimmed);
               }
-            } else {
-              console.log('[addCameraOption] ✅ 成功添加相机预设到 gear_presets:', trimmed);
             }
           } catch (e) {
-            console.error('[addCameraOption] 异常:', e);
             handleError(e, {
               context: 'addCameraOption',
               type: ErrorType.UNKNOWN,
@@ -167,43 +126,24 @@ export const useGearOptions = (supabase) => {
         if (supabase) {
           (async () => {
             try {
-              // 尝试使用索引名称作为 onConflict
-              let { error, data } = await supabase
+              const { error } = await supabase
                 .from('gear_presets')
                 .upsert(
                   { type: 'lens', name: trimmed },
-                  { onConflict: 'gear_presets_type_name_idx' }
+                  { onConflict: 'type,name' }
                 );
-              
-              console.log('[addLensOption] Supabase 响应（使用索引名称）:', { error, data });
-              
-              // 如果使用索引名称失败，尝试不使用 onConflict（让 Supabase 自动检测唯一约束）
               if (error) {
-                console.log('[addLensOption] 使用索引名称失败，尝试不使用 onConflict');
-                const result = await supabase
-                  .from('gear_presets')
-                  .upsert({ type: 'lens', name: trimmed });
-                error = result.error;
-                data = result.data;
-                console.log('[addLensOption] Supabase 响应（无 onConflict）:', { error, data });
-              }
-              
-              if (error) {
-                if (error.code !== '23505') {
-                  console.error('[addLensOption] Supabase 错误:', error);
+                if (error.code === '23505' || String(error.code) === '409') {
+                  console.log('[addLensOption] 镜头预设已存在于数据库:', trimmed);
+                } else {
                   handleError(error, {
                     context: 'addLensOption.supabase',
                     type: ErrorType.NETWORK,
                     silent: true,
                   });
-                } else {
-                  console.log('[addLensOption] 镜头预设已存在于数据库:', trimmed);
                 }
-              } else {
-                console.log('[addLensOption] ✅ 成功同步镜头预设到 gear_presets:', trimmed);
               }
             } catch (e) {
-              console.error('[addLensOption] 异常:', e);
               handleError(e, {
                 context: 'addLensOption',
                 type: ErrorType.UNKNOWN,
@@ -222,45 +162,24 @@ export const useGearOptions = (supabase) => {
       if (supabase) {
         (async () => {
           try {
-            console.log('[addLensOption] 开始同步到 Supabase gear_presets:', { type: 'lens', name: trimmed });
-            // 尝试使用索引名称作为 onConflict
-            let { error, data } = await supabase
+            const { error } = await supabase
               .from('gear_presets')
               .upsert(
                 { type: 'lens', name: trimmed },
-                { onConflict: 'gear_presets_type_name_idx' }
+                { onConflict: 'type,name' }
               );
-            
-            console.log('[addLensOption] Supabase 响应（使用索引名称）:', { error, data });
-            
-            // 如果使用索引名称失败，尝试不使用 onConflict（让 Supabase 自动检测唯一约束）
             if (error) {
-              console.log('[addLensOption] 使用索引名称失败，尝试不使用 onConflict');
-              const result = await supabase
-                .from('gear_presets')
-                .upsert({ type: 'lens', name: trimmed });
-              error = result.error;
-              data = result.data;
-              console.log('[addLensOption] Supabase 响应（无 onConflict）:', { error, data });
-            }
-            
-            if (error) {
-              // 23505 是唯一约束冲突错误码，这是正常的（记录已存在）
-              if (error.code !== '23505') {
-                console.error('[addLensOption] Supabase 错误:', error);
+              if (error.code === '23505' || String(error.code) === '409') {
+                console.log('[addLensOption] 镜头预设已存在于数据库:', trimmed);
+              } else {
                 handleError(error, {
                   context: 'addLensOption.supabase',
                   type: ErrorType.NETWORK,
                   silent: true,
                 });
-              } else {
-                console.log('[addLensOption] 镜头预设已存在于数据库:', trimmed);
               }
-            } else {
-              console.log('[addLensOption] ✅ 成功添加镜头预设到 gear_presets:', trimmed);
             }
           } catch (e) {
-            console.error('[addLensOption] 异常:', e);
             handleError(e, {
               context: 'addLensOption',
               type: ErrorType.UNKNOWN,
