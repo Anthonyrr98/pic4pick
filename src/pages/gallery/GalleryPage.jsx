@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import '../../App.css';
@@ -84,6 +84,7 @@ export function GalleryPage() {
     isMapReady,
     mapProvider: exploreMapProvider,
     mapHint: exploreMapHint,
+    resizeMap,
   } = useGaodeMapInit(mapContainerRef, activeView);
   const focusMapOnCity = useFocusMapOnCity(mapInstance, isMapReady);
 
@@ -324,24 +325,18 @@ export function GalleryPage() {
     const adjust = () => {
       const mw = document.querySelector('.explore-fullscreen .map-wrapper');
       if (mw) { mw.style.top = '0'; mw.style.height = '100vh'; }
-      setTimeout(() => {
-        mapInstance.current?.resize?.();
-        maplibreExploreInstance.current?.resize?.();
-      }, 100);
+      resizeMap();
     };
-    const t = setTimeout(adjust, 100);
+    // 初次进入：两档延迟覆盖布局完成时序
+    const t1 = setTimeout(adjust, 100);
+    const t2 = setTimeout(resizeMap, 300);
     window.addEventListener('resize', adjust);
-    return () => { clearTimeout(t); window.removeEventListener('resize', adjust); };
-  }, [activeView]);
-
-  // 视图切换后强制 resize
-  useEffect(() => {
-    const t = setTimeout(() => {
-      mapInstance.current?.resize?.();
-      maplibreExploreInstance.current?.resize?.();
-    }, 300);
-    return () => clearTimeout(t);
-  }, [activeView]);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+      window.removeEventListener('resize', adjust);
+    };
+  }, [activeView, resizeMap]);
 
   // 在地图上绘制照片位置标记
   useEffect(() => {
@@ -426,21 +421,67 @@ export function GalleryPage() {
 
   // 地理位置弹窗内的小地图
   useEffect(() => {
+    // 条件不满足时：销毁已有实例并退出
     if (!geoMapContainerRef.current || !getGeoInfo || metaPopover?.tab !== 'geo') {
       if (geoMapInstance.current) { geoMapInstance.current.remove(); geoMapInstance.current = null; }
       return;
     }
+
     const { latitude: lat, longitude: lon } = getGeoInfo;
-    if (geoMapInstance.current) {
-      (geoMapInstance.current._markers || []).forEach((m) => m.remove());
-      geoMapInstance.current._markers = [];
-      if (geoMapInstance.current.getLayer('connection-line')) {
-        geoMapInstance.current.removeLayer('connection-line');
-        geoMapInstance.current.removeSource('connection-line');
+    // cancelled 用于阻断 once('load') 回调在 cleanup 后触发
+    let cancelled = false;
+
+    const addMarkers = (map) => {
+      if (cancelled || !map) return;
+      // 清理旧 markers
+      (map._markers || []).forEach((m) => m.remove());
+      map._markers = [];
+      if (map.getLayer('connection-line')) {
+        map.removeLayer('connection-line');
+        map.removeSource('connection-line');
       }
+
+      const photoEl = document.createElement('div');
+      photoEl.style.cssText = 'width:30px;height:30px;background:#e74c3c;border:3px solid white;border-radius:50%;box-shadow:0 2px 8px rgba(0,0,0,0.3);cursor:pointer;';
+      const photoPopup = new maplibregl.Popup({ offset: 25 })
+        .setHTML(`<strong>${lightboxPhoto?.title || '照片位置'}</strong><br>${getGeoInfo.place}`);
+      const pm = new maplibregl.Marker(photoEl).setLngLat([lon, lat]).setPopup(photoPopup).addTo(map);
+      pm.togglePopup();
+      map._markers.push(pm);
+
+      if (getGeoInfo.browserLocation) {
+        const bEl = document.createElement('div');
+        bEl.style.cssText = 'width:30px;height:30px;background:#3498db;border:3px solid white;border-radius:50%;box-shadow:0 2px 8px rgba(0,0,0,0.3);cursor:pointer;';
+        const bm = new maplibregl.Marker(bEl)
+          .setLngLat([getGeoInfo.browserLocation.lon, getGeoInfo.browserLocation.lat])
+          .setPopup(new maplibregl.Popup({ offset: 25 }).setHTML('<strong>当前位置</strong>'))
+          .addTo(map);
+        bm.togglePopup();
+        map._markers.push(bm);
+        map.addSource('connection-line', {
+          type: 'geojson',
+          data: { type: 'Feature', properties: {}, geometry: { type: 'LineString',
+            coordinates: [[lon, lat], [getGeoInfo.browserLocation.lon, getGeoInfo.browserLocation.lat]] } },
+        });
+        map.addLayer({
+          id: 'connection-line', type: 'line', source: 'connection-line',
+          layout: { 'line-join': 'round', 'line-cap': 'round' },
+          paint: { 'line-color': '#e7b17c', 'line-width': 2, 'line-opacity': 0.6, 'line-dasharray': [5, 10] },
+        });
+      }
+    };
+
+    if (geoMapInstance.current) {
+      // 实例已存在：复用，仅更新中心点和 markers
       geoMapInstance.current.setCenter([lon, lat]);
+      if (geoMapInstance.current.loaded()) {
+        addMarkers(geoMapInstance.current);
+      } else {
+        geoMapInstance.current.once('load', () => addMarkers(geoMapInstance.current));
+      }
     } else {
-      geoMapInstance.current = new maplibregl.Map({
+      // 新建实例
+      const map = new maplibregl.Map({
         container: geoMapContainerRef.current,
         style: {
           version: 8,
@@ -459,39 +500,19 @@ export function GalleryPage() {
         },
         center: [lon, lat], zoom: 10, attributionControl: true,
       });
-      geoMapInstance.current._markers = [];
+      map._markers = [];
+      geoMapInstance.current = map;
+      // 用 once('load') 添加 markers，并通过 cancelled 防止 cleanup 后仍执行
+      map.once('load', () => addMarkers(map));
     }
-    const addMarkers = () => {
-      const photoEl = document.createElement('div');
-      photoEl.style.cssText = 'width:30px;height:30px;background:#e74c3c;border:3px solid white;border-radius:50%;box-shadow:0 2px 8px rgba(0,0,0,0.3);cursor:pointer;';
-      const photoPopup = new maplibregl.Popup({ offset: 25 })
-        .setHTML(`<strong>${lightboxPhoto?.title || '照片位置'}</strong><br>${getGeoInfo.place}`);
-      const pm = new maplibregl.Marker(photoEl).setLngLat([lon, lat]).setPopup(photoPopup).addTo(geoMapInstance.current);
-      pm.togglePopup();
-      geoMapInstance.current._markers.push(pm);
-      if (getGeoInfo.browserLocation) {
-        const bEl = document.createElement('div');
-        bEl.style.cssText = 'width:30px;height:30px;background:#3498db;border:3px solid white;border-radius:50%;box-shadow:0 2px 8px rgba(0,0,0,0.3);cursor:pointer;';
-        const bm = new maplibregl.Marker(bEl)
-          .setLngLat([getGeoInfo.browserLocation.lon, getGeoInfo.browserLocation.lat])
-          .setPopup(new maplibregl.Popup({ offset: 25 }).setHTML('<strong>当前位置</strong>'))
-          .addTo(geoMapInstance.current);
-        bm.togglePopup();
-        geoMapInstance.current._markers.push(bm);
-        geoMapInstance.current.addSource('connection-line', {
-          type: 'geojson',
-          data: { type: 'Feature', properties: {}, geometry: { type: 'LineString',
-            coordinates: [[lon, lat], [getGeoInfo.browserLocation.lon, getGeoInfo.browserLocation.lat]] } },
-        });
-        geoMapInstance.current.addLayer({
-          id: 'connection-line', type: 'line', source: 'connection-line',
-          layout: { 'line-join': 'round', 'line-cap': 'round' },
-          paint: { 'line-color': '#e7b17c', 'line-width': 2, 'line-opacity': 0.6, 'line-dasharray': [5, 10] },
-        });
-      }
+
+    return () => {
+      // 标记取消，阻断 once('load') 回调
+      cancelled = true;
+      // 注意：不在此处销毁地图实例——popover tab 切换会触发此 cleanup，
+      // 但只要 metaPopover?.tab === 'geo' 且 getGeoInfo 存在，下一次 effect 会复用实例。
+      // 仅当下一次 effect 判断条件不满足时（see top of effect）才销毁。
     };
-    if (geoMapInstance.current.loaded()) addMarkers(); else geoMapInstance.current.once('load', addMarkers);
-    return () => { if (geoMapInstance.current) { geoMapInstance.current.remove(); geoMapInstance.current = null; } };
   }, [getGeoInfo, metaPopover?.tab, lightboxPhoto]);
 
   useEffect(() => {
