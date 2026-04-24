@@ -29,6 +29,12 @@ export const PhotoGrid: React.FC<PhotoGridProps> = ({
   loadMoreRef,
   totalCount,
 }) => {
+  const formatBadgeText = (text?: string) => {
+    const value = String(text || '').trim();
+    if (!value) return '未分类';
+    return value.toLowerCase().startsWith('film_stock:') ? value.slice('film_stock:'.length).trim() : value;
+  };
+
   return (
     <div className="gallery-grid">
       {photos.map((item) => {
@@ -69,7 +75,7 @@ export const PhotoGrid: React.FC<PhotoGridProps> = ({
                 图片加载中...
               </div>
             )}
-            <span className="badge">{item.mood || '未分类'}</span>
+            <span className="badge">{formatBadgeText(item.mood)}</span>
             <div className="caption">
               <h4>{item.title}</h4>
               <span>

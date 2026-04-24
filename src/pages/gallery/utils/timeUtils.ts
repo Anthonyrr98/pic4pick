@@ -19,11 +19,13 @@ export const getShotTimeInfo = (shotDateValue: string | null | undefined): ShotT
   }
 
   const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffYears = Math.floor(diffMs / (365 * 24 * 60 * 60 * 1000));
+  // 按自然年展示“几年前”：跨年即计入一年，避免出现“2025年在2026年仍显示今年”
+  const diffYears = now.getFullYear() - date.getFullYear();
 
   let yearsAgoText: string;
-  if (diffYears <= 0) {
+  if (diffYears < 0) {
+    yearsAgoText = '未来';
+  } else if (diffYears === 0) {
     yearsAgoText = '今年';
   } else if (diffYears === 1) {
     yearsAgoText = '1 年前';
