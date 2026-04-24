@@ -116,6 +116,7 @@ export function AdminPage() {
     supabaseUrl: getEnvValue('VITE_SUPABASE_URL', ''),
     supabaseAnonKey: getEnvValue('VITE_SUPABASE_ANON_KEY', ''),
     amapWebKey: getEnvValue('VITE_AMAP_WEB_KEY', getEnvValue('VITE_AMAP_KEY', '')),
+    amapSecurityJsCode: getEnvValue('VITE_AMAP_SECURITY_JS_CODE', ''),
     amapServiceKey: getEnvValue('VITE_AMAP_WEB_SERVICE_KEY', getEnvValue('VITE_AMAP_KEY', '')),
   }));
   const [envConfigMessage, setEnvConfigMessage] = useState({ type: '', text: '' });

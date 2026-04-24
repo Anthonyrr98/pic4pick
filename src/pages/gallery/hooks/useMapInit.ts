@@ -50,13 +50,18 @@ function ensureAMapLoaded(amapKey: string): Promise<void> {
   if (amapLoadPromise) return amapLoadPromise;
 
   amapLoadPromise = new Promise<void>((resolve, reject) => {
+    const securityJsCode = getEnvValue('VITE_AMAP_SECURITY_JS_CODE', '');
+    if (securityJsCode) {
+      (window as any)._AMapSecurityConfig = { securityJsCode };
+    }
+
     // 如果页面已插入脚本标签（上一次失败前插入），直接监听
     const existing = document.querySelector('script[data-amap-sdk]');
     if (existing) {
       existing.addEventListener('load', () => resolve());
       existing.addEventListener('error', () => {
         amapLoadPromise = null; // 允许重试
-        reject(new Error('高德地图 SDK 加载失败'));
+        reject(new Error('高德地图 SDK 脚本加载失败（请检查 Web Key / 域名白名单 / securityJsCode）'));
       });
       return;
     }
@@ -64,10 +69,17 @@ function ensureAMapLoaded(amapKey: string): Promise<void> {
     script.src = `https://webapi.amap.com/maps?v=2.0&key=${amapKey}`;
     script.async = true;
     script.setAttribute('data-amap-sdk', 'true');
-    script.onload = () => resolve();
+    script.onload = () => {
+      // 少数情况下脚本 load 但 SDK 未就绪（鉴权失败等）
+      if ((window as any).AMap?.Map) resolve();
+      else {
+        amapLoadPromise = null;
+        reject(new Error('高德地图 SDK 已加载但未初始化（请检查 Web Key / securityJsCode / 域名白名单）'));
+      }
+    };
     script.onerror = () => {
       amapLoadPromise = null; // 允许重试
-      reject(new Error('高德地图 SDK 加载失败'));
+      reject(new Error('高德地图 SDK 脚本加载失败（网络/CSP/Key）'));
     };
     document.head.appendChild(script);
   });
@@ -204,7 +216,8 @@ export const useGaodeMapInit = (
           type: ErrorType.NETWORK,
           silent: true,
         });
-        initMapLibreFallback('高德地图加载失败，已自动切换到备用底图。');
+        const msg = error?.message ? String(error.message) : '高德地图加载失败';
+        initMapLibreFallback(`${msg}，已自动切换到备用底图。`);
       }
     };
 

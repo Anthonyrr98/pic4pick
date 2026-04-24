@@ -59,6 +59,7 @@ export const ConfigPanel = ({
           supabaseUrl: remote.VITE_SUPABASE_URL || '',
           supabaseAnonKey: remote.VITE_SUPABASE_ANON_KEY || '',
           amapWebKey: remote.VITE_AMAP_WEB_KEY || legacyAmap,
+          amapSecurityJsCode: remote.VITE_AMAP_SECURITY_JS_CODE || '',
           amapServiceKey: remote.VITE_AMAP_WEB_SERVICE_KEY || legacyAmap,
         };
 
@@ -173,6 +174,7 @@ export const ConfigPanel = ({
       VITE_SUPABASE_URL: envConfigForm.supabaseUrl || '',
       VITE_SUPABASE_ANON_KEY: envConfigForm.supabaseAnonKey || '',
       VITE_AMAP_WEB_KEY: envConfigForm.amapWebKey || '',
+      VITE_AMAP_SECURITY_JS_CODE: envConfigForm.amapSecurityJsCode || '',
       VITE_AMAP_WEB_SERVICE_KEY: envConfigForm.amapServiceKey || '',
     };
     updateEnvOverrides(updates);
@@ -201,6 +203,7 @@ export const ConfigPanel = ({
       supabaseUrl: getEnvValue('VITE_SUPABASE_URL', ''),
       supabaseAnonKey: getEnvValue('VITE_SUPABASE_ANON_KEY', ''),
       amapWebKey: getEnvValue('VITE_AMAP_WEB_KEY', getEnvValue('VITE_AMAP_KEY', '')),
+      amapSecurityJsCode: getEnvValue('VITE_AMAP_SECURITY_JS_CODE', ''),
       amapServiceKey: getEnvValue('VITE_AMAP_WEB_SERVICE_KEY', getEnvValue('VITE_AMAP_KEY', '')),
     });
     try {
@@ -303,6 +306,16 @@ export const ConfigPanel = ({
               value={envConfigForm.amapWebKey}
               onChange={handleEnvConfigChange}
               placeholder="用于 `https://webapi.amap.com/maps` 的 Key"
+            />
+          </div>
+          <div className="form-group">
+            <label>高德地图安全密钥（securityJsCode）</label>
+            <input
+              type="text"
+              name="amapSecurityJsCode"
+              value={envConfigForm.amapSecurityJsCode}
+              onChange={handleEnvConfigChange}
+              placeholder="高德控制台里 JS API 的安全密钥"
             />
           </div>
           <div className="form-group">
