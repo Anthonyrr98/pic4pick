@@ -3293,6 +3293,105 @@ main {
   grid-column: 1 / -1;
 }
 
+/* Admin 日期输入框优化 */
+.admin-date-input {
+  position: relative;
+  padding-right: 44px !important;
+  color-scheme: light;
+  cursor: pointer;
+  background-image: linear-gradient(to right, transparent calc(100% - 40px), rgba(17, 18, 24, 0.04) calc(100% - 40px));
+}
+
+.admin-date-input:hover {
+  border-color: rgba(17, 18, 24, 0.28) !important;
+  box-shadow: 0 2px 8px rgba(17, 18, 24, 0.08);
+}
+
+.admin-date-input:focus {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 3px rgba(207, 165, 106, 0.16) !important;
+}
+
+.admin-date-input::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  border-radius: 8px;
+  opacity: 0.85;
+  padding: 6px;
+  transition: background-color 0.2s ease, opacity 0.2s ease;
+}
+
+.admin-date-input::-webkit-calendar-picker-indicator:hover {
+  background: rgba(17, 18, 24, 0.08);
+  opacity: 1;
+}
+
+.admin-date-popper {
+  z-index: 1200 !important;
+}
+
+.admin-date-popper .react-datepicker {
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  overflow: hidden;
+  background: linear-gradient(180deg, #ffffff 0%, #fbf8f2 100%);
+  color: #1f2430;
+  box-shadow: 0 16px 36px rgba(17, 18, 24, 0.14), 0 0 0 1px rgba(207, 165, 106, 0.14);
+  font-family: inherit;
+}
+
+.admin-date-popper .react-datepicker__header {
+  background: linear-gradient(180deg, rgba(207, 165, 106, 0.24) 0%, rgba(207, 165, 106, 0.1) 100%);
+  border-bottom: 1px solid rgba(17, 18, 24, 0.08);
+  color: #1f2430;
+}
+
+.admin-date-popper .react-datepicker__current-month,
+.admin-date-popper .react-datepicker__day-name {
+  color: #1f2430;
+  letter-spacing: 0.2px;
+}
+
+.admin-date-popper .react-datepicker__day {
+  color: #2c3240;
+  border-radius: 10px;
+  transition: background-color 0.2s ease, color 0.2s ease, transform 0.15s ease;
+}
+
+.admin-date-popper .react-datepicker__day:hover {
+  background: rgba(207, 165, 106, 0.2);
+  color: #1f2430;
+  transform: translateY(-1px);
+}
+
+.admin-date-popper .react-datepicker__day--selected,
+.admin-date-popper .react-datepicker__day--keyboard-selected {
+  background: linear-gradient(180deg, #d6b07b 0%, var(--accent) 100%);
+  color: #111218;
+  font-weight: 600;
+  box-shadow: 0 4px 12px rgba(207, 165, 106, 0.35);
+}
+
+.admin-date-popper .react-datepicker__day--outside-month {
+  color: rgba(44, 50, 64, 0.32);
+}
+
+.admin-date-popper .react-datepicker__day--today {
+  box-shadow: inset 0 0 0 1px rgba(207, 165, 106, 0.65);
+  color: #9e6f2e;
+  font-weight: 600;
+}
+
+.admin-date-popper .react-datepicker__day-name:nth-child(1),
+.admin-date-popper .react-datepicker__day-name:nth-child(7),
+.admin-date-popper .react-datepicker__day:nth-child(1),
+.admin-date-popper .react-datepicker__day:nth-child(7) {
+  color: #b07a35;
+}
+
+.admin-date-popper .react-datepicker__navigation-icon::before {
+  border-color: #5a6272;
+}
+
 /* 上传区域 */
 .upload-dropzone-new {
   position: relative;

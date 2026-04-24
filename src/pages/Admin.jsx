@@ -1,4 +1,7 @@
 import { useEffect, useMemo, useState, useRef, useCallback } from 'react';
+import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
+import { zhCN } from 'date-fns/locale';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import exifr from 'exifr';
@@ -74,6 +77,20 @@ const mergeTagsWithFilmStock = (tags = '', category = '', filmStock = '') => {
   }
 
   return parts.join(', ');
+};
+
+const parseDateValue = (value) => {
+  if (!value) return null;
+  const parsed = new Date(`${value}T00:00:00`);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+
+const formatDateValue = (date) => {
+  if (!date) return '';
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 };
 
 // 使用统一的存储键常量
@@ -2567,12 +2584,18 @@ export function AdminPage() {
                   </div>
                   <div className="form-group">
                     <label>拍摄日期 <span className="required">*</span></label>
-                    <input
-                      type="date"
-                      name="shotDate"
-                      value={uploadForm.shotDate}
-                    onChange={handleFormChange}
-                      required
+                    <DatePicker
+                      selected={parseDateValue(uploadForm.shotDate)}
+                      onChange={(date) =>
+                        setUploadForm((prev) => ({ ...prev, shotDate: formatDateValue(date) }))
+                      }
+                      locale={zhCN}
+                      dateFormat="yyyy-MM-dd"
+                      placeholderText="请选择拍摄日期"
+                      calendarClassName="admin-date-calendar"
+                      className="admin-date-input"
+                      popperClassName="admin-date-popper"
+                      showPopperArrow={false}
                     />
                   </div>
                   <div className="form-group">
@@ -3965,19 +3988,18 @@ export function AdminPage() {
                     
                     <div className="form-group">
                       <label>拍摄日期</label>
-                      <input
-                        type="date"
-                        value={editForm.shotDate}
-                        onChange={(e) => setEditForm(prev => ({ ...prev, shotDate: e.target.value }))}
-                        style={{
-                          width: '100%',
-                          padding: '12px 16px',
-                          background: 'rgba(255, 255, 255, 0.05)',
-                          border: '1px solid var(--border)',
-                          borderRadius: '8px',
-                          color: 'var(--text)',
-                          fontSize: '0.95rem'
-                        }}
+                      <DatePicker
+                        selected={parseDateValue(editForm.shotDate)}
+                        onChange={(date) =>
+                          setEditForm((prev) => ({ ...prev, shotDate: formatDateValue(date) }))
+                        }
+                        locale={zhCN}
+                        dateFormat="yyyy-MM-dd"
+                        placeholderText="请选择拍摄日期"
+                        calendarClassName="admin-date-calendar"
+                        className="admin-date-input"
+                        popperClassName="admin-date-popper"
+                        showPopperArrow={false}
                       />
                     </div>
                   </div>
