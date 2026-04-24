@@ -564,21 +564,24 @@ export function GalleryPage() {
         )}
 
         <section id="gallery-view" className={`screen ${activeView === 'gallery-view' ? 'active' : ''}`}>
-          {filteredPhotos.length > 0 && (
-            <>
-              <TabStrip activeFilter={activeFilter} onFilterChange={setActiveFilter} />
-              <PhotoGrid
-                photos={displayedPhotos}
-                likedPhotoIds={likedPhotoIds}
-                onPhotoClick={setLightboxPhoto}
-                onToggleLike={handleToggleLike}
-                hasMore={hasMore}
-                isLoadingMore={isLoadingMore}
-                onLoadMore={loadMore}
-                loadMoreRef={loadMoreRef}
-                totalCount={filteredPhotos.length}
-              />
-            </>
+          <TabStrip activeFilter={activeFilter} onFilterChange={setActiveFilter} />
+          {filteredPhotos.length > 0 ? (
+            <PhotoGrid
+              photos={displayedPhotos}
+              likedPhotoIds={likedPhotoIds}
+              onPhotoClick={setLightboxPhoto}
+              onToggleLike={handleToggleLike}
+              hasMore={hasMore}
+              isLoadingMore={isLoadingMore}
+              onLoadMore={loadMore}
+              loadMoreRef={loadMoreRef}
+              totalCount={filteredPhotos.length}
+            />
+          ) : (
+            <div className="empty-state">
+              <p className="empty-text">暂无符合条件的照片</p>
+              <p className="empty-hint">可切换其他分类，或在后台把照片分类设为“胶片”</p>
+            </div>
           )}
         </section>
 
