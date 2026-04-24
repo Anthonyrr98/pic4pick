@@ -32,6 +32,7 @@ export const mapSupabaseRowToPhoto = (row) => {
     iso: row.iso || '',
     camera: row.camera || '',
     lens: row.lens || '',
+    filmStock: row.film_stock || '',
     rating: typeof row.rating === 'number' ? row.rating : null,
     shotDate: row.shot_date || null,
     createdAt: row.created_at,
@@ -68,6 +69,7 @@ export const buildSupabasePayloadFromPhoto = (photo, statusOverride) => {
     iso: photo.iso || '',
     camera: camera, // 明确包含相机信息
     lens: lens, // 明确包含镜头信息
+    film_stock: photo.filmStock || null,
     rating: photo.rating ?? null,
     shot_date: photo.shotDate || null,
     status: statusOverride || photo.status || 'pending',

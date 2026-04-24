@@ -40,6 +40,42 @@ const tabs = [
   { id: 'film', label: '胶片' },
 ];
 
+const FILM_STOCK_TAG_PREFIX = 'film_stock:';
+const FILM_STOCK_OPTIONS = [
+  'Kodak Portra 400',
+  'Kodak Gold 200',
+  'Kodak Ektar 100',
+  'Fuji Pro 400H',
+  'Fuji Superia 400',
+  'Ilford HP5 Plus 400',
+  'Ilford Delta 100',
+  'Cinestill 800T',
+];
+
+const extractFilmStockFromTags = (tags = '') => {
+  if (!tags) return '';
+  const parts = String(tags)
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+  const matched = parts.find((item) => item.toLowerCase().startsWith(FILM_STOCK_TAG_PREFIX));
+  return matched ? matched.slice(FILM_STOCK_TAG_PREFIX.length).trim() : '';
+};
+
+const mergeTagsWithFilmStock = (tags = '', category = '', filmStock = '') => {
+  const parts = String(tags)
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .filter((item) => !item.toLowerCase().startsWith(FILM_STOCK_TAG_PREFIX));
+
+  if (category === 'film' && filmStock.trim()) {
+    parts.push(`${FILM_STOCK_TAG_PREFIX}${filmStock.trim()}`);
+  }
+
+  return parts.join(', ');
+};
+
 // 使用统一的存储键常量
 const STORAGE_KEY = STORAGE_KEYS.ADMIN_UPLOADS;
 const APPROVED_STORAGE_KEY = STORAGE_KEYS.APPROVED_PHOTOS;
@@ -87,6 +123,7 @@ export function AdminPage() {
     iso: '',
     camera: '',
     lens: '',
+    filmStock: '',
   });
   // 使用相机/镜头选项管理 hook
   const {
@@ -233,6 +270,7 @@ export function AdminPage() {
     location: '',
     country: '',
     category: 'featured',
+    tags: '',
     latitude: null,
     longitude: null,
     altitude: null,
@@ -242,6 +280,7 @@ export function AdminPage() {
     iso: '',
     camera: '',
     lens: '',
+    filmStock: '',
     shotDate: '',
     rating: 7,
     hidden: false,
@@ -1147,7 +1186,13 @@ export function AdminPage() {
 
   const handleFormChange = (event) => {
     const { name, value } = event.target;
-    setUploadForm((prev) => ({ ...prev, [name]: value }));
+    setUploadForm((prev) => {
+      const next = { ...prev, [name]: value };
+      if (name === 'category' && value !== 'film') {
+        next.filmStock = '';
+      }
+      return next;
+    });
     // 清除之前的错误提示
     if (submitMessage.type === 'error') {
       setSubmitMessage({ type: '', text: '' });
@@ -1554,7 +1599,7 @@ export function AdminPage() {
         location: uploadForm.location.trim(),
         country: uploadForm.country.trim(),
       category: uploadForm.category,
-        tags: uploadForm.tags.trim(),
+        tags: mergeTagsWithFilmStock(uploadForm.tags, uploadForm.category, uploadForm.filmStock),
         preview: thumbnailURL || imageURL, // 后台列表统一用缩略图
       image: imageURL,
       thumbnail: thumbnailURL || null,
@@ -1569,6 +1614,7 @@ export function AdminPage() {
       iso: uploadForm.iso || '',
       camera: uploadForm.camera || '',
       lens: uploadForm.lens || '',
+      filmStock: uploadForm.filmStock || '',
       createdAt: new Date().toISOString(),
       status: 'pending',
     };
@@ -1652,6 +1698,7 @@ export function AdminPage() {
       iso: '',
       camera: '',
       lens: '',
+      filmStock: '',
     });
     setSelectedLocation(null);
       
@@ -1737,6 +1784,7 @@ export function AdminPage() {
       location: photo.location || '',
       country: photo.country || '',
       category: photo.category || 'featured',
+      tags: photo.tags || '',
       latitude: photo.latitude || null,
       longitude: photo.longitude || null,
       altitude: photo.altitude || null,
@@ -1746,6 +1794,7 @@ export function AdminPage() {
       iso: photo.iso || '200',
       camera: photo.camera || 'Unknown',
       lens: photo.lens || 'Unknown',
+      filmStock: extractFilmStockFromTags(photo.tags || ''),
       shotDate: photo.shotDate || '',
       rating: typeof photo.rating === 'number' ? photo.rating : (photo.rating ? Number(photo.rating) : 7),
       hidden: !!photo.hidden,
@@ -1773,6 +1822,12 @@ export function AdminPage() {
           iso: editForm.iso.trim(),
           camera: editForm.camera.trim(),
           lens: editForm.lens.trim(),
+          film_stock: editForm.category === 'film' ? (editForm.filmStock || '').trim() || null : null,
+          tags: mergeTagsWithFilmStock(
+            editForm.tags || '',
+            editForm.category,
+            editForm.filmStock || ''
+          ),
           rating: typeof editForm.rating === 'number' ? editForm.rating : Number(editForm.rating) || 7,
           shot_date: editForm.shotDate || null,
           hidden: !!editForm.hidden,
@@ -1817,6 +1872,12 @@ export function AdminPage() {
           iso: editForm.iso.trim(),
           camera: editForm.camera.trim(),
           lens: editForm.lens.trim(),
+          filmStock: editForm.category === 'film' ? (editForm.filmStock || '').trim() : '',
+          tags: mergeTagsWithFilmStock(
+            approved[approvedIndex].tags || '',
+            editForm.category,
+            editForm.filmStock || ''
+          ),
           rating: typeof editForm.rating === 'number' ? editForm.rating : Number(editForm.rating) || 7,
           shotDate: editForm.shotDate || null,
           hidden: !!editForm.hidden,
@@ -1852,6 +1913,12 @@ export function AdminPage() {
           iso: editForm.iso.trim(),
           camera: editForm.camera.trim(),
           lens: editForm.lens.trim(),
+          filmStock: editForm.category === 'film' ? (editForm.filmStock || '').trim() : '',
+          tags: mergeTagsWithFilmStock(
+            rejected[rejectedIndex].tags || '',
+            editForm.category,
+            editForm.filmStock || ''
+          ),
           rating: typeof editForm.rating === 'number' ? editForm.rating : Number(editForm.rating) || 7,
           shotDate: editForm.shotDate || null,
           hidden: !!editForm.hidden,
@@ -1884,6 +1951,7 @@ export function AdminPage() {
       location: '',
       country: '',
       category: 'featured',
+      tags: '',
       latitude: null,
       longitude: null,
       altitude: null,
@@ -1893,6 +1961,7 @@ export function AdminPage() {
       iso: '',
       camera: '',
       lens: '',
+      filmStock: '',
       hidden: false,
     });
     setShowEditLocationPicker(false);
@@ -2831,6 +2900,24 @@ export function AdminPage() {
                       )}
                     </div>
                   </div>
+                  {uploadForm.category === 'film' && (
+                    <div className="form-group full-width">
+                      <label>胶卷</label>
+                      <input
+                        type="text"
+                        name="filmStock"
+                        list="film-stock-options"
+                        placeholder="例如：Kodak Portra 400"
+                        value={uploadForm.filmStock}
+                        onChange={handleFormChange}
+                      />
+                      <datalist id="film-stock-options">
+                        {FILM_STOCK_OPTIONS.map((option) => (
+                          <option key={option} value={option} />
+                        ))}
+                      </datalist>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -2853,6 +2940,15 @@ export function AdminPage() {
                       latitude: null,
                       longitude: null,
                       altitude: null,
+                      shotDate: '',
+                      rating: 7,
+                      focal: '',
+                      aperture: '',
+                      shutter: '',
+                      iso: '',
+                      camera: '',
+                      lens: '',
+                      filmStock: '',
                     });
                     setSelectedLocation(null);
                     const fileInput = document.getElementById('file-upload');
@@ -3808,7 +3904,13 @@ export function AdminPage() {
                       <div className="category-select-wrapper">
                         <select 
                           value={editForm.category} 
-                          onChange={(e) => setEditForm(prev => ({ ...prev, category: e.target.value }))}
+                          onChange={(e) =>
+                            setEditForm((prev) => ({
+                              ...prev,
+                              category: e.target.value,
+                              filmStock: e.target.value === 'film' ? prev.filmStock : '',
+                            }))
+                          }
                           className="category-select"
                         >
                           {tabs.map((tab) => (
@@ -3998,6 +4100,31 @@ export function AdminPage() {
                       }}
                     />
                   </div>
+                  {editForm.category === 'film' && (
+                    <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                      <label>胶卷</label>
+                      <input
+                        type="text"
+                        placeholder="例如: Kodak Portra 400"
+                        list="edit-film-stock-options"
+                        value={editForm.filmStock}
+                        onChange={(e) => setEditForm((prev) => ({ ...prev, filmStock: e.target.value }))}
+                        style={{
+                          width: '100%',
+                          padding: '10px',
+                          background: 'rgba(255, 255, 255, 0.05)',
+                          border: '1px solid var(--border)',
+                          borderRadius: '8px',
+                          color: 'var(--text)'
+                        }}
+                      />
+                      <datalist id="edit-film-stock-options">
+                        {FILM_STOCK_OPTIONS.map((option) => (
+                          <option key={option} value={option} />
+                        ))}
+                      </datalist>
+                    </div>
+                  )}
                   </div>
                 </div>
 

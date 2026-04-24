@@ -37,6 +37,7 @@ const mapSupabaseRowToGalleryPhoto = (row: any): GalleryPhoto => {
     iso: row.iso || '200',
     camera: row.camera || 'Unknown',
     lens: row.lens || 'Unknown',
+    filmStock: row.film_stock || '',
     mood: row.tags?.split(',')[0]?.trim() || '原创作品',
     latitude: row.latitude ?? null,
     longitude: row.longitude ?? null,

@@ -18,6 +18,7 @@ export interface GalleryPhoto {
   iso: string;
   camera: string;
   lens: string;
+  filmStock?: string;
   mood: string;
   latitude: number | null;
   longitude: number | null;
