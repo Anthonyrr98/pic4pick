@@ -3,7 +3,7 @@
  * 环境变量配置、品牌 Logo、品牌标题等
  */
 
-import { useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { getEnvValue, updateEnvOverrides, resetEnvOverrides, ENV_OVERRIDE_KEYS } from '../../utils/envConfig';
 import {
   BRAND_LOGO_MAX_SIZE,
@@ -37,6 +37,48 @@ export const ConfigPanel = ({
   importFileInputRef,
 }) => {
   const logoFileInputRef = useRef(null);
+
+  // 从云端回填环境变量配置（若 Supabase 可用）
+  useEffect(() => {
+    if (!supabase) return;
+    let cancelled = false;
+
+    const loadRemoteEnvConfig = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('app_settings')
+          .select('data')
+          .eq('id', 'env_config')
+          .limit(1);
+        if (error) throw error;
+
+        const record = Array.isArray(data) ? data[0] : null;
+        const remote = record?.data || {};
+        const nextForm = {
+          supabaseUrl: remote.VITE_SUPABASE_URL || '',
+          supabaseAnonKey: remote.VITE_SUPABASE_ANON_KEY || '',
+          amapKey: remote.VITE_AMAP_KEY || '',
+        };
+
+        if (cancelled) return;
+
+        // 同步到本地覆写与表单（保持“刷新生效”的行为一致）
+        updateEnvOverrides(remote);
+        setEnvConfigForm((prev) => ({
+          ...prev,
+          ...nextForm,
+        }));
+      } catch (e) {
+        // 云端回填失败不阻断本地使用
+        handleError(e, { context: 'ConfigPanel.loadRemoteEnvConfig', type: ErrorType.NETWORK, silent: true });
+      }
+    };
+
+    loadRemoteEnvConfig();
+    return () => {
+      cancelled = true;
+    };
+  }, [supabase, setEnvConfigForm]);
 
   const handleLogoUploadClick = () => {
     if (logoFileInputRef.current) {
@@ -123,7 +165,7 @@ export const ConfigPanel = ({
     setEnvConfigForm((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleSaveEnvConfig = () => {
+  const handleSaveEnvConfig = async () => {
     // 表单字段名（supabaseUrl/amapKey）需要映射到真正的 Vite 环境变量键名（VITE_*）
     const updates = {
       VITE_SUPABASE_URL: envConfigForm.supabaseUrl || '',
@@ -131,18 +173,48 @@ export const ConfigPanel = ({
       VITE_AMAP_KEY: envConfigForm.amapKey || '',
     };
     updateEnvOverrides(updates);
-    setEnvConfigMessage({ type: 'success', text: '环境变量配置已保存，请刷新页面生效' });
+    try {
+      if (supabase) {
+        const { error } = await supabase
+          .from('app_settings')
+          .upsert({
+            id: 'env_config',
+            data: updates,
+            updated_at: new Date().toISOString(),
+          });
+        if (error) throw error;
+      }
+      setEnvConfigMessage({ type: 'success', text: supabase ? '配置已保存并同步到数据库，请刷新页面生效' : '环境变量配置已保存，请刷新页面生效' });
+    } catch (e) {
+      const appError = handleError(e, { context: 'handleSaveEnvConfig', type: ErrorType.NETWORK });
+      setEnvConfigMessage({ type: 'error', text: `已保存到本地，但同步数据库失败：${formatErrorMessage(appError)}` });
+    }
     setTimeout(() => setEnvConfigMessage({ type: '', text: '' }), 3000);
   };
 
-  const handleResetEnvConfig = () => {
+  const handleResetEnvConfig = async () => {
     resetEnvOverrides(ENV_OVERRIDE_KEYS);
     setEnvConfigForm({
       supabaseUrl: getEnvValue('VITE_SUPABASE_URL', ''),
       supabaseAnonKey: getEnvValue('VITE_SUPABASE_ANON_KEY', ''),
       amapKey: getEnvValue('VITE_AMAP_KEY', ''),
     });
-    setEnvConfigMessage({ type: 'info', text: '环境变量配置已重置为默认值，请刷新页面生效' });
+    try {
+      if (supabase) {
+        const { error } = await supabase
+          .from('app_settings')
+          .upsert({
+            id: 'env_config',
+            data: {},
+            updated_at: new Date().toISOString(),
+          });
+        if (error) throw error;
+      }
+      setEnvConfigMessage({ type: 'info', text: supabase ? '配置已重置并同步到数据库，请刷新页面生效' : '环境变量配置已重置为默认值，请刷新页面生效' });
+    } catch (e) {
+      handleError(e, { context: 'handleResetEnvConfig', type: ErrorType.NETWORK, silent: true });
+      setEnvConfigMessage({ type: 'info', text: '已重置本地配置，但同步数据库失败，请稍后重试' });
+    }
     setTimeout(() => setEnvConfigMessage({ type: '', text: '' }), 3000);
   };
 

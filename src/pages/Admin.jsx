@@ -147,6 +147,7 @@ export function AdminPage() {
   const [showEditLensDropdown, setShowEditLensDropdown] = useState(false);
   const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
   const [showEditCategoryDropdown, setShowEditCategoryDropdown] = useState(false);
+  const [showFilterCategoryDropdown, setShowFilterCategoryDropdown] = useState(false);
   // 使用相机/镜头选项管理 hook
   const {
     cameraOptions,
@@ -3619,27 +3620,91 @@ export function AdminPage() {
                   />
                 </div>
                 <div style={{ minWidth: '150px' }}>
-                  <select
-                    value={filterCategory}
-                    onChange={(e) => setFilterCategory(e.target.value)}
-                    style={{
-                      width: '100%',
-                      padding: '10px 16px',
-                      background: 'rgba(255, 255, 255, 0.05)',
-                      border: '1px solid var(--border)',
-                      borderRadius: '8px',
-                      color: 'var(--text)',
-                      fontSize: '0.9rem',
-                      cursor: 'pointer'
-                    }}
+                  <div
+                    style={{ position: 'relative' }}
+                    tabIndex={-1}
+                    onBlur={() => setShowFilterCategoryDropdown(false)}
                   >
-                    <option value="">全部分类</option>
-                    {tabs.map((tab) => (
-                      <option key={tab.id} value={tab.id}>
-                        {tab.label}
-                      </option>
-                    ))}
-                  </select>
+                    <button
+                      type="button"
+                      onClick={() => setShowFilterCategoryDropdown((v) => !v)}
+                      className="category-select-display"
+                      style={{
+                        width: '100%',
+                        border: '1px solid var(--border)',
+                        background: 'rgba(255, 255, 255, 0.05)',
+                        color: 'var(--text)',
+                        minHeight: '39px',
+                        height: '39px',
+                        borderRadius: '8px',
+                        padding: '10px 40px 10px 16px',
+                        boxShadow: 'none',
+                        fontSize: '0.9rem',
+                      }}
+                    >
+                      <span className="category-select-text">
+                        {filterCategory
+                          ? tabs.find((tab) => tab.id === filterCategory)?.label || '全部分类'
+                          : '全部分类'}
+                      </span>
+                      <svg
+                        width="12"
+                        height="12"
+                        viewBox="0 0 12 12"
+                        fill="none"
+                        xmlns="http://www.w3.org/2000/svg"
+                        className="category-select-arrow"
+                        style={{
+                          transform: showFilterCategoryDropdown
+                            ? 'translateY(-50%) rotate(180deg)'
+                            : undefined,
+                          color: 'currentColor',
+                          opacity: 0.7,
+                        }}
+                      >
+                        <path
+                          d="M3 4.5L6 7.5L9 4.5"
+                          stroke="currentColor"
+                          strokeWidth="1.5"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                    </button>
+
+                    {showFilterCategoryDropdown && (
+                      <div className="admin-dropdown-panel" style={{ maxHeight: 220, overflowY: 'auto' }}>
+                        <button
+                          type="button"
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            setFilterCategory('');
+                            setShowFilterCategoryDropdown(false);
+                          }}
+                          className={`admin-dropdown-item ${!filterCategory ? 'is-active' : ''}`}
+                        >
+                          全部分类
+                        </button>
+                        {tabs.map((tab) => {
+                          const active = tab.id === filterCategory;
+                          return (
+                            <button
+                              key={tab.id}
+                              type="button"
+                              onMouseDown={(e) => {
+                                e.preventDefault();
+                                setFilterCategory(tab.id);
+                                setShowFilterCategoryDropdown(false);
+                              }}
+                              className={`admin-dropdown-item ${active ? 'is-active' : ''}`}
+                            >
+                              {tab.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
                 </div>
                 {(searchQuery || filterCategory) && (
                   <button
