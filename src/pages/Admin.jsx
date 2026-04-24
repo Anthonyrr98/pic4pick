@@ -142,6 +142,11 @@ export function AdminPage() {
     lens: '',
     filmStock: '',
   });
+
+  const [showEditCameraDropdown, setShowEditCameraDropdown] = useState(false);
+  const [showEditLensDropdown, setShowEditLensDropdown] = useState(false);
+  const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
+  const [showEditCategoryDropdown, setShowEditCategoryDropdown] = useState(false);
   // 使用相机/镜头选项管理 hook
   const {
     cameraOptions,
@@ -2600,40 +2605,73 @@ export function AdminPage() {
                   </div>
                   <div className="form-group">
                     <label>分类 <span className="required">*</span></label>
-                    <div className="category-select-wrapper">
-                      <select 
-                        name="category" 
-                        value={uploadForm.category} 
-                        onChange={handleFormChange}
-                        className="category-select"
+                    <div
+                      style={{ position: 'relative' }}
+                      tabIndex={-1}
+                      onBlur={() => setShowCategoryDropdown(false)}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => setShowCategoryDropdown((v) => !v)}
+                        className="category-select-display"
+                        style={{
+                          width: '100%',
+                          border: '1px solid rgba(17,18,24,0.12)',
+                          background: '#fff',
+                        }}
                       >
-                        {tabs.map((tab) => (
-                          <option key={tab.id} value={tab.id}>
-                            {tab.label}
-                          </option>
-                        ))}
-                      </select>
-                      <div className="category-select-display">
                         <span className="category-select-text">
-                          {tabs.find(tab => tab.id === uploadForm.category)?.label || '精选'}
+                          {tabs.find((tab) => tab.id === uploadForm.category)?.label || '精选'}
                         </span>
-                        <svg 
-                          width="12" 
-                          height="12" 
-                          viewBox="0 0 12 12" 
-                          fill="none" 
+                        <svg
+                          width="12"
+                          height="12"
+                          viewBox="0 0 12 12"
+                          fill="none"
                           xmlns="http://www.w3.org/2000/svg"
                           className="category-select-arrow"
+                          style={{ transform: showCategoryDropdown ? 'translateY(-50%) rotate(180deg)' : undefined }}
                         >
-                          <path 
-                            d="M3 4.5L6 7.5L9 4.5" 
-                            stroke="currentColor" 
-                            strokeWidth="1.5" 
-                            strokeLinecap="round" 
+                          <path
+                            d="M3 4.5L6 7.5L9 4.5"
+                            stroke="currentColor"
+                            strokeWidth="1.5"
+                            strokeLinecap="round"
                             strokeLinejoin="round"
                           />
                         </svg>
-                      </div>
+                      </button>
+
+                      {showCategoryDropdown && (
+                        <div
+                          className="admin-dropdown-panel"
+                          style={{
+                            zIndex: 30,
+                          }}
+                        >
+                          {tabs.map((tab) => {
+                            const active = tab.id === uploadForm.category;
+                            return (
+                              <button
+                                key={tab.id}
+                                type="button"
+                                onMouseDown={(e) => {
+                                  e.preventDefault();
+                                  setUploadForm((prev) => ({
+                                    ...prev,
+                                    category: tab.id,
+                                    filmStock: tab.id === 'film' ? prev.filmStock : '',
+                                  }));
+                                  setShowCategoryDropdown(false);
+                                }}
+                                className={`admin-dropdown-item ${active ? 'is-active' : ''}`}
+                              >
+                                {tab.label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                   </div>
                   <div className="form-group full-width">
@@ -2929,16 +2967,11 @@ export function AdminPage() {
                       <input
                         type="text"
                         name="filmStock"
-                        list="film-stock-options"
                         placeholder="例如：Kodak Portra 400"
                         value={uploadForm.filmStock}
                         onChange={handleFormChange}
+                        autoComplete="off"
                       />
-                      <datalist id="film-stock-options">
-                        {FILM_STOCK_OPTIONS.map((option) => (
-                          <option key={option} value={option} />
-                        ))}
-                      </datalist>
                     </div>
                   )}
                 </div>
@@ -3924,45 +3957,74 @@ export function AdminPage() {
                     
                     <div className="form-group">
                       <label>分类 <span className="required">*</span></label>
-                      <div className="category-select-wrapper">
-                        <select 
-                          value={editForm.category} 
-                          onChange={(e) =>
-                            setEditForm((prev) => ({
-                              ...prev,
-                              category: e.target.value,
-                              filmStock: e.target.value === 'film' ? prev.filmStock : '',
-                            }))
-                          }
-                          className="category-select"
+                      <div
+                        style={{ position: 'relative' }}
+                        tabIndex={-1}
+                        onBlur={() => setShowEditCategoryDropdown(false)}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => setShowEditCategoryDropdown((v) => !v)}
+                          className="category-select-display"
+                          style={{
+                            width: '100%',
+                            border: '1px solid rgba(255,255,255,0.12)',
+                            background: 'rgba(255, 255, 255, 0.05)',
+                            color: 'var(--text)',
+                          }}
                         >
-                          {tabs.map((tab) => (
-                            <option key={tab.id} value={tab.id}>
-                              {tab.label}
-                            </option>
-                          ))}
-                        </select>
-                        <div className="category-select-display">
                           <span className="category-select-text">
-                            {tabs.find(tab => tab.id === editForm.category)?.label || '精选'}
+                            {tabs.find((tab) => tab.id === editForm.category)?.label || '精选'}
                           </span>
-                          <svg 
-                            width="12" 
-                            height="12" 
-                            viewBox="0 0 12 12" 
-                            fill="none" 
+                          <svg
+                            width="12"
+                            height="12"
+                            viewBox="0 0 12 12"
+                            fill="none"
                             xmlns="http://www.w3.org/2000/svg"
                             className="category-select-arrow"
+                            style={{ transform: showEditCategoryDropdown ? 'translateY(-50%) rotate(180deg)' : undefined }}
                           >
-                            <path 
-                              d="M3 4.5L6 7.5L9 4.5" 
-                              stroke="currentColor" 
-                              strokeWidth="1.5" 
-                              strokeLinecap="round" 
+                            <path
+                              d="M3 4.5L6 7.5L9 4.5"
+                              stroke="currentColor"
+                              strokeWidth="1.5"
+                              strokeLinecap="round"
                               strokeLinejoin="round"
                             />
                           </svg>
-                        </div>
+                        </button>
+
+                        {showEditCategoryDropdown && (
+                          <div
+                            className="admin-dropdown-panel"
+                            style={{
+                              zIndex: 60,
+                            }}
+                          >
+                            {tabs.map((tab) => {
+                              const active = tab.id === editForm.category;
+                              return (
+                                <button
+                                  key={tab.id}
+                                  type="button"
+                                  onMouseDown={(e) => {
+                                    e.preventDefault();
+                                    setEditForm((prev) => ({
+                                      ...prev,
+                                      category: tab.id,
+                                      filmStock: tab.id === 'film' ? prev.filmStock : '',
+                                    }));
+                                    setShowEditCategoryDropdown(false);
+                                  }}
+                                  className={`admin-dropdown-item ${active ? 'is-active' : ''}`}
+                                >
+                                  {tab.label}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
                       </div>
                     </div>
                     
@@ -4089,48 +4151,15 @@ export function AdminPage() {
                   
                   <div className="form-group" style={{ gridColumn: '1 / -1' }}>
                     <label>相机</label>
-                    <input
-                      type="text"
-                      placeholder="例如: Canon EOS 5D Mark IV"
-                      value={editForm.camera}
-                      onChange={(e) => setEditForm(prev => ({ ...prev, camera: e.target.value }))}
-                      style={{
-                        width: '100%',
-                        padding: '10px',
-                        background: 'rgba(255, 255, 255, 0.05)',
-                        border: '1px solid var(--border)',
-                        borderRadius: '8px',
-                        color: 'var(--text)'
-                      }}
-                    />
-                  </div>
-                  
-                  <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-                    <label>镜头</label>
-                    <input
-                      type="text"
-                      placeholder="例如: EF 70-200mm f/2.8L"
-                      value={editForm.lens}
-                      onChange={(e) => setEditForm(prev => ({ ...prev, lens: e.target.value }))}
-                      style={{
-                        width: '100%',
-                        padding: '10px',
-                        background: 'rgba(255, 255, 255, 0.05)',
-                        border: '1px solid var(--border)',
-                        borderRadius: '8px',
-                        color: 'var(--text)'
-                      }}
-                    />
-                  </div>
-                  {editForm.category === 'film' && (
-                    <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-                      <label>胶卷</label>
+                    <div style={{ position: 'relative' }}>
                       <input
                         type="text"
-                        placeholder="例如: Kodak Portra 400"
-                        list="edit-film-stock-options"
-                        value={editForm.filmStock}
-                        onChange={(e) => setEditForm((prev) => ({ ...prev, filmStock: e.target.value }))}
+                        placeholder="例如: Canon EOS 5D Mark IV"
+                        value={editForm.camera}
+                        onChange={(e) => setEditForm((prev) => ({ ...prev, camera: e.target.value }))}
+                        onFocus={() => setShowEditCameraDropdown(true)}
+                        onBlur={() => setTimeout(() => setShowEditCameraDropdown(false), 120)}
+                        autoComplete="off"
                         style={{
                           width: '100%',
                           padding: '10px',
@@ -4140,11 +4169,113 @@ export function AdminPage() {
                           color: 'var(--text)'
                         }}
                       />
-                      <datalist id="edit-film-stock-options">
-                        {FILM_STOCK_OPTIONS.map((option) => (
-                          <option key={option} value={option} />
-                        ))}
-                      </datalist>
+                      {showEditCameraDropdown && editForm.camera && (
+                        <div
+                          className="admin-dropdown-panel"
+                          style={{
+                            maxHeight: 160,
+                            overflowY: 'auto',
+                            zIndex: 20,
+                          }}
+                        >
+                          {cameraOptions
+                            .filter((opt) =>
+                              opt.toLowerCase().includes(editForm.camera.toLowerCase())
+                            )
+                            .map((opt) => (
+                              <button
+                                key={opt}
+                                type="button"
+                                onMouseDown={(e) => {
+                                  e.preventDefault();
+                                  setEditForm((prev) => ({ ...prev, camera: opt }));
+                                  setShowEditCameraDropdown(false);
+                                }}
+                                className={`admin-dropdown-item ${
+                                  opt === editForm.camera ? 'is-active' : ''
+                                }`}
+                              >
+                                {opt}
+                              </button>
+                            ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  
+                  <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                    <label>镜头</label>
+                    <div style={{ position: 'relative' }}>
+                      <input
+                        type="text"
+                        placeholder="例如: EF 70-200mm f/2.8L"
+                        value={editForm.lens}
+                        onChange={(e) => setEditForm((prev) => ({ ...prev, lens: e.target.value }))}
+                        onFocus={() => setShowEditLensDropdown(true)}
+                        onBlur={() => setTimeout(() => setShowEditLensDropdown(false), 120)}
+                        autoComplete="off"
+                        style={{
+                          width: '100%',
+                          padding: '10px',
+                          background: 'rgba(255, 255, 255, 0.05)',
+                          border: '1px solid var(--border)',
+                          borderRadius: '8px',
+                          color: 'var(--text)'
+                        }}
+                      />
+                      {showEditLensDropdown && editForm.lens && (
+                        <div
+                          className="admin-dropdown-panel"
+                          style={{
+                            maxHeight: 160,
+                            overflowY: 'auto',
+                            zIndex: 20,
+                          }}
+                        >
+                          {lensOptions
+                            .filter((opt) =>
+                              opt.toLowerCase().includes(editForm.lens.toLowerCase())
+                            )
+                            .map((opt) => (
+                              <button
+                                key={opt}
+                                type="button"
+                                onMouseDown={(e) => {
+                                  e.preventDefault();
+                                  setEditForm((prev) => ({ ...prev, lens: opt }));
+                                  setShowEditLensDropdown(false);
+                                }}
+                                className={`admin-dropdown-item ${
+                                  opt === editForm.lens ? 'is-active' : ''
+                                }`}
+                              >
+                                {opt}
+                              </button>
+                            ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  {editForm.category === 'film' && (
+                    <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                      <label>胶卷</label>
+                      <div style={{ position: 'relative' }}>
+                        <input
+                          type="text"
+                          placeholder="例如: Kodak Portra 400"
+                          value={editForm.filmStock}
+                          onChange={(e) => setEditForm((prev) => ({ ...prev, filmStock: e.target.value }))}
+                          autoComplete="off"
+                          style={{
+                            width: '100%',
+                            padding: '10px',
+                            background: 'rgba(255, 255, 255, 0.05)',
+                            border: '1px solid var(--border)',
+                            borderRadius: '8px',
+                            color: 'var(--text)'
+                          }}
+                        />
+                      </div>
                     </div>
                   )}
                   </div>
