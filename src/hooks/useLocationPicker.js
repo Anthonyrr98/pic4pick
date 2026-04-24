@@ -37,7 +37,7 @@ export const useLocationPicker = () => {
     }
 
     try {
-      const amapKey = getEnvValue('VITE_AMAP_KEY', '');
+      const amapKey = getEnvValue('VITE_AMAP_WEB_SERVICE_KEY', getEnvValue('VITE_AMAP_KEY', ''));
       if (!amapKey) {
         // 未配置高德地图API Key，静默处理
         return;

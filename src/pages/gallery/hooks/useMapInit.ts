@@ -152,9 +152,9 @@ export const useGaodeMapInit = (
     };
 
     const initGaodeMap = async () => {
-      const amapKey = getEnvValue('VITE_AMAP_KEY', '');
+      const amapKey = getEnvValue('VITE_AMAP_WEB_KEY', getEnvValue('VITE_AMAP_KEY', ''));
       if (!amapKey) {
-        initMapLibreFallback('未配置高德地图 Key，已启用备用底图（可在后台配置面板填写 VITE_AMAP_KEY）。');
+        initMapLibreFallback('未配置高德地图 Web Key，已启用备用底图（可在后台配置面板填写）。');
         return;
       }
 

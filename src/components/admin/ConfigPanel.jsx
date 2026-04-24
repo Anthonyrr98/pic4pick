@@ -54,10 +54,12 @@ export const ConfigPanel = ({
 
         const record = Array.isArray(data) ? data[0] : null;
         const remote = record?.data || {};
+        const legacyAmap = remote.VITE_AMAP_KEY || '';
         const nextForm = {
           supabaseUrl: remote.VITE_SUPABASE_URL || '',
           supabaseAnonKey: remote.VITE_SUPABASE_ANON_KEY || '',
-          amapKey: remote.VITE_AMAP_KEY || '',
+          amapWebKey: remote.VITE_AMAP_WEB_KEY || legacyAmap,
+          amapServiceKey: remote.VITE_AMAP_WEB_SERVICE_KEY || legacyAmap,
         };
 
         if (cancelled) return;
@@ -170,7 +172,8 @@ export const ConfigPanel = ({
     const updates = {
       VITE_SUPABASE_URL: envConfigForm.supabaseUrl || '',
       VITE_SUPABASE_ANON_KEY: envConfigForm.supabaseAnonKey || '',
-      VITE_AMAP_KEY: envConfigForm.amapKey || '',
+      VITE_AMAP_WEB_KEY: envConfigForm.amapWebKey || '',
+      VITE_AMAP_WEB_SERVICE_KEY: envConfigForm.amapServiceKey || '',
     };
     updateEnvOverrides(updates);
     try {
@@ -197,7 +200,8 @@ export const ConfigPanel = ({
     setEnvConfigForm({
       supabaseUrl: getEnvValue('VITE_SUPABASE_URL', ''),
       supabaseAnonKey: getEnvValue('VITE_SUPABASE_ANON_KEY', ''),
-      amapKey: getEnvValue('VITE_AMAP_KEY', ''),
+      amapWebKey: getEnvValue('VITE_AMAP_WEB_KEY', getEnvValue('VITE_AMAP_KEY', '')),
+      amapServiceKey: getEnvValue('VITE_AMAP_WEB_SERVICE_KEY', getEnvValue('VITE_AMAP_KEY', '')),
     });
     try {
       if (supabase) {
@@ -292,13 +296,23 @@ export const ConfigPanel = ({
             />
           </div>
           <div className="form-group">
-            <label>高德地图 API Key</label>
+            <label>高德地图 Web Key（JS SDK）</label>
             <input
               type="text"
-              name="amapKey"
-              value={envConfigForm.amapKey}
+              name="amapWebKey"
+              value={envConfigForm.amapWebKey}
               onChange={handleEnvConfigChange}
-              placeholder="你的高德地图 API Key"
+              placeholder="用于 `https://webapi.amap.com/maps` 的 Key"
+            />
+          </div>
+          <div className="form-group">
+            <label>高德地图 Web 服务 Key（REST）</label>
+            <input
+              type="text"
+              name="amapServiceKey"
+              value={envConfigForm.amapServiceKey}
+              onChange={handleEnvConfigChange}
+              placeholder="用于 `restapi.amap.com` 的 Key"
             />
           </div>
         </div>

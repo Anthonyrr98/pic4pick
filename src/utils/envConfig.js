@@ -25,7 +25,9 @@ const persistOverrides = (overrides) => {
 export const ENV_OVERRIDE_KEYS = [
   'VITE_SUPABASE_URL',
   'VITE_SUPABASE_ANON_KEY',
-  'VITE_AMAP_KEY',
+  'VITE_AMAP_WEB_KEY',
+  'VITE_AMAP_WEB_SERVICE_KEY',
+  'VITE_AMAP_KEY', // legacy fallback
   'VITE_ADMIN_PASSWORD',
 ];
 

@@ -1,3 +1,8 @@
+/* 防止“图库/发现”切换时因滚动条出现/消失导致布局横跳 */
+html {
+  scrollbar-gutter: stable;
+}
+
 main {
   padding: 0 clamp(24px, 5vw, 72px) 48px;
 }
@@ -292,7 +297,7 @@ main {
 
 /* 当"发现"激活时，滑动背景移动到右侧 */
 .view-toggle.explore-active::before {
-  transform: translateX(calc(100% + 6px));
+  transform: translateX(100%);
 }
 
 .toggle-btn {

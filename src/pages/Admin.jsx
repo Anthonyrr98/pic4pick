@@ -115,7 +115,8 @@ export function AdminPage() {
   const [envConfigForm, setEnvConfigForm] = useState(() => ({
     supabaseUrl: getEnvValue('VITE_SUPABASE_URL', ''),
     supabaseAnonKey: getEnvValue('VITE_SUPABASE_ANON_KEY', ''),
-    amapKey: getEnvValue('VITE_AMAP_KEY', ''),
+    amapWebKey: getEnvValue('VITE_AMAP_WEB_KEY', getEnvValue('VITE_AMAP_KEY', '')),
+    amapServiceKey: getEnvValue('VITE_AMAP_WEB_SERVICE_KEY', getEnvValue('VITE_AMAP_KEY', '')),
   }));
   const [envConfigMessage, setEnvConfigMessage] = useState({ type: '', text: '' });
   const importFileInputRef = useRef(null);
@@ -746,7 +747,7 @@ export function AdminPage() {
   // 生成高德地图 API URL（生产环境直接调用，开发环境使用代理）
   // getAmapApiUrl 已移至 adminUtils.js
 
-  // 地理位置搜索函数（优先使用高德地图搜索 API，需要配置 VITE_AMAP_KEY）
+  // 地理位置搜索函数（优先使用高德地图搜索 API，需要配置 VITE_AMAP_WEB_SERVICE_KEY）
   const searchLocation = useCallback(async (query, isEdit = false) => {
     if (!query.trim()) {
       if (isEdit) {
@@ -764,7 +765,7 @@ export function AdminPage() {
     }
 
     try {
-      const amapKey = getEnvValue('VITE_AMAP_KEY', '');
+      const amapKey = getEnvValue('VITE_AMAP_WEB_SERVICE_KEY', getEnvValue('VITE_AMAP_KEY', ''));
       
       // 如果没有配置高德 key，直接清空结果并提示，不再访问国外服务
       if (!amapKey) {
@@ -1319,7 +1320,7 @@ export function AdminPage() {
 
           // 尝试通过反向地理编码获取地址信息
           try {
-            const amapKey = getEnvValue('VITE_AMAP_KEY', '');
+            const amapKey = getEnvValue('VITE_AMAP_WEB_SERVICE_KEY', getEnvValue('VITE_AMAP_KEY', ''));
             if (amapKey) {
               const reverseGeocodeUrl = getAmapApiUrl(`/v3/geocode/regeo?key=${amapKey}&location=${updates.longitude},${updates.latitude}&radius=1000&extensions=all`);
               
