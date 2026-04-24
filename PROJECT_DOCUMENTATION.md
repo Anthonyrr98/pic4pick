@@ -1,4 +1,7 @@
-# Pic4Pick 项目完整文档
+> 本文档已归档到 `docs/engineering/project-documentation.md`  
+> 请访问：`./docs/engineering/project-documentation.md`
+
+（此文件保留为兼容旧链接的跳转页。）
 
 ## 📋 目录
 

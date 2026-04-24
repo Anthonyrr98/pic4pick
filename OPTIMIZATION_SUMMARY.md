@@ -1,4 +1,7 @@
-# 🎉 Pic4Pick 项目优化完成总结
+> 本文档已移动到 `docs/engineering/optimization-summary.md`  
+> 请访问：`./docs/engineering/optimization-summary.md`
+
+（此文件保留为兼容旧链接的跳转页。）
 
 ## 📊 优化成果概览
 

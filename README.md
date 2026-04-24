@@ -143,11 +143,13 @@ ALIYUN_OSS_ACCESS_KEY_SECRET=your-secret
 
 ## 📚 文档
 
-- **[API 文档](docs/API.md)** - 完整的 API 接口说明
-- **[开发指南](docs/DEVELOPMENT.md)** - 开发环境搭建和代码规范
-- **[部署指南](docs/DEPLOYMENT.md)** - 生产环境部署说明
+- **[文档索引](docs/index.md)** - 所有文档的统一入口
+- **[API 文档](docs/api/API.md)** - 完整的 API 接口说明
+- **[开发指南](docs/development/DEVELOPMENT.md)** - 开发环境搭建和代码规范
+- **[部署总览](docs/deployment/overview.md)** - 部署方案与通用说明
+- **[生产部署](docs/deployment/production.md)** - 一步步上线指南
 - **[快速开始](QUICK_START.md)** - 快速启动指南
-- **[阿里云 OSS 配置](ALIYUN_OSS_SETUP.md)** - OSS 存储配置
+- **[阿里云 OSS 配置](docs/storage/aliyun-oss.md)** - OSS 存储配置
 
 ## 🛠️ 技术栈
 

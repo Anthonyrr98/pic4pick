@@ -1,4 +1,7 @@
-# 地图初始化重构 - 使用指南
+> 本文档已移动到 `docs/engineering/map-refactor-guide.md`  
+> 请访问：`./docs/engineering/map-refactor-guide.md`
+
+（此文件保留为兼容旧链接的跳转页。）
 
 ## 问题
 地图初始化逻辑在多处重复，导致：

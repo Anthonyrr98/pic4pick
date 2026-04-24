@@ -1,8 +1,7 @@
-/**
- * Gallery.jsx 模块化重构方案
- * 
- * 本方案将超过 1500 行的 Gallery.jsx 拆分为多个专业模块
- */
+> 本文档已移动到 `docs/engineering/gallery-modularization.md`  
+> 请访问：`../../../docs/engineering/gallery-modularization.md`
+
+（此文件保留为兼容旧链接的跳转页。）
 
 # Gallery 模块化架构
 

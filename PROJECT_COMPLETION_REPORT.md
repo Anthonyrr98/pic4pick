@@ -1,4 +1,7 @@
-# 🎉 Admin.jsx 拆分方案 - 完整总结
+> 本文档已移动到 `docs/engineering/project-completion-report.md`  
+> 请访问：`./docs/engineering/project-completion-report.md`
+
+（此文件保留为兼容旧链接的跳转页。）
 
 ## 📊 项目成果
 
