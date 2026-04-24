@@ -87,11 +87,22 @@ export const usePhotoData = (supabase: any) => {
 
     const fetchApprovedFromSupabase = async () => {
       try {
-        const { data, error } = await supabase
+        let { data, error } = await supabase
           .from('photos')
           .select('*')
           .eq('status', 'approved')
-          .order('created_at', { ascending: false });
+          .order('created_at', { ascending: false })
+          .limit(1000);
+
+        if (error && /statement timeout/i.test(error.message || '')) {
+          const fallback = await supabase
+            .from('photos')
+            .select('*')
+            .eq('status', 'approved')
+            .limit(1000);
+          data = fallback.data;
+          error = fallback.error;
+        }
 
         if (error) {
           throw error;

@@ -27,7 +27,12 @@ const sortByFeatured = (list: GalleryPhoto[]): GalleryPhoto[] =>
 
 // 按胶片筛选（仅返回胶片相关照片）
 const sortByFilm = (list: GalleryPhoto[]): GalleryPhoto[] => {
-  return sortByLatest(list.filter((photo) => photo.category === 'film'));
+  return sortByLatest(
+    list.filter((photo) => {
+      const category = String(photo.category || '').trim().toLowerCase();
+      return category === 'film' || category === '胶片';
+    })
+  );
 };
 
 // 随机排序

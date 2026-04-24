@@ -1065,31 +1065,38 @@ export function AdminPage() {
     setIsSupabaseLoading(true);
     setSupabaseError('');
     try {
-      const [pendingResult, approvedResult, rejectedResult] = await Promise.all([
-        supabase
-          .from('photos')
-          .select('*')
-          .eq('status', 'pending')
-          .order('created_at', { ascending: false }),
-        supabase
-          .from('photos')
-          .select('*')
-          .eq('status', 'approved')
-          .order('created_at', { ascending: false }),
-        supabase
-          .from('photos')
-          .select('*')
-          .eq('status', 'rejected')
-          .order('created_at', { ascending: false }),
-      ]);
+      // 统一拉取后在前端按 status 分组，避免某个状态条件查询异常导致整体失败
+      // 同时限制单次拉取量，避免大表查询触发 statement timeout。
+      let { data, error } = await supabase
+        .from('photos')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(1000);
 
-      if (pendingResult.error || approvedResult.error || rejectedResult.error) {
-        throw pendingResult.error || approvedResult.error || rejectedResult.error;
+      // 数据库排序超时时，降级为不排序查询，先保证后台可用
+      if (error && /statement timeout/i.test(error.message || '')) {
+        const fallback = await supabase
+          .from('photos')
+          .select('*')
+          .limit(1000);
+        data = fallback.data;
+        error = fallback.error;
       }
 
-      const pendingMapped = (pendingResult.data || []).map(mapSupabaseRowToPhoto);
-      const approvedMapped = (approvedResult.data || []).map(mapSupabaseRowToPhoto);
-      const rejectedMapped = (rejectedResult.data || []).map(mapSupabaseRowToPhoto);
+      if (error) {
+        throw error;
+      }
+
+      const rows = data || [];
+      const pendingMapped = rows
+        .filter((row) => row.status === 'pending')
+        .map(mapSupabaseRowToPhoto);
+      const approvedMapped = rows
+        .filter((row) => row.status === 'approved')
+        .map(mapSupabaseRowToPhoto);
+      const rejectedMapped = rows
+        .filter((row) => row.status === 'rejected')
+        .map(mapSupabaseRowToPhoto);
 
       setAdminUploads(pendingMapped);
       setApprovedPhotos(approvedMapped);
@@ -1492,6 +1499,7 @@ export function AdminPage() {
     setSubmitMessage({ type: '', text: '' });
     setUploadProgress(0);
     setUploadingFileName(uploadForm.file?.name || null);
+    setUploadBytes({ uploaded: 0, total: uploadForm.file?.size || 0 });
 
     try {
       let imageURL = '';

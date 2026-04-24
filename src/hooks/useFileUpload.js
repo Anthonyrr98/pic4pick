@@ -26,10 +26,13 @@ export const useFileUpload = () => {
       const result = await uploadImage(
         file,
         filename,
-        (progress) => {
+        (progress, uploaded, total) => {
           setUploadProgress(progress);
+          if (uploaded !== undefined && total !== undefined) {
+            setUploadBytes({ uploaded, total });
+          }
           if (onProgress) {
-            onProgress(progress);
+            onProgress(progress, uploaded, total);
           }
         }
       );

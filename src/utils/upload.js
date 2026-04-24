@@ -166,7 +166,7 @@ const uploadToAPI = async (file, filename, onProgress) => {
     xhr.upload.addEventListener('progress', (e) => {
       if (e.lengthComputable && onProgress) {
         const percent = (e.loaded / e.total) * 100;
-        onProgress(percent);
+        onProgress(percent, e.loaded, e.total);
       }
     });
     
