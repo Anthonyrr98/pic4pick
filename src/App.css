@@ -185,6 +185,14 @@ main {
   background: var(--bg, #fff);
 }
 
+.brand-wordmark-img {
+  display: block;
+  width: clamp(220px, 26vw, 360px);
+  height: auto;
+  object-fit: contain;
+  object-position: center;
+}
+
 .brand-name {
   font-family: 'Playfair Display', serif;
   letter-spacing: 0.3rem;
@@ -203,6 +211,10 @@ main {
     display: flex;
     flex-direction: column;
     gap: 2px;
+  }
+  .brand-wordmark-img {
+    width: clamp(170px, 36vw, 260px);
+    height: auto;
   }
   .brand-name {
     font-size: 1.1rem;

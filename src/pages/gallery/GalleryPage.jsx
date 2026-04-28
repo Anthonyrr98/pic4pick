@@ -531,10 +531,11 @@ export function GalleryPage() {
               : <div className="logo-mark" aria-hidden="true" />
           )}
           {activeView === 'gallery-view' && (
-            <div className="brand-copy">
-              <div className="brand-name">{brandText.siteTitle}</div>
-              <div className="brand-subtitle">{brandText.siteSubtitle}</div>
-            </div>
+            <img
+              src="/loa-cropped.png"
+              alt="Light of Anthony"
+              className="brand-wordmark-img"
+            />
           )}
         </div>
         <nav className="primary-menu" />
