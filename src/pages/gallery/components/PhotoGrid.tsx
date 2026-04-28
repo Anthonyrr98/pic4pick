@@ -29,10 +29,26 @@ export const PhotoGrid: React.FC<PhotoGridProps> = ({
   loadMoreRef,
   totalCount,
 }) => {
-  const formatBadgeText = (text?: string) => {
-    const value = String(text || '').trim();
-    if (!value) return '未分类';
-    return value.toLowerCase().startsWith('film_stock:') ? value.slice('film_stock:'.length).trim() : value;
+  const categoryLabels: Record<string, string> = {
+    featured: '精选',
+    latest: '最新',
+    random: '随览',
+    nearby: '附近',
+    far: '远方',
+    film: '胶片',
+  };
+
+  const formatBadgeText = (photo: GalleryPhoto) => {
+    const mood = String(photo.mood || '').trim();
+    const categoryLabel = categoryLabels[String(photo.category || '').trim()] || '';
+
+    if (mood.toLowerCase().startsWith('film_stock:')) {
+      const filmStock = mood.slice('film_stock:'.length).trim();
+      return filmStock || categoryLabel || '胶片';
+    }
+
+    if (mood && mood !== '未分类' && mood !== '原创作品') return mood;
+    return categoryLabel || '未分类';
   };
 
   return (
@@ -75,7 +91,7 @@ export const PhotoGrid: React.FC<PhotoGridProps> = ({
                 图片加载中...
               </div>
             )}
-            <span className="badge">{formatBadgeText(item.mood)}</span>
+            <span className="badge">{formatBadgeText(item)}</span>
             <div className="caption">
               <h4>{item.title}</h4>
               <span>
