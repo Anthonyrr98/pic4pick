@@ -2,7 +2,7 @@
  * 照片加载和点赞相关 Hooks
  */
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { Storage, STORAGE_KEYS } from '../../../utils/storage';
 import { ensureHttps } from '../../../utils/urlUtils';
 import { handleError, safeAsync, ErrorType } from '../../../utils/errorHandler';
@@ -59,23 +59,33 @@ export const usePhotoData = (supabase: any) => {
     isSupabaseReady ? [] : loadApprovedPhotos()
   );
   const [supabaseError, setSupabaseError] = useState('');
+  const localApprovedPhotosSnapshotRef = useRef<string | null>(null);
 
   // 监听 localStorage 变化（非 Supabase 模式）
   useEffect(() => {
     if (supabase) return;
 
     const handleStorageChange = () => {
+      const snapshot = window.localStorage.getItem(STORAGE_KEYS.APPROVED_PHOTOS) || '';
+      if (snapshot === localApprovedPhotosSnapshotRef.current) return;
+
+      localApprovedPhotosSnapshotRef.current = snapshot;
       const loaded = loadApprovedPhotos();
-      console.log('加载审核通过的照片:', loaded);
       setApprovedPhotos(loaded);
     };
 
     handleStorageChange();
-    window.addEventListener('storage', handleStorageChange);
+
+    const handleStorageEvent = (event: StorageEvent) => {
+      if (event.key && event.key !== STORAGE_KEYS.APPROVED_PHOTOS) return;
+      handleStorageChange();
+    };
+
+    window.addEventListener('storage', handleStorageEvent);
     const interval = setInterval(handleStorageChange, 1000);
 
     return () => {
-      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('storage', handleStorageEvent);
       clearInterval(interval);
     };
   }, [supabase]);
