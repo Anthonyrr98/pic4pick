@@ -862,13 +862,44 @@ main {
   transform: translate3d(var(--img-shift-x, 0px), var(--img-shift-y, 0px), 22px) scale(1);
   transition:
     transform 520ms cubic-bezier(0.16, 1, 0.3, 1),
-    filter 520ms cubic-bezier(0.16, 1, 0.3, 1);
-  will-change: transform, filter;
+    filter 520ms cubic-bezier(0.16, 1, 0.3, 1),
+    opacity 360ms ease;
+  will-change: transform, filter, opacity;
+  opacity: 0;
+}
+
+.photo-card img.loaded {
+  opacity: 1;
 }
 
 .photo-card:hover img {
   transform: translate3d(var(--img-shift-x, 0px), var(--img-shift-y, 0px), 28px) scale(1.05);
   filter: saturate(1.06) contrast(1.02);
+}
+
+.photo-skeleton {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: linear-gradient(110deg, #e9ebf0 8%, #f5f6f9 18%, #e9ebf0 33%);
+  background-size: 200% 100%;
+  animation: photo-skeleton-shimmer 1.25s linear infinite;
+  opacity: 1;
+  transition: opacity 360ms ease;
+  pointer-events: none;
+}
+
+.photo-skeleton.loaded {
+  opacity: 0;
+}
+
+@keyframes photo-skeleton-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
 }
 
 .photo-card .badge {

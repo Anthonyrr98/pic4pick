@@ -2,7 +2,7 @@
  * 照片网格组件 - 显示照片卡片列表
  */
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { GalleryPhoto } from '../utils/photoDataUtils';
 import { handleError, ErrorType } from '../../../utils/errorHandler';
 
@@ -29,6 +29,19 @@ export const PhotoGrid: React.FC<PhotoGridProps> = ({
   loadMoreRef,
   totalCount,
 }) => {
+  const [loadedImageIds, setLoadedImageIds] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    const currentPhotoIds = new Set(photos.map((photo) => photo.id));
+    setLoadedImageIds((prev) => {
+      const next: Record<string, boolean> = {};
+      Object.entries(prev).forEach(([id, loaded]) => {
+        if (currentPhotoIds.has(id)) next[id] = loaded;
+      });
+      return next;
+    });
+  }, [photos]);
+
   const handlePhotoCardMouseMove = (event: React.MouseEvent<HTMLElement>) => {
     if (typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
       return;
@@ -94,6 +107,7 @@ export const PhotoGrid: React.FC<PhotoGridProps> = ({
   return (
     <div className="gallery-grid">
       {photos.map((item, index) => {
+        const isImageLoaded = !!loadedImageIds[item.id];
         const liked = likedPhotoIds.includes(item.id);
         const likeCount = typeof item.likes === 'number' ? item.likes : 0;
         return (
@@ -106,19 +120,30 @@ export const PhotoGrid: React.FC<PhotoGridProps> = ({
             style={{ ['--stagger' as any]: index }}
           >
             {item.image ? (
-              <img
-                src={item.thumbnail || item.image}
-                alt={item.title}
-                loading="lazy"
-                onError={(e) => {
-                  handleError(new Error(`图片加载失败: ${item.title}`), {
-                    context: 'PhotoGrid.imageLoad',
-                    type: ErrorType.NETWORK,
-                    silent: true,
-                  });
-                  e.currentTarget.style.display = 'none';
-                }}
-              />
+              <>
+                <div
+                  className={`photo-skeleton ${isImageLoaded ? 'loaded' : ''}`}
+                  aria-hidden="true"
+                />
+                <img
+                  className={isImageLoaded ? 'loaded' : ''}
+                  src={item.thumbnail || item.image}
+                  alt={item.title}
+                  loading="lazy"
+                  onLoad={() => {
+                    setLoadedImageIds((prev) => (prev[item.id] ? prev : { ...prev, [item.id]: true }));
+                  }}
+                  onError={(e) => {
+                    handleError(new Error(`图片加载失败: ${item.title}`), {
+                      context: 'PhotoGrid.imageLoad',
+                      type: ErrorType.NETWORK,
+                      silent: true,
+                    });
+                    setLoadedImageIds((prev) => (prev[item.id] ? prev : { ...prev, [item.id]: true }));
+                    e.currentTarget.style.display = 'none';
+                  }}
+                />
+              </>
             ) : (
               <div
                 style={{
