@@ -1957,7 +1957,7 @@ main {
   height: 100%;
   display: block;
   max-height: none;
-  object-fit: contain;
+  object-fit: cover;
   border-radius: 24px;
   margin: 0 auto;
 }
