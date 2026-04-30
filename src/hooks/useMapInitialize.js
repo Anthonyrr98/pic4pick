@@ -1,7 +1,7 @@
 import { useEffect, useRef, useCallback } from 'react';
-import maplibregl from 'maplibre-gl';
 import { getEnvValue } from '../utils/envConfig';
 import { handleError, ErrorType } from '../utils/errorHandler';
+import { loadMapLibre } from '../utils/maplibreLoader';
 
 /**
  * 地图初始化 Hook
@@ -25,6 +25,7 @@ export function useMapInitialize({
   onMarkerClick,
 } = {}) {
   const mapRef = useRef(null);
+  const maplibreRef = useRef(null);
   const containerRef = useRef(null);
   const markersRef = useRef(new Map());
 
@@ -39,8 +40,10 @@ export function useMapInitialize({
   }, []);
 
   // 初始化地图
-  const initializeMap = useCallback(() => {
+  const initializeMap = useCallback(async () => {
     try {
+      const maplibregl = await loadMapLibre();
+      maplibreRef.current = maplibregl;
       const container = document.getElementById(containerId);
       if (!container) {
         handleError(new Error(`Map container not found: ${containerId}`), {
@@ -91,9 +94,10 @@ export function useMapInitialize({
   // 添加标记
   const addMarker = useCallback((id, lat, lng, options = {}) => {
     if (!mapRef.current) return null;
+    if (!maplibreRef.current) return null;
 
     try {
-      const marker = new maplibregl.Marker(options)
+      const marker = new maplibreRef.current.Marker(options)
         .setLngLat([lng, lat])
         .addTo(mapRef.current);
 
@@ -185,7 +189,7 @@ export function useMapInitialize({
 
   // 初始化
   useEffect(() => {
-    const map = initializeMap();
+    initializeMap();
     return () => {
       destroyMap();
     };

@@ -1,18 +1,26 @@
+import { Suspense, lazy } from 'react';
 import { HashRouter, Route, Routes } from 'react-router-dom';
 import './App.css';
-import { AdminPage } from './pages/Admin.jsx';
-import { GalleryPage } from './pages/Gallery.jsx';
 import { ErrorBoundary } from './components/ErrorBoundary';
+
+const AdminPage = lazy(() =>
+  import('./pages/Admin.jsx').then((module) => ({ default: module.AdminPage }))
+);
+const GalleryPage = lazy(() =>
+  import('./pages/Gallery.jsx').then((module) => ({ default: module.GalleryPage }))
+);
 
 function App() {
   return (
     <ErrorBoundary>
-    <HashRouter>
-      <Routes>
-        <Route path="/" element={<GalleryPage />} />
-        <Route path="/admin" element={<AdminPage />} />
-      </Routes>
-    </HashRouter>
+      <HashRouter>
+        <Suspense fallback={<div className="loading-container">Loading...</div>}>
+          <Routes>
+            <Route path="/" element={<GalleryPage />} />
+            <Route path="/admin" element={<AdminPage />} />
+          </Routes>
+        </Suspense>
+      </HashRouter>
     </ErrorBoundary>
   );
 }

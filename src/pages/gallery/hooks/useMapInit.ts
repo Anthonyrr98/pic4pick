@@ -9,9 +9,10 @@
  */
 
 import { useEffect, useRef, useState, useCallback } from 'react';
-import maplibregl from 'maplibre-gl';
+import type { Map as MapLibreMap, StyleSpecification } from 'maplibre-gl';
 import { getEnvValue } from '../../../utils/envConfig';
 import { handleError, ErrorType } from '../../../utils/errorHandler';
+import { loadMapLibre } from '../../../utils/maplibreLoader';
 
 // ── 高德瓦片地址（轮询 4 个节点）
 const GAODE_TILES = [
@@ -21,7 +22,7 @@ const GAODE_TILES = [
   'https://webrd04.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=7&x={x}&y={y}&z={z}',
 ];
 
-const MAPLIBRE_STYLE: maplibregl.StyleSpecification = {
+const MAPLIBRE_STYLE: StyleSpecification = {
   version: 8,
   sources: {
     'gaode-tiles': {
@@ -93,7 +94,7 @@ export const useGaodeMapInit = (
   activeView: string
 ) => {
   const mapInstance = useRef<any>(null);
-  const maplibreInstance = useRef<maplibregl.Map | null>(null);
+  const maplibreInstance = useRef<MapLibreMap | null>(null);
   const [isMapReady, setIsMapReady] = useState(false);
   const [mapProvider, setMapProvider] = useState<'amap' | 'maplibre' | null>(null);
   const [mapHint, setMapHint] = useState('');
@@ -134,10 +135,12 @@ export const useGaodeMapInit = (
     // cancelled 用于取消所有进行中的异步操作
     let cancelled = false;
 
-    const initMapLibreFallback = (hintText: string) => {
+    const initMapLibreFallback = async (hintText: string) => {
       if (cancelled || !containerRef.current || maplibreInstance.current) return;
       // 确保高德实例已清理后再创建 MapLibre
       destroyAMap();
+      const maplibregl = await loadMapLibre();
+      if (cancelled || !containerRef.current || maplibreInstance.current) return;
 
       const map = new maplibregl.Map({
         container: containerRef.current,
@@ -166,7 +169,7 @@ export const useGaodeMapInit = (
     const initGaodeMap = async () => {
       const amapKey = getEnvValue('VITE_AMAP_WEB_KEY', getEnvValue('VITE_AMAP_KEY', ''));
       if (!amapKey) {
-        initMapLibreFallback('未配置高德地图 Web Key，已启用备用底图（可在后台配置面板填写）。');
+        await initMapLibreFallback('未配置高德地图 Web Key，已启用备用底图（可在后台配置面板填写）。');
         return;
       }
 
@@ -217,7 +220,7 @@ export const useGaodeMapInit = (
           silent: true,
         });
         const msg = error?.message ? String(error.message) : '高德地图加载失败';
-        initMapLibreFallback(`${msg}，已自动切换到备用底图。`);
+        await initMapLibreFallback(`${msg}，已自动切换到备用底图。`);
       }
     };
 
@@ -262,7 +265,7 @@ export const useFocusMapOnCity = (
         map.setZoomAndCenter(targetZoom, [lng, lat]);
       } else {
         // MapLibre 备用底图
-        (map as maplibregl.Map).flyTo({ center: [lng, lat], zoom: 11, speed: 1.4 });
+        (map as MapLibreMap).flyTo({ center: [lng, lat], zoom: 11, speed: 1.4 });
       }
     },
     [isMapReady] // mapInstance 是 ref，不需要加入 deps

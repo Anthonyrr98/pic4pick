@@ -1,6 +1,4 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
-import maplibregl from 'maplibre-gl';
-import 'maplibre-gl/dist/maplibre-gl.css';
 import '../../App.css';
 import { getSupabaseClient } from '../../utils/supabaseClient';
 import {
@@ -24,6 +22,7 @@ import { filterAndSortPhotos } from './utils/photoFilterUtils';
 import { usePhotoData, useLikePhoto } from './hooks/usePhotoData';
 import { useExifData, useBrowserLocation, useAltitudeFromCoords } from './hooks/useExifAndLocation';
 import { useGaodeMapInit, useFocusMapOnCity } from './hooks/useMapInit';
+import { loadMapLibre } from '../../utils/maplibreLoader';
 import { TabStrip } from './components/TabStrip';
 import { PhotoGrid } from './components/PhotoGrid';
 import { CurationPanel } from './components/CurationPanel';
@@ -97,6 +96,7 @@ export function GalleryPage() {
   const mapContainerRef = useRef(null);
   const geoMapContainerRef = useRef(null);
   const geoMapInstance = useRef(null);
+  const maplibreRef = useRef(null);
   const exploreMarkersRef = useRef([]);
   const exploreMaplibreMarkersRef = useRef([]);
   const currentLocationMarkerRef = useRef(null);
@@ -283,6 +283,13 @@ export function GalleryPage() {
     }
   }, [lightboxPhoto]);
 
+  const ensureMapLibre = useCallback(async () => {
+    if (!maplibreRef.current) {
+      maplibreRef.current = await loadMapLibre();
+    }
+    return maplibreRef.current;
+  }, []);
+
   // 鈹€鈹€ Effects
   useEffect(() => {
     if (!metaPopover) return;
@@ -445,14 +452,18 @@ export function GalleryPage() {
   // 在地图上绘制照片位置标记
   useEffect(() => {
     if (activeView !== 'explore-view' || !isMapReady) return;
+    let cancelled = false;
     exploreMarkersRef.current.forEach((m) => m?.setMap?.(null));
     exploreMarkersRef.current = [];
     exploreMaplibreMarkersRef.current.forEach((m) => m.remove());
     exploreMaplibreMarkersRef.current = [];
     if (!photosByLocation || photosByLocation.length === 0) return;
-    const palette = ['#cfa56a', '#111218', '#9b9dad', '#d48a48'];
-    const markerEls = [];
-    photosByLocation.forEach((group, index) => {
+    const drawMarkers = async () => {
+      const maplibregl = exploreMapProvider === 'maplibre' ? await ensureMapLibre() : null;
+      if (cancelled) return;
+      const palette = ['#cfa56a', '#111218', '#9b9dad', '#d48a48'];
+      const markerEls = [];
+      photosByLocation.forEach((group, index) => {
       const el = document.createElement('div');
       el.className = 'explore-marker';
       const color = palette[index % palette.length];
@@ -471,7 +482,7 @@ export function GalleryPage() {
         });
         exploreMarkersRef.current.push(marker);
       } else if (exploreMapProvider === 'maplibre') {
-        if (!maplibreExploreInstance.current) return;
+        if (!maplibreExploreInstance.current || !maplibregl) return;
         const marker = new maplibregl.Marker({ element: el, anchor: 'center' })
           .setLngLat([group.lng, group.lat])
           .addTo(maplibreExploreInstance.current);
@@ -488,11 +499,16 @@ export function GalleryPage() {
         });
       });
       markerEls.push(el);
-    });
-    markerEls.forEach((el, i) => {
-      if (i === 0) { requestAnimationFrame(() => { el.style.opacity = '1'; el.style.transform = 'scale(1)'; }); }
-      else { setTimeout(() => { el.style.opacity = '1'; el.style.transform = 'scale(1)'; }, i * 10); }
-    });
+      });
+      markerEls.forEach((el, i) => {
+        if (i === 0) { requestAnimationFrame(() => { el.style.opacity = '1'; el.style.transform = 'scale(1)'; }); }
+        else { setTimeout(() => { el.style.opacity = '1'; el.style.transform = 'scale(1)'; }, i * 10); }
+      });
+    };
+    drawMarkers();
+    return () => {
+      cancelled = true;
+    };
   }, [photosByLocation, activeView, isMapReady, showLocationPanel, exploreMapProvider]);
 
   // 当前位置标记
@@ -503,25 +519,32 @@ export function GalleryPage() {
       return;
     }
     if (!isMapReady || !browserLocation) return;
+    let cancelled = false;
     currentLocationMarkerRef.current?.setMap?.(null); currentLocationMarkerRef.current = null;
     currentLocationMaplibreMarkerRef.current?.remove(); currentLocationMaplibreMarkerRef.current = null;
-    const el = document.createElement('div');
-    el.style.cssText = 'width:12px;height:12px;border-radius:999px;background:rgba(80,155,255,0.9);border:2px solid #ffffff;box-shadow:0 0 0 1px rgba(0,0,0,0.3),0 4px 10px rgba(0,0,0,0.25);position:relative;z-index:1000;display:block;';
-    if (exploreMapProvider === 'amap' && mapInstance.current && window.AMap) {
-      currentLocationMarkerRef.current = new window.AMap.Marker({
-        position: [browserLocation.lon, browserLocation.lat], content: el,
-        offset: new window.AMap.Pixel(-6, -6), map: mapInstance.current, zIndex: 1000,
-      });
-    } else if (exploreMapProvider === 'maplibre' && maplibreExploreInstance.current) {
-      currentLocationMaplibreMarkerRef.current = new maplibregl.Marker({ element: el, anchor: 'center' })
-        .setLngLat([browserLocation.lon, browserLocation.lat])
-        .addTo(maplibreExploreInstance.current);
-    }
+    const addCurrentMarker = async () => {
+      const maplibregl = exploreMapProvider === 'maplibre' ? await ensureMapLibre() : null;
+      if (cancelled) return;
+      const el = document.createElement('div');
+      el.style.cssText = 'width:12px;height:12px;border-radius:999px;background:rgba(80,155,255,0.9);border:2px solid #ffffff;box-shadow:0 0 0 1px rgba(0,0,0,0.3),0 4px 10px rgba(0,0,0,0.25);position:relative;z-index:1000;display:block;';
+      if (exploreMapProvider === 'amap' && mapInstance.current && window.AMap) {
+        currentLocationMarkerRef.current = new window.AMap.Marker({
+          position: [browserLocation.lon, browserLocation.lat], content: el,
+          offset: new window.AMap.Pixel(-6, -6), map: mapInstance.current, zIndex: 1000,
+        });
+      } else if (exploreMapProvider === 'maplibre' && maplibreExploreInstance.current && maplibregl) {
+        currentLocationMaplibreMarkerRef.current = new maplibregl.Marker({ element: el, anchor: 'center' })
+          .setLngLat([browserLocation.lon, browserLocation.lat])
+          .addTo(maplibreExploreInstance.current);
+      }
+    };
+    addCurrentMarker();
     return () => {
+      cancelled = true;
       currentLocationMarkerRef.current?.setMap?.(null); currentLocationMarkerRef.current = null;
       currentLocationMaplibreMarkerRef.current?.remove(); currentLocationMaplibreMarkerRef.current = null;
     };
-  }, [browserLocation, isMapReady, activeView, exploreMapProvider]);
+  }, [browserLocation, isMapReady, activeView, exploreMapProvider, ensureMapLibre]);
 
   // 地理位置弹窗内的小地图
   useEffect(() => {
@@ -535,7 +558,11 @@ export function GalleryPage() {
     // cancelled 用于阻断 once('load') 回调在 cleanup 后触发
     let cancelled = false;
 
-    const addMarkers = (map) => {
+    const initGeoMap = async () => {
+      const maplibregl = await ensureMapLibre();
+      if (cancelled) return;
+
+      const addMarkers = (map) => {
       if (cancelled || !map) return;
       // 清理旧 markers
       (map._markers || []).forEach((m) => m.remove());
@@ -573,9 +600,9 @@ export function GalleryPage() {
           paint: { 'line-color': '#e7b17c', 'line-width': 2, 'line-opacity': 0.6, 'line-dasharray': [5, 10] },
         });
       }
-    };
+      };
 
-    if (geoMapInstance.current) {
+      if (geoMapInstance.current) {
       // 实例已存在：复用，仅更新中心点和 markers
       geoMapInstance.current.setCenter([lon, lat]);
       if (geoMapInstance.current.loaded()) {
@@ -583,7 +610,7 @@ export function GalleryPage() {
       } else {
         geoMapInstance.current.once('load', () => addMarkers(geoMapInstance.current));
       }
-    } else {
+      } else {
       // 新建实例
       const map = new maplibregl.Map({
         container: geoMapContainerRef.current,
@@ -608,7 +635,9 @@ export function GalleryPage() {
       geoMapInstance.current = map;
       // 用 once('load') 添加 markers，并通过 cancelled 防止 cleanup 后仍执行
       map.once('load', () => addMarkers(map));
-    }
+      }
+    };
+    initGeoMap();
 
     return () => {
       // 标记取消，阻断 once('load') 回调
@@ -617,7 +646,7 @@ export function GalleryPage() {
       // 但只要 metaPopover?.tab === 'geo' 且 getGeoInfo 存在，下一次 effect 会复用实例。
       // 仅当下一次 effect 判断条件不满足时（see top of effect）才销毁。
     };
-  }, [getGeoInfo, metaPopover?.tab, lightboxPhoto]);
+  }, [getGeoInfo, metaPopover?.tab, lightboxPhoto, ensureMapLibre]);
 
   useEffect(() => {
     if (metaPopover?.tab === 'geo' && geoMapInstance.current)

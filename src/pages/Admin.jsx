@@ -2,8 +2,6 @@ import { useEffect, useMemo, useState, useRef, useCallback } from 'react';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import { zhCN } from 'date-fns/locale';
-import maplibregl from 'maplibre-gl';
-import 'maplibre-gl/dist/maplibre-gl.css';
 import exifr from 'exifr';
 import '../App.css';
 import { uploadImage, getUploadType, setUploadType, UPLOAD_TYPES } from '../utils/upload';
@@ -33,6 +31,7 @@ import { useGearOptions } from '../hooks/useGearOptions';
 import { useBrandConfig } from '../hooks/useBrandConfig';
 import { useFileUpload } from '../hooks/useFileUpload';
 import { ConfigPanel } from '../components/admin/ConfigPanel';
+import { loadMapLibre } from '../utils/maplibreLoader';
 
 const tabs = [
   { id: 'featured', label: '精选' },
@@ -173,6 +172,7 @@ export function AdminPage() {
   const [showLocationPicker, setShowLocationPicker] = useState(false);
   const locationMapContainerRef = useRef(null);
   const locationMapInstance = useRef(null);
+  const maplibreRef = useRef(null);
   const [selectedLocation, setSelectedLocation] = useState(null); // { lat, lon }
   const [locationSearchQuery, setLocationSearchQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
@@ -319,6 +319,13 @@ export function AdminPage() {
   const [editLocationSearchQuery, setEditLocationSearchQuery] = useState('');
   const [isEditSearching, setIsEditSearching] = useState(false);
   const [editSearchResults, setEditSearchResults] = useState([]);
+
+  const ensureMapLibre = useCallback(async () => {
+    if (!maplibreRef.current) {
+      maplibreRef.current = await loadMapLibre();
+    }
+    return maplibreRef.current;
+  }, []);
 
   // 分页和搜索状态
   const [currentPage, setCurrentPage] = useState(1);
@@ -591,73 +598,78 @@ export function AdminPage() {
   // 初始化地图选择器
   useEffect(() => {
     if (!showLocationPicker || !locationMapContainerRef.current || locationMapInstance.current) return;
+    let cancelled = false;
 
-    // 默认中心点（如果已有选择的位置，使用该位置，否则使用浏览器位置或北京）
-    let centerLat = 39.9042;
-    let centerLon = 116.4074;
-    let zoom = 5;
+    const initLocationMap = async () => {
+      const maplibregl = await ensureMapLibre();
+      if (cancelled || !locationMapContainerRef.current || locationMapInstance.current) return;
+      // 默认中心点（如果已有选择的位置，使用该位置，否则使用浏览器位置或北京）
+      let centerLat = 39.9042;
+      let centerLon = 116.4074;
+      let zoom = 5;
 
-    if (selectedLocation) {
-      centerLat = selectedLocation.lat;
-      centerLon = selectedLocation.lon;
-      zoom = 10;
-    } else if (uploadForm.latitude && uploadForm.longitude) {
-      centerLat = uploadForm.latitude;
-      centerLon = uploadForm.longitude;
-      zoom = 10;
-    }
+      if (selectedLocation) {
+        centerLat = selectedLocation.lat;
+        centerLon = selectedLocation.lon;
+        zoom = 10;
+      } else if (uploadForm.latitude && uploadForm.longitude) {
+        centerLat = uploadForm.latitude;
+        centerLon = uploadForm.longitude;
+        zoom = 10;
+      }
 
-    // 使用高德地图瓦片服务（中文标注，稳定可靠）
-    locationMapInstance.current = new maplibregl.Map({
-      container: locationMapContainerRef.current,
-      style: {
-        version: 8,
-        sources: {
-          'gaode-tiles': {
+      // 使用高德地图瓦片服务（中文标注，稳定可靠）
+      locationMapInstance.current = new maplibregl.Map({
+        container: locationMapContainerRef.current,
+        style: {
+          version: 8,
+          sources: {
+            'gaode-tiles': {
+              type: 'raster',
+              tiles: [
+                'https://webrd01.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}',
+                'https://webrd02.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}',
+                'https://webrd03.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}',
+                'https://webrd04.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}'
+              ],
+              tileSize: 256,
+              attribution: '© 高德地图'
+            }
+          },
+          layers: [{
+            id: 'gaode-tiles-layer',
             type: 'raster',
-            tiles: [
-              'https://webrd01.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}',
-              'https://webrd02.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}',
-              'https://webrd03.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}',
-              'https://webrd04.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}'
-            ],
-            tileSize: 256,
-            attribution: '© 高德地图'
-          }
+            source: 'gaode-tiles',
+            minzoom: 3,
+            maxzoom: 18
+          }]
         },
-        layers: [{
-          id: 'gaode-tiles-layer',
-          type: 'raster',
-          source: 'gaode-tiles',
-          minzoom: 3,
-          maxzoom: 18
-        }]
-      },
-      center: [centerLon, centerLat],
-      zoom: zoom,
-      attributionControl: true,
-    });
+        center: [centerLon, centerLat],
+        zoom: zoom,
+        attributionControl: true,
+      });
 
-    locationMapInstance.current._marker = null;
+      locationMapInstance.current._marker = null;
 
-    // 获取浏览器位置
-    if ('geolocation' in navigator && !selectedLocation && !uploadForm.latitude) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const lat = position.coords.latitude;
-          const lon = position.coords.longitude;
-          if (locationMapInstance.current) {
-            locationMapInstance.current.setCenter([lon, lat]);
-            locationMapInstance.current.setZoom(10);
-          }
-        },
-        () => {},
-        { enableHighAccuracy: true, timeout: 5000 }
-      );
-    }
+      // 获取浏览器位置
+      if ('geolocation' in navigator && !selectedLocation && !uploadForm.latitude) {
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            const lat = position.coords.latitude;
+            const lon = position.coords.longitude;
+            if (locationMapInstance.current) {
+              locationMapInstance.current.setCenter([lon, lat]);
+              locationMapInstance.current.setZoom(10);
+            }
+          },
+          () => {},
+          { enableHighAccuracy: true, timeout: 5000 }
+        );
+      }
 
-    // 等待地图加载完成
-    locationMapInstance.current.once('load', () => {
+      // 等待地图加载完成
+      locationMapInstance.current.once('load', () => {
+        if (cancelled) return;
       // 添加标记
       if (selectedLocation || (uploadForm.latitude && uploadForm.longitude)) {
         const lat = selectedLocation?.lat || uploadForm.latitude;
@@ -721,20 +733,23 @@ export function AdminPage() {
         marker.togglePopup();
         locationMapInstance.current._marker = marker;
       });
-    });
+      });
 
-    // 如果地图已经加载，直接触发 load 事件
-    if (locationMapInstance.current.loaded()) {
-      locationMapInstance.current.fire('load');
-    }
+      // 如果地图已经加载，直接触发 load 事件
+      if (locationMapInstance.current.loaded()) {
+        locationMapInstance.current.fire('load');
+      }
+    };
+    initLocationMap();
 
     return () => {
+      cancelled = true;
       if (locationMapInstance.current) {
         locationMapInstance.current.remove();
         locationMapInstance.current = null;
       }
     };
-  }, [showLocationPicker, selectedLocation, uploadForm.latitude, uploadForm.longitude]);
+  }, [showLocationPicker, selectedLocation, uploadForm.latitude, uploadForm.longitude, ensureMapLibre]);
 
   // 当地图容器显示时，调整地图大小
   useEffect(() => {
@@ -897,11 +912,12 @@ export function AdminPage() {
   }, [getAmapApiUrl]);
 
   // 选择搜索结果并在地图上定位
-  const selectSearchResult = (result, isEdit = false) => {
+  const selectSearchResult = async (result, isEdit = false) => {
     const mapInstance = isEdit ? editLocationMapInstance.current : locationMapInstance.current;
     const setLocation = isEdit ? setEditSelectedLocation : setSelectedLocation;
 
     if (mapInstance) {
+      const maplibregl = await ensureMapLibre();
       mapInstance.setCenter([result.lon, result.lat]);
       mapInstance.setZoom(15);
       
@@ -973,57 +989,62 @@ export function AdminPage() {
   // 初始化编辑表单的地图选择器
   useEffect(() => {
     if (!showEditLocationPicker || !editLocationMapContainerRef.current || editLocationMapInstance.current) return;
+    let cancelled = false;
 
-    // 默认中心点
-    let centerLat = 39.9042;
-    let centerLon = 116.4074;
-    let zoom = 5;
+    const initEditLocationMap = async () => {
+      const maplibregl = await ensureMapLibre();
+      if (cancelled || !editLocationMapContainerRef.current || editLocationMapInstance.current) return;
+      // 默认中心点
+      let centerLat = 39.9042;
+      let centerLon = 116.4074;
+      let zoom = 5;
 
-    if (editSelectedLocation) {
-      centerLat = editSelectedLocation.lat;
-      centerLon = editSelectedLocation.lon;
-      zoom = 10;
-    } else if (editForm.latitude && editForm.longitude) {
-      centerLat = editForm.latitude;
-      centerLon = editForm.longitude;
-      zoom = 10;
-    }
+      if (editSelectedLocation) {
+        centerLat = editSelectedLocation.lat;
+        centerLon = editSelectedLocation.lon;
+        zoom = 10;
+      } else if (editForm.latitude && editForm.longitude) {
+        centerLat = editForm.latitude;
+        centerLon = editForm.longitude;
+        zoom = 10;
+      }
 
-    // 使用高德地图瓦片服务
-    editLocationMapInstance.current = new maplibregl.Map({
-      container: editLocationMapContainerRef.current,
-      style: {
-        version: 8,
-        sources: {
-          'gaode-tiles': {
+      // 使用高德地图瓦片服务
+      editLocationMapInstance.current = new maplibregl.Map({
+        container: editLocationMapContainerRef.current,
+        style: {
+          version: 8,
+          sources: {
+            'gaode-tiles': {
+              type: 'raster',
+              tiles: [
+                'https://webrd01.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}',
+                'https://webrd02.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}',
+                'https://webrd03.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}',
+                'https://webrd04.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}'
+              ],
+              tileSize: 256,
+              attribution: '© 高德地图'
+            }
+          },
+          layers: [{
+            id: 'gaode-tiles-layer',
             type: 'raster',
-            tiles: [
-              'https://webrd01.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}',
-              'https://webrd02.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}',
-              'https://webrd03.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}',
-              'https://webrd04.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}'
-            ],
-            tileSize: 256,
-            attribution: '© 高德地图'
-          }
+            source: 'gaode-tiles',
+            minzoom: 3,
+            maxzoom: 18
+          }]
         },
-        layers: [{
-          id: 'gaode-tiles-layer',
-          type: 'raster',
-          source: 'gaode-tiles',
-          minzoom: 3,
-          maxzoom: 18
-        }]
-      },
-      center: [centerLon, centerLat],
-      zoom: zoom,
-      attributionControl: true,
-    });
+        center: [centerLon, centerLat],
+        zoom: zoom,
+        attributionControl: true,
+      });
 
-    editLocationMapInstance.current._marker = null;
+      editLocationMapInstance.current._marker = null;
 
-    // 等待地图加载完成
-    editLocationMapInstance.current.once('load', () => {
+      // 等待地图加载完成
+      editLocationMapInstance.current.once('load', () => {
+        if (cancelled) return;
       // 添加标记
       if (editSelectedLocation || (editForm.latitude && editForm.longitude)) {
         const lat = editSelectedLocation?.lat || editForm.latitude;
@@ -1087,20 +1108,23 @@ export function AdminPage() {
         marker.togglePopup();
         editLocationMapInstance.current._marker = marker;
       });
-    });
+      });
 
-    // 如果地图已经加载，直接触发 load 事件
-    if (editLocationMapInstance.current.loaded()) {
-      editLocationMapInstance.current.fire('load');
-    }
+      // 如果地图已经加载，直接触发 load 事件
+      if (editLocationMapInstance.current.loaded()) {
+        editLocationMapInstance.current.fire('load');
+      }
+    };
+    initEditLocationMap();
 
     return () => {
+      cancelled = true;
       if (editLocationMapInstance.current) {
         editLocationMapInstance.current.remove();
         editLocationMapInstance.current = null;
       }
     };
-  }, [showEditLocationPicker, editSelectedLocation, editForm.latitude, editForm.longitude]);
+  }, [showEditLocationPicker, editSelectedLocation, editForm.latitude, editForm.longitude, ensureMapLibre]);
 
   // 当地图容器显示时，调整地图大小
   useEffect(() => {

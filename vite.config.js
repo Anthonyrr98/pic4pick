@@ -33,8 +33,6 @@ export default defineConfig({
         manualChunks: {
           // 将 react 相关库分离到单独 chunk
           'react-vendor': ['react', 'react-dom', 'react-router-dom'],
-          // 将地图相关库分离
-          'map-vendor': ['maplibre-gl'],
           // 将工具库分离
           'utils-vendor': ['exifr'],
         },
