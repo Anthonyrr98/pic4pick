@@ -2,7 +2,7 @@
  * 精选面板组件 - 显示省份和城市的精选卡片
  */
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { CurationGroup, CityEntry } from '../utils/photoDataUtils';
 
 interface CurationPanelProps {
@@ -24,6 +24,19 @@ export const CurationPanel: React.FC<CurationPanelProps> = ({
   isPanelCollapsed,
   onTogglePanelCollapse,
 }) => {
+  const [loadedImageIds, setLoadedImageIds] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    const currentIds = new Set(groups.flatMap((group) => group.items.map((item) => item.id)));
+    setLoadedImageIds((prev) => {
+      const next: Record<string, boolean> = {};
+      Object.entries(prev).forEach(([id, loaded]) => {
+        if (currentIds.has(id)) next[id] = loaded;
+      });
+      return next;
+    });
+  }, [groups]);
+
   const handleCurationCardMouseMove = (event: React.MouseEvent<HTMLElement>) => {
     const card = event.currentTarget;
     const rect = card.getBoundingClientRect();
@@ -85,6 +98,7 @@ export const CurationPanel: React.FC<CurationPanelProps> = ({
                   activeCitySelection?.provinceId === group.id &&
                   activeCitySelection?.cityId === item.id;
                 const cityCount = item.photoCount ?? 0;
+                const isImageLoaded = !!loadedImageIds[item.id];
                 return (
                   <article
                     key={item.id}
@@ -103,7 +117,19 @@ export const CurationPanel: React.FC<CurationPanelProps> = ({
                     }}
                   >
                     <figure>
-                      <img src={item.image} alt={item.label} loading="lazy" />
+                      <div className={`curation-skeleton ${isImageLoaded ? 'loaded' : ''}`} aria-hidden="true" />
+                      <img
+                        src={item.image}
+                        alt={item.label}
+                        loading="lazy"
+                        className={isImageLoaded ? 'loaded' : ''}
+                        onLoad={() => {
+                          setLoadedImageIds((prev) => (prev[item.id] ? prev : { ...prev, [item.id]: true }));
+                        }}
+                        onError={() => {
+                          setLoadedImageIds((prev) => (prev[item.id] ? prev : { ...prev, [item.id]: true }));
+                        }}
+                      />
                       <div className="curation-card-label">
                         {cityCount > 0 ? `${item.label} · ${cityCount} 张` : item.label}
                       </div>

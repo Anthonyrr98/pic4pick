@@ -84,6 +84,7 @@ main {
   --press-raise: -1px;
   --press-down: 1px;
   --press-ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --focus-ring: 0 0 0 3px rgba(207, 165, 106, 0.35);
 }
 
 .pressable {
@@ -160,6 +161,25 @@ main {
 .lightbox-close:active,
 .lightbox-download:active {
   transform: translateY(var(--press-down));
+}
+
+.toggle-btn:focus-visible,
+.tab:focus-visible,
+.like-badge:focus-visible,
+.admin-tab:focus-visible,
+.submit-btn:focus-visible,
+.ghost-btn:focus-visible,
+.btn-primary:focus-visible,
+.btn-secondary:focus-visible,
+.btn-approve:focus-visible,
+.btn-reject:focus-visible,
+.location-panel-close:focus-visible,
+.lightbox-close:focus-visible,
+.lightbox-download:focus-visible,
+.curation-card:focus-visible,
+.curation-category-header:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
 }
 
 /* 阴影收缩：hover 更“浮”，active 更“压” */
@@ -456,25 +476,29 @@ main {
   }
 }
 
-/* 在发现视图（explore-mode）下隐藏品牌文字和logo（电脑端） */
-.app-shell.explore-mode .brand-copy,
-.app-shell.explore-mode .brand-logo-img,
-.app-shell.explore-mode .logo-mark {
-  display: none !important;
+/* 发现模式保留一个低干扰品牌锚点，避免品牌断层 */
+.app-shell.explore-mode .brand.brand-anchor-only {
+  margin: 0;
+  opacity: 0.72;
 }
 
-/* 在发现视图下，brand容器不占据空间，确保切换按钮位置与图库页面一致 */
-.app-shell.explore-mode .brand {
+.app-shell.explore-mode .brand.brand-anchor-only .brand-logo-img,
+.app-shell.explore-mode .brand.brand-anchor-only .logo-mark {
+  width: 38px;
+  height: 38px;
+  border-color: rgba(255, 255, 255, 0.72);
+  box-shadow:
+    0 0 0 1px rgba(17, 18, 24, 0.24),
+    0 8px 24px rgba(17, 18, 24, 0.22);
+}
+
+.app-shell.explore-mode .brand.brand-anchor-only .brand-wordmark-img,
+.app-shell.explore-mode .brand.brand-anchor-only .brand-copy {
   display: none !important;
 }
 
 @media (max-width: 480px) {
-  /* 仅在发现视图（explore-mode）下隐藏品牌区，图库视图仍显示 */
-  .app-shell.explore-mode .brand {
-    display: none;
-  }
-
-  .app-shell:not(.explore-mode) .brand {
+  .app-shell.explore-mode .brand.brand-anchor-only {
     display: flex;
   }
 }
@@ -1397,6 +1421,28 @@ main {
   height: 100%;
   object-fit: cover;
   display: block;
+  opacity: 0;
+  transition: opacity 320ms ease;
+}
+
+.curation-card img.loaded {
+  opacity: 1;
+}
+
+.curation-skeleton {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: linear-gradient(110deg, #dcdfe6 8%, #eef1f7 18%, #dcdfe6 33%);
+  background-size: 200% 100%;
+  animation: photo-skeleton-shimmer 1.2s linear infinite;
+  opacity: 1;
+  transition: opacity 320ms ease;
+  pointer-events: none;
+}
+
+.curation-skeleton.loaded {
+  opacity: 0;
 }
 
 .curation-card-label {

@@ -662,12 +662,11 @@ export function GalleryPage() {
   return (
     <div className={`app-shell ${activeView === 'explore-view' ? 'explore-mode' : ''}`}>
       <header className="app-header">
-        <div className="brand">
-          {activeView === 'gallery-view' && (
-            brandLogo
-              ? <img src={brandLogo} alt={brandText.siteTitle} className="brand-logo-img" />
-              : <div className="logo-mark" aria-hidden="true" />
-          )}
+        <div className={`brand ${activeView === 'explore-view' ? 'brand-anchor-only' : ''}`}>
+          {brandLogo
+            ? <img src={brandLogo} alt={brandText.siteTitle} className="brand-logo-img" />
+            : <div className="logo-mark" aria-hidden="true" />
+          }
           {activeView === 'gallery-view' && (
             <img
               src="/loa-cropped.png"
