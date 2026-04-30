@@ -54,10 +54,7 @@ const mapSupabaseRowToGalleryPhoto = (row: any): GalleryPhoto => {
 
 // 加载照片数据
 export const usePhotoData = (supabase: any) => {
-  const isSupabaseReady = Boolean(supabase);
-  const [approvedPhotos, setApprovedPhotos] = useState<GalleryPhoto[]>(() =>
-    isSupabaseReady ? [] : loadApprovedPhotos()
-  );
+  const [approvedPhotos, setApprovedPhotos] = useState<GalleryPhoto[]>(() => loadApprovedPhotos());
   const [supabaseError, setSupabaseError] = useState('');
   const localApprovedPhotosSnapshotRef = useRef<string | null>(null);
 
@@ -123,6 +120,7 @@ export const usePhotoData = (supabase: any) => {
           const mapped = (data || []).map(mapSupabaseRowToGalleryPhoto);
           console.log(`从 Supabase 加载了 ${mapped.length} 张已审核通过的照片`);
           setApprovedPhotos(mapped);
+          Storage.set(STORAGE_KEYS.APPROVED_PHOTOS, mapped);
           setSupabaseError('');
         }
       } catch (error) {

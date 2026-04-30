@@ -125,11 +125,13 @@ export const PhotoGrid: React.FC<PhotoGridProps> = ({
                   className={`photo-skeleton ${isImageLoaded ? 'loaded' : ''}`}
                   aria-hidden="true"
                 />
+                {/** Keep first-screen cards high priority to avoid blank initial view. */}
                 <img
                   className={isImageLoaded ? 'loaded' : ''}
                   src={item.thumbnail || item.image}
                   alt={item.title}
-                  loading="lazy"
+                  loading={index < 6 ? 'eager' : 'lazy'}
+                  fetchPriority={index < 6 ? 'high' : 'auto'}
                   onLoad={() => {
                     setLoadedImageIds((prev) => (prev[item.id] ? prev : { ...prev, [item.id]: true }));
                   }}
