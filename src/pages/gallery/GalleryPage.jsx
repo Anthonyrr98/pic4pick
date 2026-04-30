@@ -29,6 +29,25 @@ import { PhotoGrid } from './components/PhotoGrid';
 import { CurationPanel } from './components/CurationPanel';
 import { LocationPanel } from './components/LocationPanel';
 
+function ApertureIcon(props) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" {...props}>
+      <path
+        d="M12 3.9C7.5 3.9 3.9 7.5 3.9 12c0 4.5 3.6 8.1 8.1 8.1 4.5 0 8.1-3.6 8.1-8.1-0.15-4.5-3.75-8.1-8.1-8.1z m5.1 3.15L14.7 11.1 11.25 4.95c2.1-0.3 4.35 0.45 5.85 2.1zM14.25 12l-0.6 0.9-0.6 1.05h-2.25l-0.15-0.45-0.9-1.5 0.3-0.6 0.75-1.35h2.25l0.9 1.65 0.3 0.3zM10.2 5.1l2.4 4.05H5.4c0.9-2.1 2.7-3.6 4.8-4.05z m-3.9 11.1C4.95 14.4 4.5 12.15 5.1 10.05h4.65l-0.45 0.9-3 5.25z m0.6 0.75l2.4-4.05 0.6 1.05 3 5.1c-2.25 0.3-4.5-0.6-6-2.1z m6.9 1.95l-2.4-4.05h7.2c-1.05 1.95-2.7 3.45-4.8 4.05z m0.3-4.95l0.3-0.6 3.3-5.55c1.35 1.8 1.65 4.05 1.05 6.15H14.1z"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
+
+function FocalLengthIcon(props) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" {...props}>
+      <path d="M9.06 2.94H2.13a0.705 0.705 0 1 1 0-1.41h6.93a0.705 0.705 0 1 1 0 1.41zM2.13 9.6a0.705 0.705 0 0 1-0.705-0.705V2.33a0.705 0.705 0 1 1 1.41 0v6.57a0.705 0.705 0 0 1-0.705 0.7zM21.86 2.94h-6.93a0.705 0.705 0 1 1 0-1.41h6.93a0.705 0.705 0 1 1 0 1.41zM21.89 9.6a0.705 0.705 0 0 1-0.705-0.705V2.33a0.705 0.705 0 1 1 1.41 0v6.57a0.705 0.705 0 0 1-0.705 0.7zM21.89 22.47h-6.93a0.705 0.705 0 1 1 0-1.41h6.93a0.705 0.705 0 1 1 0 1.41zM21.89 22.39a0.705 0.705 0 0 1-0.705-0.705v-6.57a0.705 0.705 0 1 1 1.41 0v6.57a0.705 0.705 0 0 1-0.705 0.705zM9.08 22.47H2.15a0.705 0.705 0 1 1 0-1.41h6.93a0.705 0.705 0 1 1 0 1.41zM2.13 22.39a0.705 0.705 0 0 1-0.705-0.705v-6.57a0.705 0.705 0 1 1 1.41 0v6.57a0.705 0.705 0 0 1-0.705 0.705zM16.6 12.69H7.08a0.705 0.705 0 1 1 0-1.41h9.52a0.705 0.705 0 1 1 0 1.41zM11.84 17.45a0.705 0.705 0 0 1-0.705-0.705V7.23a0.705 0.705 0 1 1 1.41 0v9.52a0.705 0.705 0 0 1-0.705 0.7z" fill="currentColor" />
+    </svg>
+  );
+}
+
 export function GalleryPage() {
   const supabase = getSupabaseClient();
 
@@ -707,7 +726,11 @@ export function GalleryPage() {
                   ].map(([label, value]) => (
                     <div key={label} className="lightbox-param-card"
                       onClick={(e) => openMetaPopover('basic', e)}>
-                      <span className="param-label">{label}</span>
+                      <span className="param-label">
+                        {label}
+                        {label === '焦距' && <FocalLengthIcon className="param-label-icon" />}
+                        {label === '光圈' && <ApertureIcon className="param-label-icon" />}
+                      </span>
                       <span className="param-value">{value}</span>
                     </div>
                   ))}

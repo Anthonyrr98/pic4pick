@@ -2092,6 +2092,14 @@ main {
   text-transform: uppercase;
   letter-spacing: 0.8px;
   margin-bottom: 2px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.lightbox-param-card .param-label-icon {
+  width: 16px;
+  height: 16px;
 }
 
 .lightbox-param-card .param-value {
