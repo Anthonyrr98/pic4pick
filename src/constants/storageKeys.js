@@ -57,9 +57,5 @@ export const STORAGE_KEYS = {
   
   // 阿里云 OSS 配置
   ALIYUN_OSS_BACKEND_URL: 'aliyun_oss_backend_url',
-  ALIYUN_OSS_REGION: 'aliyun_oss_region',
-  ALIYUN_OSS_BUCKET: 'aliyun_oss_bucket',
-  ALIYUN_OSS_ACCESS_KEY_ID: 'aliyun_oss_access_key_id',
-  ALIYUN_OSS_ACCESS_KEY_SECRET: 'aliyun_oss_access_key_secret',
 };
 

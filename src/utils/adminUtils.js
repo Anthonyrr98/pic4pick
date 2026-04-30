@@ -6,6 +6,7 @@ import { StorageString, STORAGE_KEYS } from './storage';
 import { UPLOAD_TYPES } from './upload';
 import { handleError, ErrorType } from './errorHandler';
 import { ensureHttps } from './urlUtils';
+import { getAuthToken } from './auth';
 
 /**
  * 映射 Supabase 行数据到照片对象
@@ -183,7 +184,7 @@ export const deleteOSSFile = async (url) => {
     return;
   }
   
-  // 获取后端 API URL（根据环境自动选择）
+  // 获取后端 base URL（根据环境自动选择）
   const getBackendBaseUrl = () => {
     const configuredUrl = StorageString.get(STORAGE_KEYS.ALIYUN_OSS_BACKEND_URL, '');
     if (configuredUrl) {
@@ -216,23 +217,9 @@ export const deleteOSSFile = async (url) => {
   };
   
   try {
-    // 计算后端删除接口基础 URL。
-    const getBackendDeleteUrl = () => {
-      const configuredUrl = StorageString.get(STORAGE_KEYS.ALIYUN_OSS_BACKEND_URL, '');
-      if (configuredUrl) {
-        // 兼容直接填签名接口 /api/upload/sign 的场景：仅取 origin
-        try {
-          const url = new URL(configuredUrl);
-          return `${url.origin}/api/upload/delete`;
-        } catch {
-          return '/api/upload/delete';
-        }
-      }
-      // 回退到旧的 /api/upload/oss 删除路径（同域）
-      return '/api/upload/oss';
-    };
-
-    const deleteEndpoint = getBackendDeleteUrl();
+    const baseUrl = getBackendBaseUrl();
+    const token = getAuthToken();
+    if (!token) return;
 
     // 尝试删除多个可能的路径
     const pathsToTry = [
@@ -246,10 +233,10 @@ export const deleteOSSFile = async (url) => {
     
     for (const pathToDelete of pathsToTry) {
       try {
-        const resp = await fetch(deleteEndpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ objectKey: pathToDelete }),
+        const deleteUrl = `${baseUrl}/api/upload/oss/${encodeURIComponent(pathToDelete)}`;
+        const resp = await fetch(deleteUrl, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${token}` },
         });
 
         if (resp.ok) {

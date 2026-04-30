@@ -3,7 +3,7 @@
 import { StorageString, STORAGE_KEYS } from './storage';
 import { handleError, ErrorType, safeSync } from './errorHandler';
 import { ensureHttps } from './urlUtils';
-import { generateOSSPutSignature } from './ossSignature';
+import { getAuthToken } from './auth';
 
 // 上传方式类型
 export const UPLOAD_TYPES = {
@@ -373,305 +373,88 @@ const getBackendApiUrl = (path = '/api/upload/oss') => {
 
 // 阿里云 OSS 上传
 const uploadToAliyunOSS = async (file, filename, onProgress) => {
-  const region = StorageString.get(STORAGE_KEYS.ALIYUN_OSS_REGION, '');
-  const bucket = StorageString.get(STORAGE_KEYS.ALIYUN_OSS_BUCKET, '');
-  const accessKeyId = StorageString.get(STORAGE_KEYS.ALIYUN_OSS_ACCESS_KEY_ID, '');
-  const accessKeySecret = StorageString.get(STORAGE_KEYS.ALIYUN_OSS_ACCESS_KEY_SECRET, '');
-  // 默认使用后端代理模式（更安全），除非明确设置为 'false'
-  const useBackend = StorageString.get('aliyun_oss_use_backend') !== 'false';
-  
-  console.log('[uploadToAliyunOSS] 配置检查:', {
-    useBackend,
-    region,
-    bucket,
-    hasAccessKeyId: !!accessKeyId,
-    hasAccessKeySecret: !!accessKeySecret,
-  });
-  
-  // 如果使用后端代理上传（默认），支持“签名直传”与“后端代理”双模式
-  if (useBackend) {
-    const useSign = StorageString.get('aliyun_oss_use_sign') !== 'false'; // 默认 true；设置为 'false' 退回代理
+  // 安全策略：OSS 上传只允许走后端（浏览器永远不持有 AccessKey）
+  // 同时清理历史遗留的前端 OSS 长期密钥（如果用户曾经配置过）。
+  safeSync(() => {
+    StorageString.remove('aliyun_oss_access_key_id');
+    StorageString.remove('aliyun_oss_access_key_secret');
+    StorageString.remove('aliyun_oss_region');
+    StorageString.remove('aliyun_oss_bucket');
+    StorageString.remove('aliyun_oss_use_sign');
+    StorageString.remove('aliyun_oss_use_backend');
+  }, { context: 'uploadToAliyunOSS.clearLegacySecrets', silent: true });
 
-    if (!useSign) {
-      // 走旧的后端代理模式：POST 文件到后端，再由后端转发到 OSS
-    const apiUrl = getBackendApiUrl('/api/upload/oss');
-      console.log('[uploadToAliyunOSS] 使用后端代理模式，API:', apiUrl);
+  const token = getAuthToken();
+  if (!token) {
+    throw new Error('未登录：请先登录管理后台再上传');
+  }
 
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('filename', filename);
+  const apiUrl = getBackendApiUrl('/api/upload/oss');
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('filename', filename);
 
-      return new Promise((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
 
-        let lastUpdateTime = 0;
-        xhr.upload.addEventListener('progress', (e) => {
-          if (e.lengthComputable && onProgress) {
-            const now = Date.now();
-            if (now - lastUpdateTime >= 50 || e.loaded === e.total) {
-              const percent = (e.loaded / e.total) * 100;
-              onProgress(percent, e.loaded, e.total);
-              lastUpdateTime = now;
-            }
-          }
-        });
+    let lastUpdateTime = 0;
+    xhr.upload.addEventListener('progress', (e) => {
+      if (e.lengthComputable && onProgress) {
+        const now = Date.now();
+        if (now - lastUpdateTime >= 50 || e.loaded === e.total) {
+          const percent = (e.loaded / e.total) * 100;
+          onProgress(percent, e.loaded, e.total);
+          lastUpdateTime = now;
+        }
+      }
+    });
 
-        xhr.addEventListener('load', () => {
-          if (xhr.status >= 200 && xhr.status < 300) {
-            try {
-              const data = JSON.parse(xhr.responseText);
-              if (!data.success && !data.url) {
-                reject(new Error(data.error || '上传失败：服务器未返回 URL'));
-                return;
-              }
-              resolve({
-                url: data.url || data.imageUrl || data.fileUrl || '',
-                thumbnailUrl: data.thumbnailUrl || data.thumbnail_url || null,
-              });
-            } catch (error) {
-              reject(
-                handleError(error, {
-                  context: 'uploadToAliyunOSS.proxy.parse',
-                  type: ErrorType.PARSE,
-                })
-              );
-            }
-          } else {
-            reject(new Error(`上传失败: ${xhr.status} ${xhr.statusText || ''}`));
-          }
-        });
-
-        xhr.addEventListener('error', () => {
-          reject(new Error('网络错误，无法连接到后端代理'));
-        });
-
-        xhr.addEventListener('timeout', () => {
-          reject(new Error('上传超时，请检查网络或文件大小'));
-        });
-
-        xhr.timeout = 5 * 60 * 1000;
+    xhr.addEventListener('load', () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
         try {
-          xhr.open('POST', apiUrl);
-          xhr.send(formData);
+          const data = JSON.parse(xhr.responseText);
+          if (!data.success && !data.url) {
+            reject(new Error(data.error || '上传失败：服务器未返回 URL'));
+            return;
+          }
+          resolve({
+            url: data.url || data.imageUrl || data.fileUrl || '',
+            thumbnailUrl: data.thumbnailUrl || data.thumbnail_url || null,
+          });
         } catch (error) {
           reject(
             handleError(error, {
-              context: 'uploadToAliyunOSS.proxy.send',
-              type: ErrorType.NETWORK,
+              context: 'uploadToAliyunOSS.proxy.parse',
+              type: ErrorType.PARSE,
             })
           );
         }
-      });
-    }
-
-    // 默认：签名直传模式
-    const signApiUrl = getBackendApiUrl('/api/upload/sign');
-    console.log('[uploadToAliyunOSS] 使用签名直传模式，签名接口:', signApiUrl);
-    
-    // 在生产环境中，如果使用相对路径但后端可能不在同一域名，给出提示
-    const isProduction = import.meta.env.PROD || 
-      (typeof window !== 'undefined' && 
-       window.location.hostname !== 'localhost' && 
-       window.location.hostname !== '127.0.0.1');
-    
-    if (isProduction && !signApiUrl.startsWith('http://') && !signApiUrl.startsWith('https://')) {
-      const configuredUrl = StorageString.get(STORAGE_KEYS.ALIYUN_OSS_BACKEND_URL, '');
-      if (!configuredUrl) {
-        const currentDomain = typeof window !== 'undefined' ? window.location.origin : '';
-        console.warn(
-          `[uploadToAliyunOSS] 警告：生产环境使用相对路径 (${signApiUrl})，但未配置后端 URL。\n` +
-          `当前前端域名: ${currentDomain}\n` +
-          `如果后端不在同一域名，请在浏览器控制台执行：\n` +
-          `localStorage.setItem('aliyun_oss_backend_url', 'https://your-backend-server.com/api/upload/oss');`
-        );
+      } else {
+        reject(new Error(`上传失败: ${xhr.status} ${xhr.statusText || ''}`));
       }
-    }
-    
-    // 1) 原图签名 + 上传（放在 origin/）
-    const signFor = async (objectPath, contentType) => {
-      const resp = await fetch(signApiUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ filename: objectPath, contentType }),
-      });
-      if (!resp.ok) {
-        const txt = await resp.text().catch(() => '');
-        throw new Error(txt || '获取上传签名失败');
-      }
-      const data = await resp.json();
-      if (!data.success || !data.uploadUrl) {
-        throw new Error(data.error || '签名接口未返回 uploadUrl');
-      }
-      return data;
-    };
+    });
 
-    const uploadWithSign = async (signData, blob) => {
-      const putResp = await fetch(signData.uploadUrl, {
-        method: 'PUT',
-        headers: signData.headers || { 'Content-Type': blob.type || 'application/octet-stream' },
-        body: blob,
-      });
-      if (!putResp.ok) {
-        const txt = await putResp.text().catch(() => '');
-        throw new Error(txt || `上传失败：${putResp.status} ${putResp.statusText}`);
-      }
-      return {
-        url: ensureHttps(signData.publicUrl || signData.uploadUrl),
-        thumbnailUrl: signData.thumbnailUrl ? ensureHttps(signData.thumbnailUrl) : null,
-      };
-    };
+    xhr.addEventListener('error', () => {
+      reject(new Error('网络错误，无法连接到后端'));
+    });
 
-    const originalPath = `origin/${filename}`;
-    const originSign = await signFor(originalPath, file.type || 'application/octet-stream');
-    const originResult = await uploadWithSign(originSign, file);
-    if (onProgress) {
-      onProgress(60, file.size, file.size); // 原图完成，先给 60%
-    }
+    xhr.addEventListener('timeout', () => {
+      reject(new Error('上传超时，请检查网络或文件大小'));
+    });
 
-    // 2) 生成缩略图并上传到 ore/
-    let thumbnailUrl = null;
+    xhr.timeout = 5 * 60 * 1000;
     try {
-      const thumbBlob = await compressImage(file, { maxWidth: 1200, maxHeight: 1200, quality: 0.82 });
-      const thumbPath = `ore/${filename}`;
-      const thumbSign = await signFor(thumbPath, thumbBlob.type || 'image/jpeg');
-      const thumbResult = await uploadWithSign(thumbSign, thumbBlob);
-      thumbnailUrl = thumbResult.url || thumbResult.thumbnailUrl || null;
-      if (onProgress) {
-        onProgress(100, file.size, file.size);
-      }
-    } catch (thumbError) {
-      console.warn('[uploadToAliyunOSS] 缩略图上传失败，继续使用原图:', thumbError);
-      thumbnailUrl = originResult.url;
-      if (onProgress) {
-        onProgress(100, file.size, file.size);
-      }
-    }
-
-    return {
-      url: originResult.url,
-      thumbnailUrl: thumbnailUrl ? ensureHttps(thumbnailUrl) : null,
-    };
-  }
-  
-  // 前端直传（需要 AccessKey，不安全，仅用于开发测试）
-  // ⚠️ 安全警告：前端直传会将 AccessKey 暴露在浏览器中，生产环境强烈不推荐！
-  console.log('[uploadToAliyunOSS] 使用前端直传');
-  
-  if (!region || !bucket || !accessKeyId || !accessKeySecret) {
-    const missing = [];
-    if (!region) missing.push('地域（Region）');
-    if (!bucket) missing.push('Bucket 名称');
-    if (!accessKeyId) missing.push('AccessKey ID');
-    if (!accessKeySecret) missing.push('AccessKey Secret');
-    throw new Error(`阿里云 OSS 配置不完整，缺少：${missing.join('、')}。请检查配置或使用后端代理上传。`);
-  }
-  
-  // 构建 OSS 上传 URL
-  // 处理 region 格式（如果用户输入的是 cn-beijing，需要转换为 oss-cn-beijing）
-  let ossRegion = region.trim();
-  if (!ossRegion.startsWith('oss-')) {
-    ossRegion = `oss-${ossRegion}`;
-  }
-  
-  const endpoint = `https://${bucket}.${ossRegion}.aliyuncs.com`;
-  const objectKey = `pic4pick/${filename}`;
-  const url = `${endpoint}/${objectKey}`;
-  
-  try {
-    // 生成 OSS 签名
-    console.log('[uploadToAliyunOSS] 生成 OSS 签名...');
-    const { authorization, date } = await generateOSSPutSignature({
-      accessKeyId,
-      accessKeySecret,
-      bucket,
-      objectKey,
-      contentType: file.type || 'application/octet-stream',
-      acl: 'public-read'
-    });
-    
-    // 使用 XMLHttpRequest 支持进度跟踪
-    return new Promise((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
-      
-      // 进度跟踪
-      if (onProgress) {
-        xhr.upload.addEventListener('progress', (e) => {
-          if (e.lengthComputable) {
-            const percent = (e.loaded / e.total) * 100;
-            onProgress(percent, e.loaded, e.total);
-          }
-        });
-      }
-      
-      xhr.addEventListener('load', () => {
-        if (xhr.status >= 200 && xhr.status < 300) {
-          console.log('[uploadToAliyunOSS] 前端直传成功:', url);
-          resolve({
-            url: url,
-            thumbnailUrl: null, // 前端直传不生成缩略图
-          });
-        } else {
-          const errorText = xhr.responseText || '';
-          let errorData;
-          try {
-            // 尝试解析 XML 错误响应
-            const parser = new DOMParser();
-            const xmlDoc = parser.parseFromString(errorText, 'text/xml');
-            const code = xmlDoc.querySelector('Code')?.textContent || '';
-            const message = xmlDoc.querySelector('Message')?.textContent || '';
-            errorData = { code, message: message || xhr.statusText };
-          } catch {
-            errorData = { message: errorText || xhr.statusText };
-          }
-          
-          const appError = handleError(
-            new Error(`OSS 上传失败: ${errorData.message || xhr.statusText} (${xhr.status}${errorData.code ? ` - ${errorData.code}` : ''})`),
-            {
-              context: 'uploadToAliyunOSS.direct',
-              type: ErrorType.NETWORK,
-            }
-          );
-          reject(appError);
-        }
-      });
-      
-      xhr.addEventListener('error', () => {
-        const appError = handleError(new Error('网络错误，无法连接到 OSS 服务器'), {
-          context: 'uploadToAliyunOSS.direct',
+      xhr.open('POST', apiUrl);
+      xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+      xhr.send(formData);
+    } catch (error) {
+      reject(
+        handleError(error, {
+          context: 'uploadToAliyunOSS.proxy.send',
           type: ErrorType.NETWORK,
-        });
-        reject(appError);
-      });
-      
-      xhr.addEventListener('abort', () => {
-        reject(new Error('上传已取消'));
-      });
-      
-      // 设置超时（5分钟）
-      xhr.timeout = 5 * 60 * 1000;
-      xhr.addEventListener('timeout', () => {
-        reject(new Error('上传超时，请检查网络连接或文件大小'));
-      });
-      
-      // 打开连接
-      xhr.open('PUT', url);
-      
-      // 设置请求头
-      xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
-      xhr.setRequestHeader('Date', date);
-      xhr.setRequestHeader('Authorization', authorization);
-      xhr.setRequestHeader('x-oss-object-acl', 'public-read');
-      
-      // 发送文件
-      xhr.send(file);
-    });
-  } catch (error) {
-    console.error('[uploadToAliyunOSS] 前端直传错误:', error);
-    const appError = handleError(error, {
-      context: 'uploadToAliyunOSS.direct',
-      type: ErrorType.NETWORK,
-    });
-    throw new Error(`前端直传失败: ${appError.message}。建议使用后端代理上传模式（更安全）。`);
-  }
+        })
+      );
+    }
+  });
 };
 
