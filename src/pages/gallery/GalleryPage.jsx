@@ -44,6 +44,7 @@ export function GalleryPage() {
   const [metaPopover, setMetaPopover] = useState(null);
   const metaPopoverRef = useRef(null);
   const [showMobileMeta, setShowMobileMeta] = useState(false);
+  const [isLightboxPortrait, setIsLightboxPortrait] = useState(false);
 
   // 鈹€鈹€ 鍝佺墝鐘舵€?
   const [brandLogo, setBrandLogo] = useState(() => getStoredBrandLogo());
@@ -268,7 +269,10 @@ export function GalleryPage() {
   useEffect(() => { setDisplayedCount(12); }, [activeFilter]);
 
   useEffect(() => {
-    if (lightboxPhoto) setShowMobileMeta(false);
+    if (lightboxPhoto) {
+      setShowMobileMeta(false);
+      setIsLightboxPortrait(false);
+    }
   }, [lightboxPhoto]);
 
   useEffect(() => {
@@ -676,9 +680,18 @@ export function GalleryPage() {
             &times;
           </button>
           <div className={`lightbox-content-wrapper ${showMobileMeta ? 'meta-visible' : ''}`}>
-            <div className="lightbox-media"
+            <div className={`lightbox-media ${isLightboxPortrait ? 'portrait-fit' : ''}`}
               onClick={() => { if (window.innerWidth <= 768) setShowMobileMeta((p) => !p); }}>
-              {lightboxPhoto && <img src={lightboxPhoto.image} alt={lightboxPhoto.title} />}
+              {lightboxPhoto && (
+                <img
+                  src={lightboxPhoto.image}
+                  alt={lightboxPhoto.title}
+                  onLoad={(e) => {
+                    const img = e.currentTarget;
+                    setIsLightboxPortrait(img.naturalHeight > img.naturalWidth);
+                  }}
+                />
+              )}
             </div>
             {lightboxPhoto && (
               <div className={`lightbox-meta ${showMobileMeta ? 'mobile-visible' : ''}`}>

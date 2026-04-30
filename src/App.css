@@ -1896,6 +1896,7 @@ main {
   padding: 40px;
   max-width: 1400px;
   width: min(1400px, calc(100% - 48px));
+  height: calc(100vh - 48px);
   max-height: 90vh;
   box-shadow: 0 48px 100px rgba(0, 0, 0, 0.5), 0 8px 24px rgba(0, 0, 0, 0.3);
   position: relative;
@@ -1931,6 +1932,8 @@ main {
   display: flex;
   gap: 12px;
   align-items: stretch;
+  flex: 1;
+  min-height: 0;
 }
 
 .lightbox-media {
@@ -1942,6 +1945,7 @@ main {
   background: transparent;
   flex: 1 1 auto;
   min-width: 0;
+  min-height: 0;
   display: flex;
   align-items: stretch;
   line-height: 0;
@@ -1956,10 +1960,15 @@ main {
   width: 100%;
   height: 100%;
   display: block;
-  max-height: none;
+  max-height: 100%;
   object-fit: cover;
   border-radius: 24px;
   margin: 0 auto;
+}
+
+.lightbox-media.portrait-fit img {
+  object-fit: contain;
+  background: rgba(0, 0, 0, 0.18);
 }
 
 .lightbox-close {
