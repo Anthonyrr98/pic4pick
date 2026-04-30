@@ -2314,14 +2314,15 @@ export function AdminPage() {
       <header className="app-header admin-header">
         <div className="brand">
           {brandLogo ? (
-            <img src={brandLogo} alt={`${brandText.adminTitle} logo`} className="brand-logo-img" />
+            <img src={brandLogo} alt={brandText.siteTitle || brandText.adminTitle} className="brand-logo-img" />
           ) : (
             <div className="logo-mark" aria-hidden="true" />
           )}
-          <div className="brand-copy">
-            <div className="brand-name">{brandText.adminTitle}</div>
-            <div className="brand-subtitle">{brandText.adminSubtitle}</div>
-          </div>
+          <img
+            src="/loa-cropped.png"
+            alt="Light of Anthony"
+            className="brand-wordmark-img"
+          />
         </div>
         <nav className="primary-menu">
           <a href={`${import.meta.env.BASE_URL}#/`}>返回前台</a>
