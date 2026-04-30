@@ -29,6 +29,42 @@ export const PhotoGrid: React.FC<PhotoGridProps> = ({
   loadMoreRef,
   totalCount,
 }) => {
+  const handlePhotoCardMouseMove = (event: React.MouseEvent<HTMLElement>) => {
+    if (typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+      return;
+    }
+
+    const card = event.currentTarget;
+    const rect = card.getBoundingClientRect();
+    const relativeX = (event.clientX - rect.left) / rect.width - 0.5;
+    const relativeY = (event.clientY - rect.top) / rect.height - 0.5;
+
+    const percentX = ((event.clientX - rect.left) / rect.width) * 100;
+    const percentY = ((event.clientY - rect.top) / rect.height) * 100;
+    card.style.setProperty('--cursor-x', `${percentX}%`);
+    card.style.setProperty('--cursor-y', `${percentY}%`);
+    card.style.setProperty('--img-shift-x', `${(-relativeX * 10).toFixed(2)}px`);
+    card.style.setProperty('--img-shift-y', `${(-relativeY * 10).toFixed(2)}px`);
+
+    // Large cards: keep tilt subtle to avoid "wobble"
+    const maxTilt = 6.5;
+    const rotateY = relativeX * maxTilt * 2;
+    const rotateX = -relativeY * maxTilt * 2;
+
+    card.style.transform = `translateY(-6px) rotateX(${rotateX.toFixed(2)}deg) rotateY(${rotateY.toFixed(
+      2,
+    )}deg) translateZ(10px)`;
+  };
+
+  const handlePhotoCardMouseLeave = (event: React.MouseEvent<HTMLElement>) => {
+    const card = event.currentTarget;
+    card.style.transform = '';
+    card.style.setProperty('--cursor-x', '50%');
+    card.style.setProperty('--cursor-y', '50%');
+    card.style.setProperty('--img-shift-x', '0px');
+    card.style.setProperty('--img-shift-y', '0px');
+  };
+
   const categoryLabels: Record<string, string> = {
     featured: '精选',
     latest: '最新',
@@ -61,6 +97,8 @@ export const PhotoGrid: React.FC<PhotoGridProps> = ({
             key={item.id}
             className="photo-card"
             onClick={() => onPhotoClick(item)}
+            onMouseMove={handlePhotoCardMouseMove}
+            onMouseLeave={handlePhotoCardMouseLeave}
             style={{ ['--stagger' as any]: index }}
           >
             {item.image ? (
@@ -159,26 +197,7 @@ export const PhotoGrid: React.FC<PhotoGridProps> = ({
           ) : (
             <button
               onClick={onLoadMore}
-              style={{
-                padding: '12px 32px',
-                border: 'none',
-                borderRadius: '24px',
-                background: 'var(--panel-dark)',
-                color: '#fff',
-                fontSize: '0.95rem',
-                fontWeight: '500',
-                cursor: 'pointer',
-                transition: 'all 0.2s ease',
-                boxShadow: 'var(--shadow-soft)',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.transform = 'translateY(-2px)';
-                e.currentTarget.style.boxShadow = '0 8px 20px rgba(0, 0, 0, 0.15)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = 'translateY(0)';
-                e.currentTarget.style.boxShadow = 'var(--shadow-soft)';
-              }}
+              className="load-more-btn pressable"
             >
               加载更多 ({totalCount - photos.length} 张)
             </button>
