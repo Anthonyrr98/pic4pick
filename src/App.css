@@ -1967,8 +1967,8 @@ main {
 }
 
 .lightbox-media.portrait-fit img {
-  object-fit: contain;
-  background: rgba(0, 0, 0, 0.18);
+  object-fit: cover;
+  background: transparent;
 }
 
 .lightbox-close {
