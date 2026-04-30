@@ -48,6 +48,27 @@ function FocalLengthIcon(props) {
   );
 }
 
+function ShutterIcon(props) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" {...props}>
+      <path d="M12.03 20.08a7.19 7.19 0 0 1-5.09-2.11 7.15 7.15 0 0 1-2.11-5.09 7.2 7.2 0 0 1 7.2-7.2c1.92 0 3.73 0.75 5.09 2.11a7.15 7.15 0 0 1 2.11 5.09 7.2 7.2 0 0 1-7.2 7.2zm0-13.34a6.14 6.14 0 0 0-6.14 6.14 6.1 6.1 0 0 0 1.8 4.34 6.14 6.14 0 0 0 10.48-4.34A6.14 6.14 0 0 0 12.03 6.74z" fill="currentColor" />
+      <path d="M12.03 14.14a1.27 1.27 0 1 1 0-2.54 1.27 1.27 0 0 1 0 2.54zm0-2.06a0.79 0.79 0 1 0 0 1.58 0.79 0.79 0 0 0 0-1.58z" fill="currentColor" />
+      <path d="M15.65 9.62l0.2 0.24-5.56 4.67-0.2-0.24 5.56-4.67Z" fill="currentColor" />
+      <path d="M12.03 12.88m-0.86 0a0.67 0.67 0 1 0 1.72 0 0.67 0.67 0 1 0-1.72 0Z" fill="#FFFFFF" />
+      <path d="M9.89 4.57h4.28v0.61H9.89z" fill="currentColor" />
+      <path d="M16.78 5.86l2.12 2.12-0.43 0.43-2.12-2.12z" fill="currentColor" />
+    </svg>
+  );
+}
+
+function IsoIcon(props) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" {...props}>
+      <path d="M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2zM5.5 7.5h2v-2H9v2h2v1.5H9v2H7.5v-2h-2V7.5zM19 19H5l14-14v14z m-2-2v-1.5h-5V17h5z" fill="currentColor" />
+    </svg>
+  );
+}
+
 export function GalleryPage() {
   const supabase = getSupabaseClient();
 
@@ -730,6 +751,8 @@ export function GalleryPage() {
                         {label}
                         {label === '焦距' && <FocalLengthIcon className="param-label-icon" />}
                         {label === '光圈' && <ApertureIcon className="param-label-icon" />}
+                        {label === '快门' && <ShutterIcon className="param-label-icon param-label-icon-shutter" />}
+                        {label === 'ISO' && <IsoIcon className="param-label-icon" />}
                       </span>
                       <span className="param-value">{value}</span>
                     </div>
