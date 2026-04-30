@@ -663,15 +663,15 @@ export function GalleryPage() {
           if (e.target === e.currentTarget) { setLightboxPhoto(null); setShowMobileMeta(false); }
         }}
       >
-        <button className="lightbox-close" aria-label="关闭"
-          onClick={() => { setLightboxPhoto(null); setShowMobileMeta(false); }}>
-          &times;
-        </button>
         <div
           className="lightbox-panel"
           style={{ backgroundImage: lightboxPhoto ? `url(${lightboxPhoto.image})` : 'none' }}
           onClick={(e) => e.stopPropagation()}
         >
+          <button className="lightbox-close" aria-label="关闭"
+            onClick={() => { setLightboxPhoto(null); setShowMobileMeta(false); }}>
+            &times;
+          </button>
           <div className={`lightbox-content-wrapper ${showMobileMeta ? 'meta-visible' : ''}`}>
             <div className="lightbox-media"
               onClick={() => { if (window.innerWidth <= 768) setShowMobileMeta((p) => !p); }}>

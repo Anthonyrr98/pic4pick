@@ -1960,33 +1960,32 @@ main {
 
 .lightbox-close {
   position: absolute;
-  top: 40px;
-  right: 40px;
-  border: none;
-  background: rgba(0, 0, 0, 0.7);
-  backdrop-filter: blur(12px) saturate(180%);
-  -webkit-backdrop-filter: blur(12px) saturate(180%);
-  color: #fff;
-  font-size: 1.6rem;
-  width: 52px;
-  height: 52px;
-  border-radius: 50%;
+  top: 20px;
+  right: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  background: rgba(255, 255, 255, 0.5);
+  backdrop-filter: blur(16px) saturate(170%);
+  -webkit-backdrop-filter: blur(16px) saturate(170%);
+  color: rgba(18, 19, 24, 0.86);
+  font-size: 1.5rem;
+  width: 48px;
+  height: 48px;
+  border-radius: 40px;
   cursor: pointer;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4), 0 2px 8px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 12px 26px rgba(10, 12, 18, 0.28), 0 3px 10px rgba(10, 12, 18, 0.14);
   z-index: 50;
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: transform 0.22s ease, background 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease;
   display: flex;
   align-items: center;
   justify-content: center;
   line-height: 1;
-  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .lightbox-close:hover {
-  background: rgba(0, 0, 0, 0.9);
-  transform: scale(1.1) rotate(90deg);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5), 0 4px 12px rgba(0, 0, 0, 0.3);
-  border-color: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.68);
+  transform: translateY(-1px);
+  box-shadow: 0 16px 30px rgba(10, 12, 18, 0.32), 0 5px 14px rgba(10, 12, 18, 0.16);
+  border-color: rgba(255, 255, 255, 0.6);
 }
 
 .lightbox-meta {
@@ -2618,11 +2617,12 @@ main {
     width: 100%;
   }
   .lightbox-close {
-    top: 16px;
-    right: 16px;
+    top: 14px;
+    right: 14px;
     width: 44px;
     height: 44px;
-    font-size: 1.4rem;
+    font-size: 1.35rem;
+    border-radius: 0;
   }
   .lightbox-title-section {
     padding-bottom: 16px;
@@ -2861,6 +2861,7 @@ main {
     width: 40px;
     height: 40px;
     font-size: 1.2rem;
+    border-radius: 20px;
   }
   .lightbox-meta h3 {
     font-size: 1.3rem;

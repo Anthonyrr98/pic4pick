@@ -55,9 +55,6 @@ export const LightboxPanel: React.FC<LightboxPanelProps> = ({
         }
       }}
     >
-      <button className="lightbox-close" aria-label="关闭" onClick={onClose}>
-        &times;
-      </button>
       <div
         className="lightbox-panel"
         style={{
@@ -65,6 +62,9 @@ export const LightboxPanel: React.FC<LightboxPanelProps> = ({
         }}
         onClick={(e) => e.stopPropagation()}
       >
+        <button className="lightbox-close" aria-label="关闭" onClick={onClose}>
+          &times;
+        </button>
         <div className={`lightbox-content-wrapper ${showMobileMeta ? 'meta-visible' : ''}`}>
           <div
             className="lightbox-media"
