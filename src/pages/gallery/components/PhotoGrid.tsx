@@ -45,6 +45,8 @@ export const PhotoGrid: React.FC<PhotoGridProps> = ({
     card.style.setProperty('--cursor-y', `${percentY}%`);
     card.style.setProperty('--img-shift-x', `${(-relativeX * 10).toFixed(2)}px`);
     card.style.setProperty('--img-shift-y', `${(-relativeY * 10).toFixed(2)}px`);
+    card.style.setProperty('--shadow-shift-x', `${(-relativeX * 18).toFixed(2)}px`);
+    card.style.setProperty('--shadow-shift-y', `${(-relativeY * 18).toFixed(2)}px`);
 
     // Stronger 3D feel for large gallery cards.
     const maxTilt = 9;
@@ -63,6 +65,8 @@ export const PhotoGrid: React.FC<PhotoGridProps> = ({
     card.style.setProperty('--cursor-y', '50%');
     card.style.setProperty('--img-shift-x', '0px');
     card.style.setProperty('--img-shift-y', '0px');
+    card.style.setProperty('--shadow-shift-x', '0px');
+    card.style.setProperty('--shadow-shift-y', '0px');
   };
 
   const categoryLabels: Record<string, string> = {

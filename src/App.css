@@ -809,7 +809,11 @@ main {
   position: relative;
   border-radius: 24px;
   overflow: hidden;
-  box-shadow: var(--shadow-soft);
+  box-shadow:
+    calc(var(--shadow-shift-x, 0px) * 0.35)
+    calc(10px + (var(--shadow-shift-y, 0px) * 0.35))
+    28px
+    rgba(20, 23, 32, 0.18);
   cursor: pointer;
   background: linear-gradient(180deg, #f4f5f7 0%, #e5e7ec 55%, #cfd2da 100%);
   /* 统一卡片尺寸：固定纵横比，保证高度一致 */
@@ -822,7 +826,11 @@ main {
 
 .photo-card:hover {
   transform: translateY(-6px);
-  box-shadow: 0 20px 45px rgba(20, 23, 32, 0.25);
+  box-shadow:
+    calc(var(--shadow-shift-x, 0px) * 0.8)
+    calc(18px + (var(--shadow-shift-y, 0px) * 0.8))
+    46px
+    rgba(20, 23, 32, 0.28);
 }
 
 .photo-card::after {
