@@ -802,7 +802,7 @@ main {
   gap: 24px;
   width: 100%;
   /* Provide depth for photo-card tilt */
-  perspective: 900px;
+  perspective: 1100px;
 }
 
 .photo-card {
@@ -817,6 +817,7 @@ main {
   transform: translateY(0);
   transition: transform 0.2s ease, box-shadow 0.3s ease;
   transform-style: preserve-3d;
+  will-change: transform;
 }
 
 .photo-card:hover {
@@ -850,7 +851,7 @@ main {
   height: 100%;
   display: block;
   object-fit: cover;
-  transform: translate3d(var(--img-shift-x, 0px), var(--img-shift-y, 0px), 0) scale(1);
+  transform: translate3d(var(--img-shift-x, 0px), var(--img-shift-y, 0px), 22px) scale(1);
   transition:
     transform 520ms cubic-bezier(0.16, 1, 0.3, 1),
     filter 520ms cubic-bezier(0.16, 1, 0.3, 1);
@@ -858,7 +859,7 @@ main {
 }
 
 .photo-card:hover img {
-  transform: translate3d(var(--img-shift-x, 0px), var(--img-shift-y, 0px), 0) scale(1.04);
+  transform: translate3d(var(--img-shift-x, 0px), var(--img-shift-y, 0px), 28px) scale(1.05);
   filter: saturate(1.06) contrast(1.02);
 }
 
@@ -872,6 +873,7 @@ main {
   color: #fff;
   font-size: 0.75rem;
   border-radius: 999px;
+  transform: translateZ(56px);
 }
 
 .photo-card .caption {
@@ -882,6 +884,7 @@ main {
   padding: 20px;
   background: linear-gradient(180deg, rgba(9, 10, 14, 0) 0%, rgba(9, 10, 14, 0.85) 100%);
   color: #fff;
+  transform: translateZ(42px);
 }
 
 .photo-card .caption h4 {

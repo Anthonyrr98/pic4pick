@@ -46,14 +46,14 @@ export const PhotoGrid: React.FC<PhotoGridProps> = ({
     card.style.setProperty('--img-shift-x', `${(-relativeX * 10).toFixed(2)}px`);
     card.style.setProperty('--img-shift-y', `${(-relativeY * 10).toFixed(2)}px`);
 
-    // Large cards: keep tilt subtle to avoid "wobble"
-    const maxTilt = 6.5;
+    // Stronger 3D feel for large gallery cards.
+    const maxTilt = 9;
     const rotateY = relativeX * maxTilt * 2;
     const rotateX = -relativeY * maxTilt * 2;
 
     card.style.transform = `translateY(-6px) rotateX(${rotateX.toFixed(2)}deg) rotateY(${rotateY.toFixed(
       2,
-    )}deg) translateZ(10px)`;
+    )}deg) translateZ(16px)`;
   };
 
   const handlePhotoCardMouseLeave = (event: React.MouseEvent<HTMLElement>) => {
