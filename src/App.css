@@ -881,7 +881,7 @@ main {
   position: absolute;
   inset: 0;
   z-index: 1;
-  background: linear-gradient(110deg, #e9ebf0 8%, #f5f6f9 18%, #e9ebf0 33%);
+  background: linear-gradient(110deg, #e6e1d8 8%, #f3eee5 18%, #e6e1d8 33%);
   background-size: 200% 100%;
   animation: photo-skeleton-shimmer 1.25s linear infinite;
   opacity: 1;
