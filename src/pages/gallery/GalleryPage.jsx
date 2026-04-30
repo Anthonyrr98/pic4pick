@@ -588,7 +588,9 @@ export function GalleryPage() {
         bEl.style.cssText = 'width:30px;height:30px;background:#3498db;border:3px solid white;border-radius:50%;box-shadow:0 2px 8px rgba(0,0,0,0.3);cursor:pointer;';
         const bm = new maplibregl.Marker(bEl)
           .setLngLat([getGeoInfo.browserLocation.lon, getGeoInfo.browserLocation.lat])
-          .setPopup(new maplibregl.Popup({ offset: 25 }).setHTML('<strong>当前位置</strong>'))
+          .setPopup(
+            new maplibregl.Popup({ offset: 25 }).setHTML(`<strong>${escapeHtml('当前位置')}</strong>`)
+          )
           .addTo(map);
         bm.togglePopup();
         map._markers.push(bm);

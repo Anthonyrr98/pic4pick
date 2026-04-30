@@ -689,7 +689,7 @@ export function AdminPage() {
         `;
 
         const popup = new maplibregl.Popup({ offset: 25 })
-          .setHTML(`纬度: ${lat.toFixed(6)}<br>经度: ${lon.toFixed(6)}`);
+          .setHTML(`纬度: ${escapeHtml(lat.toFixed(6))}<br>经度: ${escapeHtml(lon.toFixed(6))}`);
 
         const marker = new maplibregl.Marker(markerEl)
           .setLngLat([lon, lat])
@@ -724,7 +724,7 @@ export function AdminPage() {
         `;
 
         const popup = new maplibregl.Popup({ offset: 25 })
-          .setHTML(`纬度: ${lat.toFixed(6)}<br>经度: ${lng.toFixed(6)}`);
+          .setHTML(`纬度: ${escapeHtml(lat.toFixed(6))}<br>经度: ${escapeHtml(lng.toFixed(6))}`);
 
         const marker = new maplibregl.Marker(markerEl)
           .setLngLat([lng, lat])
@@ -941,7 +941,9 @@ export function AdminPage() {
       `;
 
       const popup = new maplibregl.Popup({ offset: 25 })
-        .setHTML(`${escapeHtml(result.name)}<br>纬度: ${result.lat.toFixed(6)}<br>经度: ${result.lon.toFixed(6)}`);
+        .setHTML(
+          `${escapeHtml(result.name)}<br>纬度: ${escapeHtml(result.lat.toFixed(6))}<br>经度: ${escapeHtml(result.lon.toFixed(6))}`
+        );
 
       const marker = new maplibregl.Marker(markerEl)
         .setLngLat([result.lon, result.lat])
@@ -1064,7 +1066,7 @@ export function AdminPage() {
         `;
 
         const popup = new maplibregl.Popup({ offset: 25 })
-          .setHTML(`纬度: ${lat.toFixed(6)}<br>经度: ${lon.toFixed(6)}`);
+          .setHTML(`纬度: ${escapeHtml(lat.toFixed(6))}<br>经度: ${escapeHtml(lon.toFixed(6))}`);
 
         const marker = new maplibregl.Marker(markerEl)
           .setLngLat([lon, lat])
@@ -1099,7 +1101,7 @@ export function AdminPage() {
         `;
 
         const popup = new maplibregl.Popup({ offset: 25 })
-          .setHTML(`纬度: ${lat.toFixed(6)}<br>经度: ${lng.toFixed(6)}`);
+          .setHTML(`纬度: ${escapeHtml(lat.toFixed(6))}<br>经度: ${escapeHtml(lng.toFixed(6))}`);
 
         const marker = new maplibregl.Marker(markerEl)
           .setLngLat([lng, lat])
