@@ -724,7 +724,7 @@ export function GalleryPage() {
               onClick={() => { if (window.innerWidth <= 768) setShowMobileMeta((p) => !p); }}>
               {lightboxPhoto && (
                 <img
-                  src={lightboxPhoto.image}
+                  src={lightboxPhoto.thumbnail || lightboxPhoto.image}
                   alt={lightboxPhoto.title}
                   onLoad={(e) => {
                     const img = e.currentTarget;
