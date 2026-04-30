@@ -42,6 +42,7 @@ export function GalleryPage() {
   // 鈹€鈹€ Lightbox 鐘舵€?
   const [lightboxPhoto, setLightboxPhoto] = useState(null);
   const [metaPopover, setMetaPopover] = useState(null);
+  const metaPopoverRef = useRef(null);
   const [showMobileMeta, setShowMobileMeta] = useState(false);
 
   // 鈹€鈹€ 鍝佺墝鐘舵€?
@@ -217,6 +218,40 @@ export function GalleryPage() {
   }, []);
 
   // 鈹€鈹€ Effects
+  useEffect(() => {
+    if (!metaPopover) return;
+    const el = metaPopoverRef.current;
+    if (!el) return;
+
+    const raf = (window.requestAnimationFrame || ((cb) => setTimeout(cb, 0)));
+    const viewportPadding = 12;
+
+    raf(() => {
+      const node = metaPopoverRef.current;
+      if (!node) return;
+
+      const rect = node.getBoundingClientRect();
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+
+      let nextX = metaPopover.x;
+      let nextY = metaPopover.y;
+
+      if (rect.left < viewportPadding) nextX += viewportPadding - rect.left;
+      if (rect.right > vw - viewportPadding) nextX -= rect.right - (vw - viewportPadding);
+      if (rect.top < viewportPadding) nextY += viewportPadding - rect.top;
+      if (rect.bottom > vh - viewportPadding) nextY -= rect.bottom - (vh - viewportPadding);
+
+      // Avoid tiny sub-pixel loops.
+      nextX = Math.round(nextX);
+      nextY = Math.round(nextY);
+
+      if (nextX !== metaPopover.x || nextY !== metaPopover.y) {
+        setMetaPopover((p) => (p ? { ...p, x: nextX, y: nextY } : p));
+      }
+    });
+  }, [metaPopover]);
+
   useEffect(() => {
     setExpandedCategories((prev) => {
       const next = {};
@@ -671,6 +706,7 @@ export function GalleryPage() {
             onClick={(e) => { e.stopPropagation(); setMetaPopover(null); }}>
             <aside
               className="meta-popover"
+              ref={metaPopoverRef}
               style={{
                 left: `${metaPopover.x}px`, top: `${metaPopover.y}px`,
                 backgroundImage: lightboxPhoto ? `url(${lightboxPhoto.image})` : 'none',
