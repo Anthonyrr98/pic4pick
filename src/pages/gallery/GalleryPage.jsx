@@ -22,7 +22,7 @@ import { getShotTimeInfo } from './utils/timeUtils';
 import { buildCityPhotoMap, buildCurationGroups, buildPhotosByLocation } from './utils/photoDataUtils';
 import { filterAndSortPhotos } from './utils/photoFilterUtils';
 import { usePhotoData, useLikePhoto } from './hooks/usePhotoData';
-import { useExifData, useBrowserLocation } from './hooks/useExifAndLocation';
+import { useExifData, useBrowserLocation, useAltitudeFromCoords } from './hooks/useExifAndLocation';
 import { useGaodeMapInit, useFocusMapOnCity } from './hooks/useMapInit';
 import { TabStrip } from './components/TabStrip';
 import { PhotoGrid } from './components/PhotoGrid';
@@ -77,6 +77,9 @@ export function GalleryPage() {
   const { likedPhotoIds, handleToggleLike } = useLikePhoto(supabase, setApprovedPhotos);
   const browserLocation = useBrowserLocation();
   const exifData = useExifData(lightboxPhoto);
+  const geoLat = exifData?.latitude ?? lightboxPhoto?.latitude ?? null;
+  const geoLon = exifData?.longitude ?? lightboxPhoto?.longitude ?? null;
+  const altitudeFromApi = useAltitudeFromCoords(geoLat, geoLon);
 
   // 鈹€鈹€ 鍦板浘 Hooks
   const {
@@ -121,7 +124,7 @@ export function GalleryPage() {
     if (!lightboxPhoto) return null;
     const lat = exifData?.latitude ?? lightboxPhoto.latitude;
     const lon = exifData?.longitude ?? lightboxPhoto.longitude;
-    const altitude = exifData?.GPSAltitude ?? lightboxPhoto.altitude;
+    const altitude = exifData?.GPSAltitude ?? lightboxPhoto.altitude ?? altitudeFromApi;
     if (lat == null || lon == null || isNaN(lat) || isNaN(lon)) return null;
     const refLat = browserLocation?.lat ?? 39.9042;
     const refLon = browserLocation?.lon ?? 116.4074;
@@ -136,11 +139,11 @@ export function GalleryPage() {
       lon: Number(lon).toFixed(6),
       latitude: Number(lat),
       longitude: Number(lon),
-      altitude: altitude != null ? `${altitude} m` : '鏈煡',
-      distance: distance != null ? `${distance.toLocaleString()} km` : '鏈煡',
+      altitude: altitude != null ? `${Number(altitude).toFixed(0)} m` : '未知',
+      distance: distance != null ? `${distance.toLocaleString()} km` : '未知',
       browserLocation,
     };
-  }, [lightboxPhoto, exifData, browserLocation]);
+  }, [lightboxPhoto, exifData, browserLocation, altitudeFromApi]);
 
   // 鈹€鈹€ 浜嬩欢澶勭悊
   const handleViewChange = useCallback((view) => {

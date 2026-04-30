@@ -17,6 +17,45 @@ export interface BrowserLocation {
   lon: number;
 }
 
+// 通过经纬度获取海拔（免费 API：Open-Meteo Elevation）
+export const useAltitudeFromCoords = (lat?: number | null, lon?: number | null) => {
+  const [altitude, setAltitude] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (lat == null || lon == null || Number.isNaN(lat) || Number.isNaN(lon)) {
+      setAltitude(null);
+      return;
+    }
+
+    const controller = new AbortController();
+
+    const loadAltitude = async () => {
+      try {
+        const response = await fetch(
+          `https://api.open-meteo.com/v1/elevation?latitude=${encodeURIComponent(
+            String(lat)
+          )}&longitude=${encodeURIComponent(String(lon))}`,
+          { signal: controller.signal }
+        );
+        if (!response.ok) {
+          throw new Error(`elevation-api-${response.status}`);
+        }
+        const data = await response.json();
+        const value = Array.isArray(data?.elevation) ? data.elevation[0] : data?.elevation;
+        setAltitude(typeof value === 'number' && Number.isFinite(value) ? value : null);
+      } catch (error) {
+        if ((error as Error).name === 'AbortError') return;
+        setAltitude(null);
+      }
+    };
+
+    loadAltitude();
+    return () => controller.abort();
+  }, [lat, lon]);
+
+  return altitude;
+};
+
 // 从图片读取 EXIF 数据
 export const useExifData = (photo: GalleryPhoto | null) => {
   const [exifData, setExifData] = useState<ExifData | null>(null);
