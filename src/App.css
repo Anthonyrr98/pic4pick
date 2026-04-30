@@ -1971,10 +1971,17 @@ main {
   background: transparent;
 }
 
-.lightbox-close {
+.lightbox-actions {
   position: absolute;
   top: 20px;
   right: 20px;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  z-index: 50;
+}
+
+.lightbox-close {
   border: 1px solid rgba(255, 255, 255, 0.4);
   background: rgba(255, 255, 255, 0.5);
   backdrop-filter: blur(16px) saturate(170%);
@@ -1986,7 +1993,6 @@ main {
   border-radius: 40px;
   cursor: pointer;
   box-shadow: 0 12px 26px rgba(10, 12, 18, 0.28), 0 3px 10px rgba(10, 12, 18, 0.14);
-  z-index: 50;
   transition: transform 0.22s ease, background 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease;
   display: flex;
   align-items: center;
@@ -1998,6 +2004,29 @@ main {
   background: rgba(255, 255, 255, 0.68);
   transform: translateY(-1px);
   box-shadow: 0 16px 30px rgba(10, 12, 18, 0.32), 0 5px 14px rgba(10, 12, 18, 0.16);
+  border-color: rgba(255, 255, 255, 0.6);
+}
+
+.lightbox-download {
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  background: rgba(255, 255, 255, 0.5);
+  backdrop-filter: blur(16px) saturate(170%);
+  -webkit-backdrop-filter: blur(16px) saturate(170%);
+  color: rgba(18, 19, 24, 0.9);
+  font-size: 0.86rem;
+  font-weight: 600;
+  padding: 0 14px;
+  height: 40px;
+  border-radius: 999px;
+  cursor: pointer;
+  box-shadow: 0 10px 24px rgba(10, 12, 18, 0.24), 0 2px 8px rgba(10, 12, 18, 0.12);
+  transition: transform 0.22s ease, background 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease;
+}
+
+.lightbox-download:hover {
+  background: rgba(255, 255, 255, 0.68);
+  transform: translateY(-1px);
+  box-shadow: 0 14px 28px rgba(10, 12, 18, 0.3), 0 4px 12px rgba(10, 12, 18, 0.14);
   border-color: rgba(255, 255, 255, 0.6);
 }
 
@@ -2643,12 +2672,20 @@ main {
     width: 100%;
   }
   .lightbox-close {
-    top: 14px;
-    right: 14px;
     width: 44px;
     height: 44px;
     font-size: 1.35rem;
     border-radius: 0;
+  }
+  .lightbox-actions {
+    top: 14px;
+    right: 14px;
+    gap: 8px;
+  }
+  .lightbox-download {
+    height: 36px;
+    padding: 0 12px;
+    font-size: 0.8rem;
   }
   .lightbox-title-section {
     padding-bottom: 16px;

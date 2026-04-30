@@ -261,6 +261,28 @@ export function GalleryPage() {
     setMetaPopover({ tab, x, y });
   }, []);
 
+  const handleDownloadOriginal = useCallback(async () => {
+    if (!lightboxPhoto?.image) return;
+    try {
+      const response = await fetch(lightboxPhoto.image);
+      if (!response.ok) throw new Error(`Download failed: ${response.status}`);
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const ext = lightboxPhoto.image.split('.').pop()?.split('?')[0] || 'jpg';
+      const safeTitle = (lightboxPhoto.title || 'photo').replace(/[\\/:*?"<>|]/g, '_');
+      a.download = `${safeTitle}.${ext}`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      handleError(err, { context: 'handleDownloadOriginal', type: ErrorType.NETWORK, silent: true });
+      window.open(lightboxPhoto.image, '_blank', 'noopener,noreferrer');
+    }
+  }, [lightboxPhoto]);
+
   // 鈹€鈹€ Effects
   useEffect(() => {
     if (!metaPopover) return;
@@ -715,10 +737,17 @@ export function GalleryPage() {
           style={{ backgroundImage: lightboxPhoto ? `url(${lightboxPhoto.image})` : 'none' }}
           onClick={(e) => e.stopPropagation()}
         >
-          <button className="lightbox-close" aria-label="关闭"
-            onClick={() => { setLightboxPhoto(null); setShowMobileMeta(false); }}>
-            &times;
-          </button>
+          <div className="lightbox-actions">
+            {lightboxPhoto && (
+              <button className="lightbox-download" aria-label="下载原图" onClick={handleDownloadOriginal}>
+                下载原图
+              </button>
+            )}
+            <button className="lightbox-close" aria-label="关闭"
+              onClick={() => { setLightboxPhoto(null); setShowMobileMeta(false); }}>
+              &times;
+            </button>
+          </div>
           <div className={`lightbox-content-wrapper ${showMobileMeta ? 'meta-visible' : ''}`}>
             <div className={`lightbox-media ${isLightboxPortrait ? 'portrait-fit' : ''}`}
               onClick={() => { if (window.innerWidth <= 768) setShowMobileMeta((p) => !p); }}>
