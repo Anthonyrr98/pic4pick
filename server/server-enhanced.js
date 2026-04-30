@@ -20,6 +20,8 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 3002;
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-this-in-production';
+const ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'admin';
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123';
 
 // 设置服务器级别的超时（10分钟，适合大文件上传）
 app.timeout = 10 * 60 * 1000;
@@ -133,6 +135,15 @@ const authenticateToken = (req, res, next) => {
   });
 };
 
+// 管理员权限中间件
+const requireAdmin = (req, res, next) => {
+  if (!req.user?.username || req.user.username !== ADMIN_USERNAME) {
+    logger.warn(`Admin access denied for user: ${req.user?.username || 'unknown'}`);
+    return res.status(403).json({ error: '需要管理员权限' });
+  }
+  next();
+};
+
 // === API 端点 ===
 
 // 健康检查
@@ -141,7 +152,7 @@ app.get('/api/health', (req, res) => {
 });
 
 // 上传本地图片
-app.post('/api/upload', upload.single('file'), async (req, res) => {
+app.post('/api/upload', authenticateToken, requireAdmin, upload.single('file'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: '没有上传文件' });
@@ -179,7 +190,7 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
 });
 
 // 删除图片
-app.delete('/api/upload/:filename', (req, res) => {
+app.delete('/api/upload/:filename', authenticateToken, requireAdmin, (req, res) => {
   try {
     const filename = req.params.filename;
     const filePath = path.join(UPLOAD_DIR, filename);
@@ -242,7 +253,7 @@ if (process.env.ALIYUN_OSS_REGION && process.env.ALIYUN_OSS_BUCKET &&
 }
 
 // 上传到阿里云 OSS
-app.post('/api/upload/oss', upload.single('file'), async (req, res) => {
+app.post('/api/upload/oss', authenticateToken, requireAdmin, upload.single('file'), async (req, res) => {
   // 设置较长的超时时间（5分钟）
   req.setTimeout(5 * 60 * 1000);
   
@@ -357,7 +368,7 @@ app.post('/api/upload/oss', upload.single('file'), async (req, res) => {
 });
 
 // 从 OSS 删除文件
-app.delete('/api/upload/oss/:filename(*)', async (req, res) => {
+app.delete('/api/upload/oss/:filename(*)', authenticateToken, requireAdmin, async (req, res) => {
   try {
     if (!ossClient) {
       return res.status(500).json({ error: 'OSS 客户端未配置' });
@@ -474,10 +485,10 @@ app.post('/api/auth/login', async (req, res) => {
       return res.status(400).json({ error: '用户名和密码不能为空' });
     }
 
-    // 示例验证（实际应查询数据库）
-    const isValidPassword = password === 'admin123';
+    const isValidUsername = username === ADMIN_USERNAME;
+    const isValidPassword = password === ADMIN_PASSWORD;
 
-    if (!isValidPassword) {
+    if (!isValidUsername || !isValidPassword) {
       logger.warn(`Login failed for username: ${username}`);
       return res.status(401).json({ error: '用户名或密码错误' });
     }

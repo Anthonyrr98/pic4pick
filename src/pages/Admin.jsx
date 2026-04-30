@@ -25,6 +25,7 @@ import { Storage, StorageString, STORAGE_KEYS } from '../utils/storage';
 import { handleError, formatErrorMessage, safeAsync, safeSync, ErrorType } from '../utils/errorHandler';
 import { mapSupabaseRowToPhoto, buildSupabasePayloadFromPhoto, getUploadTypeName, extractOSSFileInfo, deleteOSSFile, getAmapApiUrl } from '../utils/adminUtils';
 import { ensureHttps } from '../utils/urlUtils';
+import { login as loginWithApi } from '../utils/auth';
 import { usePhotoManagement } from '../hooks/usePhotoManagement';
 import { useLocationPicker } from '../hooks/useLocationPicker';
 import { useGearOptions } from '../hooks/useGearOptions';
@@ -101,8 +102,6 @@ const REJECTED_STORAGE_KEY = STORAGE_KEYS.REJECTED_PHOTOS;
 // getUploadTypeName 已移至 adminUtils.js
 
 export function AdminPage() {
-  const adminPassword = getEnvValue('VITE_ADMIN_PASSWORD', 'pic4pick-admin');
-
   // === 原有状态 ===
   // 从 localStorage 加载数据
   const loadFromStorage = () => {
@@ -167,6 +166,7 @@ export function AdminPage() {
   const [isAdminAuthed, setIsAdminAuthed] = useState(() => {
     return StorageString.get(STORAGE_KEYS.ADMIN_AUTHED) === 'true';
   });
+  const [adminUsernameInput, setAdminUsernameInput] = useState('admin');
   const [adminPasswordInput, setAdminPasswordInput] = useState('');
   const [adminAuthError, setAdminAuthError] = useState('');
   const [showAdminPassword, setShowAdminPassword] = useState(false);
@@ -2139,6 +2139,18 @@ export function AdminPage() {
   // 总作品数 = 已审核通过的作品 + 待审核的作品（不包括内置示例）
   const totalPhotos = approvedCount + pendingReviewCount;
 
+  const handleAdminLogin = useCallback(async () => {
+    if (!adminUsernameInput.trim() || !adminPasswordInput) return;
+    try {
+      await loginWithApi(adminUsernameInput.trim(), adminPasswordInput);
+      setIsAdminAuthed(true);
+      StorageString.set(STORAGE_KEYS.ADMIN_AUTHED, 'true');
+      setAdminAuthError('');
+    } catch (error) {
+      setAdminAuthError(formatErrorMessage(error) || '用户名或密码不正确');
+    }
+  }, [adminUsernameInput, adminPasswordInput]);
+
   if (!isAdminAuthed) {
     return (
       <div className="app-root">
@@ -2181,8 +2193,29 @@ export function AdminPage() {
                   marginBottom: 18,
                 }}
               >
-                请输入管理员密码进入后台。
+                请输入管理员用户名和密码进入后台。
               </p>
+              <div style={{ marginBottom: 12 }}>
+                <input
+                  type="text"
+                  value={adminUsernameInput}
+                  onChange={(e) => {
+                    setAdminUsernameInput(e.target.value);
+                    setAdminAuthError('');
+                  }}
+                  placeholder="管理员用户名"
+                  style={{
+                    width: '100%',
+                    padding: '12px 14px',
+                    borderRadius: 10,
+                    border: '1px solid rgba(148, 163, 184, 0.5)',
+                    background: 'rgba(255,255,255,0.9)',
+                    color: '#111827',
+                    fontSize: '0.95rem',
+                    outline: 'none',
+                  }}
+                />
+              </div>
               <div style={{ marginBottom: 12 }}>
                 <div
                   style={{
@@ -2211,15 +2244,7 @@ export function AdminPage() {
                     }}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
-                        if (!adminPasswordInput) return;
-                        if (adminPasswordInput === adminPassword) {
-                          setIsAdminAuthed(true);
-                          try {
-                            StorageString.set(STORAGE_KEYS.ADMIN_AUTHED, 'true');
-                          } catch {}
-                        } else {
-                          setAdminAuthError('密码不正确');
-                        }
+                        handleAdminLogin();
                       }
                     }}
                   />
@@ -2255,15 +2280,7 @@ export function AdminPage() {
               )}
               <button
                 type="button"
-                onClick={() => {
-                  if (!adminPasswordInput) return;
-                  if (adminPasswordInput === adminPassword) {
-                    setIsAdminAuthed(true);
-                    StorageString.set(STORAGE_KEYS.ADMIN_AUTHED, 'true');
-                  } else {
-                    setAdminAuthError('密码不正确');
-                  }
-                }}
+                onClick={handleAdminLogin}
                 style={{
                   width: '100%',
                   padding: '10px 14px',
