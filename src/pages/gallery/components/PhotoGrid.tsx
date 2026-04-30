@@ -53,7 +53,7 @@ export const PhotoGrid: React.FC<PhotoGridProps> = ({
 
   return (
     <div className="gallery-grid">
-      {photos.map((item) => {
+      {photos.map((item, index) => {
         const liked = likedPhotoIds.includes(item.id);
         const likeCount = typeof item.likes === 'number' ? item.likes : 0;
         return (
@@ -61,6 +61,7 @@ export const PhotoGrid: React.FC<PhotoGridProps> = ({
             key={item.id}
             className="photo-card"
             onClick={() => onPhotoClick(item)}
+            style={{ ['--stagger' as any]: index }}
           >
             {item.image ? (
               <img

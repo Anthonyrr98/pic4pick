@@ -79,6 +79,58 @@ main {
   color: var(--text);
 }
 
+@keyframes hero-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+    filter: blur(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+}
+
+@keyframes hero-in-soft {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 首屏轻微入场（仅图库视图） */
+.app-shell:not(.explore-mode) .app-header {
+  animation: hero-in 520ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.app-shell:not(.explore-mode) .tab-strip {
+  animation: hero-in-soft 520ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: 80ms;
+}
+
+.app-shell:not(.explore-mode) .photo-card {
+  opacity: 0;
+  animation: hero-in-soft 520ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: calc(140ms + (min(var(--stagger, 0), 11) * 34ms));
+  will-change: transform, opacity;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-shell:not(.explore-mode) .app-header,
+  .app-shell:not(.explore-mode) .tab-strip,
+  .app-shell:not(.explore-mode) .photo-card {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+    filter: none !important;
+  }
+}
+
 .app-header {
   position: sticky;
   top: 0;
