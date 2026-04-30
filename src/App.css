@@ -1929,8 +1929,8 @@ main {
 
 .lightbox-content-wrapper {
   display: flex;
-  gap: 40px;
-  align-items: flex-start;
+  gap: 12px;
+  align-items: stretch;
 }
 
 .lightbox-media {
@@ -1940,9 +1940,10 @@ main {
   flex-shrink: 0;
   margin-bottom: 0;
   background: transparent;
-  flex: 1;
+  flex: 1 1 auto;
   min-width: 0;
-  display: block;
+  display: flex;
+  align-items: stretch;
   line-height: 0;
   transition: transform 0.3s ease;
 }
@@ -1953,9 +1954,9 @@ main {
 
 .lightbox-media img {
   width: 100%;
-  height: auto;
+  height: 100%;
   display: block;
-  max-height: 80vh;
+  max-height: none;
   object-fit: contain;
   border-radius: 24px;
   margin: 0 auto;
@@ -1993,7 +1994,7 @@ main {
 
 .lightbox-meta {
   flex-shrink: 0;
-  width: 340px;
+  width: clamp(240px, 22vw, 300px);
   display: flex;
   flex-direction: column;
   gap: 24px;
