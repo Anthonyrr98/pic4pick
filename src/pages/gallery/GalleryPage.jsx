@@ -23,6 +23,7 @@ import { usePhotoData, useLikePhoto } from './hooks/usePhotoData';
 import { useExifData, useBrowserLocation, useAltitudeFromCoords } from './hooks/useExifAndLocation';
 import { useGaodeMapInit, useFocusMapOnCity } from './hooks/useMapInit';
 import { loadMapLibre } from '../../utils/maplibreLoader';
+import { escapeHtml } from '../../utils/security';
 import { TabStrip } from './components/TabStrip';
 import { PhotoGrid } from './components/PhotoGrid';
 import { CurationPanel } from './components/CurationPanel';
@@ -575,7 +576,9 @@ export function GalleryPage() {
       const photoEl = document.createElement('div');
       photoEl.style.cssText = 'width:30px;height:30px;background:#e74c3c;border:3px solid white;border-radius:50%;box-shadow:0 2px 8px rgba(0,0,0,0.3);cursor:pointer;';
       const photoPopup = new maplibregl.Popup({ offset: 25 })
-        .setHTML(`<strong>${lightboxPhoto?.title || '照片位置'}</strong><br>${getGeoInfo.place}`);
+        .setHTML(
+          `<strong>${escapeHtml(lightboxPhoto?.title || '照片位置')}</strong><br>${escapeHtml(getGeoInfo.place)}`
+        );
       const pm = new maplibregl.Marker(photoEl).setLngLat([lon, lat]).setPopup(photoPopup).addTo(map);
       pm.togglePopup();
       map._markers.push(pm);

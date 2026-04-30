@@ -32,6 +32,7 @@ import { useBrandConfig } from '../hooks/useBrandConfig';
 import { useFileUpload } from '../hooks/useFileUpload';
 import { ConfigPanel } from '../components/admin/ConfigPanel';
 import { loadMapLibre } from '../utils/maplibreLoader';
+import { escapeHtml } from '../utils/security';
 
 const tabs = [
   { id: 'featured', label: '精选' },
@@ -940,7 +941,7 @@ export function AdminPage() {
       `;
 
       const popup = new maplibregl.Popup({ offset: 25 })
-        .setHTML(`${result.name}<br>纬度: ${result.lat.toFixed(6)}<br>经度: ${result.lon.toFixed(6)}`);
+        .setHTML(`${escapeHtml(result.name)}<br>纬度: ${result.lat.toFixed(6)}<br>经度: ${result.lon.toFixed(6)}`);
 
       const marker = new maplibregl.Marker(markerEl)
         .setLngLat([result.lon, result.lat])
