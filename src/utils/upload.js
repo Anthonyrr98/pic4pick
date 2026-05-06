@@ -4,6 +4,7 @@ import { StorageString, STORAGE_KEYS } from './storage';
 import { handleError, ErrorType, safeSync } from './errorHandler';
 import { ensureHttps } from './urlUtils';
 import { getAuthToken } from './auth';
+import { getEnvValue } from './envConfig';
 
 // 上传方式类型
 export const UPLOAD_TYPES = {
@@ -325,19 +326,31 @@ const uploadToSupabase = async (file, filename, onProgress) => {
   });
 };
 
+/** 解析 localStorage / 环境变量中的 OSS 上传后端地址（不含 Supabase Edge 回退） */
+export const resolveOssBackendApiUrl = (path = '/api/upload/oss') => {
+  const applyBase = (baseRaw) => {
+    const base = typeof baseRaw === 'string' ? baseRaw.trim() : '';
+    if (!base) return null;
+    if (base.startsWith('http://') || base.startsWith('https://')) {
+      return base.endsWith(path) ? base : `${base}${path}`;
+    }
+    return base.endsWith(path) ? base : `${base}${path}`;
+  };
+
+  const fromStorage = applyBase(StorageString.get(STORAGE_KEYS.ALIYUN_OSS_BACKEND_URL, ''));
+  if (fromStorage) return fromStorage;
+
+  const fromVite = applyBase(getEnvValue('VITE_ALIYUN_OSS_BACKEND_URL', ''));
+  if (fromVite) return fromVite;
+
+  return null;
+};
+
 // 获取后端 API URL（根据环境自动选择）
 const getBackendApiUrl = (path = '/api/upload/oss') => {
-  // 优先使用用户配置的 URL
-  const configuredUrl = StorageString.get(STORAGE_KEYS.ALIYUN_OSS_BACKEND_URL, '');
-  if (configuredUrl) {
-    // 如果配置的是完整 URL，直接使用
-    if (configuredUrl.startsWith('http://') || configuredUrl.startsWith('https://')) {
-      return configuredUrl.endsWith(path) ? configuredUrl : `${configuredUrl}${path}`;
-    }
-    // 如果配置的是相对路径，添加路径
-    return configuredUrl.endsWith(path) ? configuredUrl : `${configuredUrl}${path}`;
-  }
-  
+  const explicit = resolveOssBackendApiUrl(path);
+  if (explicit) return explicit;
+
   // 检测是否为生产环境
   const isProduction = import.meta.env.PROD || 
     (typeof window !== 'undefined' && 
