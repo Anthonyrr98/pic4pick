@@ -56,7 +56,21 @@ export class AppError extends Error {
       [ErrorType.UNKNOWN]: '发生未知错误',
     };
 
-    return messages[this.type] || this.message;
+    const generic = messages[this.type] || '发生未知错误';
+    const detail = this.message || '';
+
+    // 优先展示具体、可读的业务错误（如「用户名或密码错误」）
+    if (
+      detail &&
+      detail !== generic &&
+      detail.length < 150 &&
+      !detail.includes(' at ') &&
+      !detail.includes('Error:')
+    ) {
+      return detail;
+    }
+
+    return generic;
   }
 
   /**
@@ -107,24 +121,30 @@ export const handleError = (error, options = {}) => {
     context = '',
     silent = false,
     onError = null,
+    type: explicitType,
+    severity: explicitSeverity,
   } = options;
 
   // 转换为 AppError
   let appError;
   if (error instanceof AppError) {
     appError = error;
+    if (explicitType) appError.type = explicitType;
+    if (explicitSeverity) appError.severity = explicitSeverity;
   } else if (error instanceof Error) {
-    // 根据错误类型推断错误类型
-    let type = ErrorType.UNKNOWN;
-    if (error.name === 'NetworkError' || error.message.includes('fetch') || error.message.includes('network')) {
-      type = ErrorType.NETWORK;
-    } else if (error.name === 'SyntaxError' || error.message.includes('JSON')) {
-      type = ErrorType.PARSE;
-    } else if (error.name === 'QuotaExceededError' || error.message.includes('storage')) {
-      type = ErrorType.STORAGE;
+    // 优先使用调用方指定的类型，否则根据错误特征推断
+    let type = explicitType || ErrorType.UNKNOWN;
+    if (!explicitType) {
+      if (error.name === 'NetworkError' || error.message.includes('fetch') || error.message.includes('network')) {
+        type = ErrorType.NETWORK;
+      } else if (error.name === 'SyntaxError' || error.message.includes('JSON')) {
+        type = ErrorType.PARSE;
+      } else if (error.name === 'QuotaExceededError' || error.message.includes('storage')) {
+        type = ErrorType.STORAGE;
+      }
     }
 
-    appError = createError(error.message, type, ErrorSeverity.MEDIUM, error);
+    appError = createError(error.message, type, explicitSeverity || ErrorSeverity.MEDIUM, error);
   } else {
     // 处理非 Error 对象
     const message = typeof error === 'string' ? error : '发生未知错误';

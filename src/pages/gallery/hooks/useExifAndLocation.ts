@@ -110,9 +110,10 @@ export const useBrowserLocation = () => {
           console.log('无法获取浏览器位置:', error.message);
         },
         {
-          enableHighAccuracy: true,
+          // 关闭高精度可避免 Chrome 请求 Google 网络定位（国内常被 403 拦截）
+          enableHighAccuracy: false,
           timeout: 10000,
-          maximumAge: 0,
+          maximumAge: 600000,
         }
       );
     }

@@ -664,7 +664,7 @@ export function AdminPage() {
             }
           },
           () => {},
-          { enableHighAccuracy: true, timeout: 5000 }
+          { enableHighAccuracy: false, timeout: 5000, maximumAge: 600000 }
         );
       }
 
@@ -2147,7 +2147,16 @@ export function AdminPage() {
       StorageString.set(STORAGE_KEYS.ADMIN_AUTHED, 'true');
       setAdminAuthError('');
     } catch (error) {
-      setAdminAuthError(formatErrorMessage(error) || '用户名或密码不正确');
+      const message = formatErrorMessage(error);
+      const isNetworkFailure =
+        message === '网络连接失败，请检查网络设置' ||
+        (error instanceof Error &&
+          (error.message?.includes('Failed to fetch') || error.message?.includes('fetch')));
+      setAdminAuthError(
+        isNetworkFailure
+          ? '无法连接登录服务，请先运行后端：npm run server'
+          : message || '用户名或密码不正确',
+      );
     }
   }, [adminUsernameInput, adminPasswordInput]);
 

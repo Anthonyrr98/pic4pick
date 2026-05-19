@@ -43,8 +43,27 @@ const MAPLIBRE_STYLE: StyleSpecification = {
   ],
 };
 
+/** 高德 JS SDK 初始化超时（complete 未触发则回退 MapLibre） */
+const AMAP_READY_TIMEOUT_MS = 10000;
+
 // ── 确保高德 JS SDK 只加载一次，并复用同一个 Promise
 let amapLoadPromise: Promise<void> | null = null;
+
+function waitForAmapMapReady(map: { on: (event: string, cb: () => void) => void }, timeoutMs: number): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const timer = window.setTimeout(() => {
+      reject(
+        new Error(
+          '高德地图初始化超时（请在控制台将当前域名加入 Web Key 白名单，并配置 securityJsCode）'
+        )
+      );
+    }, timeoutMs);
+    map.on('complete', () => {
+      window.clearTimeout(timer);
+      resolve();
+    });
+  });
+}
 
 function ensureAMapLoaded(amapKey: string): Promise<void> {
   if ((window as any).AMap?.Map) return Promise.resolve();
@@ -168,8 +187,17 @@ export const useGaodeMapInit = (
 
     const initGaodeMap = async () => {
       const amapKey = getEnvValue('VITE_AMAP_WEB_KEY', getEnvValue('VITE_AMAP_KEY', ''));
+      const securityJsCode = getEnvValue('VITE_AMAP_SECURITY_JS_CODE', '');
       if (!amapKey) {
         await initMapLibreFallback('未配置高德地图 Web Key，已启用备用底图（可在后台配置面板填写）。');
+        return;
+      }
+
+      // 新版 Key 通常必须配 securityJsCode；缺失时直接用 MapLibre 瓦片底图，避免白屏
+      if (!securityJsCode) {
+        await initMapLibreFallback(
+          '未配置高德 securityJsCode，已使用备用底图（请在后台填写「安全密钥」后刷新）。'
+        );
         return;
       }
 
@@ -201,18 +229,16 @@ export const useGaodeMapInit = (
         setMapProvider('amap');
         setMapHint('');
 
-        map.on('complete', () => {
-          if (cancelled) {
-            // complete 回调在 cleanup 后才触发：立即销毁
-            if (mapInstance.current === map) {
-              map.destroy();
-              mapInstance.current = null;
-            }
-            return;
+        await waitForAmapMapReady(map, AMAP_READY_TIMEOUT_MS);
+        if (cancelled) {
+          if (mapInstance.current === map) {
+            map.destroy();
+            mapInstance.current = null;
           }
-          setIsMapReady(true);
-          map.resize();
-        });
+          return;
+        }
+        setIsMapReady(true);
+        map.resize();
       } catch (error) {
         handleError(error, {
           context: 'useGaodeMapInit',
