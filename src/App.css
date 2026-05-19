@@ -1590,12 +1590,6 @@ main {
   border-radius: 4px;
 }
 
-/* 统一调和地图配色：降低饱和度、略微提亮，贴合画廊的奶油色主题 */
-.map-wrapper canvas,
-.geo-map-container canvas {
-  filter: saturate(0.45) brightness(1.04);
-}
-
 /* 确保 MapLibre 地图容器有高度 */
 .maplibregl-map {
   width: 100%;

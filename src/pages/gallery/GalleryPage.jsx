@@ -23,6 +23,7 @@ import { usePhotoData, useLikePhoto } from './hooks/usePhotoData';
 import { useExifData, useBrowserLocation, useAltitudeFromCoords } from './hooks/useExifAndLocation';
 import { useGaodeMapInit, useFocusMapOnCity } from './hooks/useMapInit';
 import { loadMapLibre } from '../../utils/maplibreLoader';
+import { buildGaodeRasterMaplibreStyle } from '../../utils/gaodeMapStyle';
 import { escapeHtml } from '../../utils/security';
 import { TabStrip } from './components/TabStrip';
 import { PhotoGrid } from './components/PhotoGrid';
@@ -632,21 +633,7 @@ export function GalleryPage() {
       // 新建实例
       const map = new maplibregl.Map({
         container: geoMapContainerRef.current,
-        style: {
-          version: 8,
-          sources: {
-            'gaode-tiles': {
-              type: 'raster', tileSize: 256, attribution: '© 高德地图',
-              tiles: [
-                'https://webrd01.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=7&x={x}&y={y}&z={z}',
-                'https://webrd02.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=7&x={x}&y={y}&z={z}',
-                'https://webrd03.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=7&x={x}&y={y}&z={z}',
-                'https://webrd04.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=7&x={x}&y={y}&z={z}',
-              ],
-            },
-          },
-          layers: [{ id: 'gaode-tiles-layer', type: 'raster', source: 'gaode-tiles', minzoom: 3, maxzoom: 18 }],
-        },
+        style: buildGaodeRasterMaplibreStyle(8),
         center: [lon, lat], zoom: 10, attributionControl: true,
       });
       map._markers = [];

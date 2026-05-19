@@ -33,6 +33,7 @@ import { useBrandConfig } from '../hooks/useBrandConfig';
 import { useFileUpload } from '../hooks/useFileUpload';
 import { ConfigPanel } from '../components/admin/ConfigPanel';
 import { loadMapLibre } from '../utils/maplibreLoader';
+import { buildGaodeRasterMaplibreStyle } from '../utils/gaodeMapStyle';
 import { escapeHtml } from '../utils/security';
 
 const tabs = [
@@ -619,32 +620,9 @@ export function AdminPage() {
         zoom = 10;
       }
 
-      // 使用高德地图瓦片服务（中文标注，稳定可靠）
       locationMapInstance.current = new maplibregl.Map({
         container: locationMapContainerRef.current,
-        style: {
-          version: 8,
-          sources: {
-            'gaode-tiles': {
-              type: 'raster',
-              tiles: [
-                'https://webrd01.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}',
-                'https://webrd02.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}',
-                'https://webrd03.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}',
-                'https://webrd04.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}'
-              ],
-              tileSize: 256,
-              attribution: '© 高德地图'
-            }
-          },
-          layers: [{
-            id: 'gaode-tiles-layer',
-            type: 'raster',
-            source: 'gaode-tiles',
-            minzoom: 3,
-            maxzoom: 18
-          }]
-        },
+        style: buildGaodeRasterMaplibreStyle(8),
         center: [centerLon, centerLat],
         zoom: zoom,
         attributionControl: true,
@@ -1012,32 +990,9 @@ export function AdminPage() {
         zoom = 10;
       }
 
-      // 使用高德地图瓦片服务
       editLocationMapInstance.current = new maplibregl.Map({
         container: editLocationMapContainerRef.current,
-        style: {
-          version: 8,
-          sources: {
-            'gaode-tiles': {
-              type: 'raster',
-              tiles: [
-                'https://webrd01.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}',
-                'https://webrd02.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}',
-                'https://webrd03.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}',
-                'https://webrd04.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}'
-              ],
-              tileSize: 256,
-              attribution: '© 高德地图'
-            }
-          },
-          layers: [{
-            id: 'gaode-tiles-layer',
-            type: 'raster',
-            source: 'gaode-tiles',
-            minzoom: 3,
-            maxzoom: 18
-          }]
-        },
+        style: buildGaodeRasterMaplibreStyle(8),
         center: [centerLon, centerLat],
         zoom: zoom,
         attributionControl: true,

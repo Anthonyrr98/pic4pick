@@ -1,62 +1,24 @@
 /**
- * 地图相关的自定义 Hooks
- *
- * 生命周期保证：
- * 1. cancelled 标志覆盖所有异步分支（脚本加载、setTimeout、事件回调）
- * 2. cleanup 先置 cancelled = true，再同步销毁已存在实例，避免竞态泄漏
- * 3. 离开 explore-view 时统一销毁，进入时幂等初始化（已有实例则跳过）
- * 4. 对外暴露稳定的 resizeMap 方法，避免外部各处散乱调用
+ * 地图初始化：优先高德 JS API（远山黛），失败或无 Key 时用 MapLibre + 栅格 style=8
  */
 
 import { useEffect, useRef, useState, useCallback } from 'react';
-import type { Map as MapLibreMap, StyleSpecification } from 'maplibre-gl';
+import type { Map as MapLibreMap } from 'maplibre-gl';
 import { getEnvValue } from '../../../utils/envConfig';
 import { handleError, ErrorType } from '../../../utils/errorHandler';
 import { loadMapLibre } from '../../../utils/maplibreLoader';
+import { AMAP_MAP_STYLE_WHITESMOKE, buildGaodeRasterMaplibreStyle } from '../../../utils/gaodeMapStyle';
 
-// ── 高德瓦片地址（轮询 4 个节点）
-const GAODE_TILES = [
-  'https://webrd01.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=7&x={x}&y={y}&z={z}',
-  'https://webrd02.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=7&x={x}&y={y}&z={z}',
-  'https://webrd03.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=7&x={x}&y={y}&z={z}',
-  'https://webrd04.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=7&x={x}&y={y}&z={z}',
-];
+const MAPLIBRE_RASTER_STYLE = buildGaodeRasterMaplibreStyle(8);
 
-const MAPLIBRE_STYLE: StyleSpecification = {
-  version: 8,
-  sources: {
-    'gaode-tiles': {
-      type: 'raster',
-      tiles: GAODE_TILES,
-      tileSize: 256,
-      attribution: '© 高德地图',
-    },
-  },
-  layers: [
-    {
-      id: 'gaode-tiles-layer',
-      type: 'raster',
-      source: 'gaode-tiles',
-      minzoom: 3,
-      maxzoom: 18,
-    },
-  ],
-};
-
-/** 高德 JS SDK 初始化超时（complete 未触发则回退 MapLibre） */
 const AMAP_READY_TIMEOUT_MS = 10000;
 
-// ── 确保高德 JS SDK 只加载一次，并复用同一个 Promise
 let amapLoadPromise: Promise<void> | null = null;
 
 function waitForAmapMapReady(map: { on: (event: string, cb: () => void) => void }, timeoutMs: number): Promise<void> {
   return new Promise((resolve, reject) => {
     const timer = window.setTimeout(() => {
-      reject(
-        new Error(
-          '高德地图初始化超时（请在控制台将当前域名加入 Web Key 白名单，并配置 securityJsCode）'
-        )
-      );
+      reject(new Error('高德地图初始化超时（请检查 Web Key 白名单与 securityJsCode）'));
     }, timeoutMs);
     map.on('complete', () => {
       window.clearTimeout(timer);
@@ -75,31 +37,30 @@ function ensureAMapLoaded(amapKey: string): Promise<void> {
       (window as any)._AMapSecurityConfig = { securityJsCode };
     }
 
-    // 如果页面已插入脚本标签（上一次失败前插入），直接监听
     const existing = document.querySelector('script[data-amap-sdk]');
     if (existing) {
       existing.addEventListener('load', () => resolve());
       existing.addEventListener('error', () => {
-        amapLoadPromise = null; // 允许重试
-        reject(new Error('高德地图 SDK 脚本加载失败（请检查 Web Key / 域名白名单 / securityJsCode）'));
+        amapLoadPromise = null;
+        reject(new Error('高德地图 SDK 脚本加载失败'));
       });
       return;
     }
+
     const script = document.createElement('script');
     script.src = `https://webapi.amap.com/maps?v=2.0&key=${amapKey}`;
     script.async = true;
     script.setAttribute('data-amap-sdk', 'true');
     script.onload = () => {
-      // 少数情况下脚本 load 但 SDK 未就绪（鉴权失败等）
       if ((window as any).AMap?.Map) resolve();
       else {
         amapLoadPromise = null;
-        reject(new Error('高德地图 SDK 已加载但未初始化（请检查 Web Key / securityJsCode / 域名白名单）'));
+        reject(new Error('高德地图 SDK 未就绪（请检查 Key / securityJsCode）'));
       }
     };
     script.onerror = () => {
-      amapLoadPromise = null; // 允许重试
-      reject(new Error('高德地图 SDK 脚本加载失败（网络/CSP/Key）'));
+      amapLoadPromise = null;
+      reject(new Error('高德地图 SDK 脚本加载失败'));
     };
     document.head.appendChild(script);
   });
@@ -107,7 +68,6 @@ function ensureAMapLoaded(amapKey: string): Promise<void> {
   return amapLoadPromise;
 }
 
-// ── 主 Hook
 export const useGaodeMapInit = (
   containerRef: React.RefObject<HTMLDivElement>,
   activeView: string
@@ -118,7 +78,6 @@ export const useGaodeMapInit = (
   const [mapProvider, setMapProvider] = useState<'amap' | 'maplibre' | null>(null);
   const [mapHint, setMapHint] = useState('');
 
-  // ── 稳定的销毁辅助函数（不进入 deps）
   const destroyAMap = useCallback(() => {
     if (mapInstance.current?.destroy) mapInstance.current.destroy();
     mapInstance.current = null;
@@ -130,14 +89,12 @@ export const useGaodeMapInit = (
     maplibreInstance.current = null;
   }, []);
 
-  // ── 对外暴露：主动触发地图容器尺寸同步
   const resizeMap = useCallback(() => {
     mapInstance.current?.resize?.();
     maplibreInstance.current?.resize?.();
   }, []);
 
   useEffect(() => {
-    // 离开发现视图：同步销毁，重置状态
     if (activeView !== 'explore-view') {
       destroyAMap();
       destroyMapLibre();
@@ -148,22 +105,19 @@ export const useGaodeMapInit = (
     }
 
     if (!containerRef.current) return;
-    // 已有实例则幂等跳过（防止 StrictMode 双调用或视图来回切换时重复初始化）
     if (mapInstance.current || maplibreInstance.current) return;
 
-    // cancelled 用于取消所有进行中的异步操作
     let cancelled = false;
 
     const initMapLibreFallback = async (hintText: string) => {
       if (cancelled || !containerRef.current || maplibreInstance.current) return;
-      // 确保高德实例已清理后再创建 MapLibre
       destroyAMap();
       const maplibregl = await loadMapLibre();
       if (cancelled || !containerRef.current || maplibreInstance.current) return;
 
       const map = new maplibregl.Map({
         container: containerRef.current,
-        style: MAPLIBRE_STYLE,
+        style: MAPLIBRE_RASTER_STYLE,
         center: [105, 35],
         zoom: 3.2,
         attributionControl: true,
@@ -174,7 +128,6 @@ export const useGaodeMapInit = (
       setMapHint(hintText);
 
       map.once('load', () => {
-        // 再次检查 cancelled，load 回调可能在 cleanup 之后触发
         if (cancelled) {
           map.remove();
           if (maplibreInstance.current === map) maplibreInstance.current = null;
@@ -185,43 +138,26 @@ export const useGaodeMapInit = (
       });
     };
 
-    /** 高德 JS SDK 依赖 jsapi.amap.com，在部分网络下会被重置连接；默认用 MapLibre 瓦片 */
-    const useAmapJsSdk = getEnvValue('VITE_MAP_USE_AMAP_SDK', '') === 'true';
-
-    const initGaodeMap = async () => {
-      if (!useAmapJsSdk) {
-        await initMapLibreFallback('');
-        return;
-      }
-
+    const initMap = async () => {
       const amapKey = getEnvValue('VITE_AMAP_WEB_KEY', getEnvValue('VITE_AMAP_KEY', ''));
       const securityJsCode = getEnvValue('VITE_AMAP_SECURITY_JS_CODE', '');
-      if (!amapKey) {
-        await initMapLibreFallback('未配置高德地图 Web Key，已启用备用底图（可在后台配置面板填写）。');
-        return;
-      }
+      const forceMapLibre = getEnvValue('VITE_MAP_USE_AMAP_SDK', '') === 'false';
 
-      // 新版 Key 通常必须配 securityJsCode；缺失时直接用 MapLibre 瓦片底图，避免白屏
-      if (!securityJsCode) {
-        await initMapLibreFallback(
-          '未配置高德 securityJsCode，已使用备用底图（请在后台填写「安全密钥」后刷新）。'
-        );
+      if (!amapKey || !securityJsCode || forceMapLibre) {
+        const hint = !amapKey
+          ? '未配置高德 Web Key，已使用备用底图（style=8）。'
+          : !securityJsCode
+            ? '未配置高德 securityJsCode，已使用备用底图（style=8）。'
+            : '';
+        await initMapLibreFallback(hint);
         return;
       }
 
       try {
         await ensureAMapLoaded(amapKey);
-
-        // SDK 加载完成后检查是否已被取消（用户可能已切换视图）
         if (cancelled) return;
-        if (!containerRef.current) {
-          throw handleError(new Error('地图容器在初始化时不存在'), {
-            context: 'useGaodeMapInit.container',
-            type: ErrorType.VALIDATION,
-          });
-        }
+        if (!containerRef.current) return;
 
-        // 确保 MapLibre 已清理
         destroyMapLibre();
 
         const AMap = (window as any).AMap;
@@ -230,7 +166,7 @@ export const useGaodeMapInit = (
           zoom: 3.2,
           center: [105, 35],
           resizeEnable: true,
-          mapStyle: 'amap://styles/whitesmoke',
+          mapStyle: AMAP_MAP_STYLE_WHITESMOKE,
         });
 
         mapInstance.current = map;
@@ -253,25 +189,21 @@ export const useGaodeMapInit = (
           type: ErrorType.NETWORK,
           silent: true,
         });
-        const msg = error?.message ? String(error.message) : '高德地图加载失败';
-        await initMapLibreFallback(`${msg}，已自动切换到备用底图。`);
+        const msg = error instanceof Error ? error.message : '高德地图加载失败';
+        await initMapLibreFallback(`${msg}，已切换到备用底图（style=8）。`);
       }
     };
 
-    // 短暂延迟确保容器 DOM 已完成布局
     const timer = setTimeout(() => {
-      if (!cancelled) initGaodeMap();
+      if (!cancelled) initMap();
     }, 50);
 
     return () => {
-      // 1. 先标记取消，阻断所有未完成的异步回调
       cancelled = true;
       clearTimeout(timer);
-      // 2. 同步重置状态（不依赖异步事件）
       setIsMapReady(false);
       setMapProvider(null);
       setMapHint('');
-      // 3. 销毁已存在的实例
       destroyAMap();
       destroyMapLibre();
     };
@@ -280,7 +212,6 @@ export const useGaodeMapInit = (
   return { mapInstance, maplibreInstance, isMapReady, mapProvider, mapHint, resizeMap };
 };
 
-// ── 城市定焦 Hook
 export const useFocusMapOnCity = (
   mapInstance: React.MutableRefObject<any>,
   maplibreInstance: React.MutableRefObject<MapLibreMap | null>,
@@ -303,6 +234,6 @@ export const useFocusMapOnCity = (
         maplibreInstance.current.flyTo({ center: [lng, lat], zoom: 11, speed: 1.4 });
       }
     },
-    [isMapReady, mapProvider]
+    [isMapReady, mapProvider, mapInstance, maplibreInstance]
   );
 };
