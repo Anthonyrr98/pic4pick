@@ -132,6 +132,8 @@ export const PhotoGrid: React.FC<PhotoGridProps> = ({
                   alt={item.title}
                   loading={index < 6 ? 'eager' : 'lazy'}
                   fetchPriority={index < 6 ? 'high' : 'auto'}
+                  referrerPolicy="no-referrer"
+                  decoding="async"
                   onLoad={() => {
                     setLoadedImageIds((prev) => (prev[item.id] ? prev : { ...prev, [item.id]: true }));
                   }}

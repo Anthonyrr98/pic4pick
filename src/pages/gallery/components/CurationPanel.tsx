@@ -122,6 +122,8 @@ export const CurationPanel: React.FC<CurationPanelProps> = ({
                         src={item.image}
                         alt={item.label}
                         loading="lazy"
+                        referrerPolicy="no-referrer"
+                        decoding="async"
                         className={isImageLoaded ? 'loaded' : ''}
                         onLoad={() => {
                           setLoadedImageIds((prev) => (prev[item.id] ? prev : { ...prev, [item.id]: true }));

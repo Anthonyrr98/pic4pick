@@ -185,7 +185,15 @@ export const useGaodeMapInit = (
       });
     };
 
+    /** 高德 JS SDK 依赖 jsapi.amap.com，在部分网络下会被重置连接；默认用 MapLibre 瓦片 */
+    const useAmapJsSdk = getEnvValue('VITE_MAP_USE_AMAP_SDK', '') === 'true';
+
     const initGaodeMap = async () => {
+      if (!useAmapJsSdk) {
+        await initMapLibreFallback('');
+        return;
+      }
+
       const amapKey = getEnvValue('VITE_AMAP_WEB_KEY', getEnvValue('VITE_AMAP_KEY', ''));
       const securityJsCode = getEnvValue('VITE_AMAP_SECURITY_JS_CODE', '');
       if (!amapKey) {
