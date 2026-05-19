@@ -7,7 +7,7 @@ import type { Map as MapLibreMap } from 'maplibre-gl';
 import { getEnvValue } from '../../../utils/envConfig';
 import { handleError, ErrorType } from '../../../utils/errorHandler';
 import { loadMapLibre } from '../../../utils/maplibreLoader';
-import { AMAP_MAP_STYLE_WHITESMOKE, getDefaultMaplibreStyle } from '../../../utils/gaodeMapStyle';
+import { getActiveMapStylePreset, getDefaultMaplibreStyle } from '../../../utils/gaodeMapStyle';
 
 const AMAP_READY_TIMEOUT_MS = 10000;
 
@@ -152,7 +152,8 @@ export const useGaodeMapInit = (
     const initMap = async () => {
       const amapKey = getEnvValue('VITE_AMAP_WEB_KEY', getEnvValue('VITE_AMAP_KEY', ''));
       const securityJsCode = getEnvValue('VITE_AMAP_SECURITY_JS_CODE', '');
-      const useAmapSdk = getEnvValue('VITE_MAP_USE_AMAP_SDK', '') === 'true';
+      const mapPreset = getActiveMapStylePreset();
+      const useAmapSdk = mapPreset.kind === 'amap-js';
 
       if (!useAmapSdk || !amapKey || !securityJsCode) {
         await initMapLibreFallback();
@@ -172,7 +173,7 @@ export const useGaodeMapInit = (
           zoom: 3.2,
           center: [105, 35],
           resizeEnable: true,
-          mapStyle: AMAP_MAP_STYLE_WHITESMOKE,
+          mapStyle: mapPreset.amapStyle || 'amap://styles/normal',
         });
 
         mapInstance.current = map;

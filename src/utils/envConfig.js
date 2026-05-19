@@ -32,6 +32,8 @@ export const ENV_OVERRIDE_KEYS = [
   'VITE_AMAP_KEY', // legacy fallback
   'VITE_MAP_USE_AMAP_SDK',
   'VITE_GAODE_RASTER_STYLE',
+  'VITE_MAP_STYLE_PRESET',
+  'VITE_AMAP_MAP_STYLE',
   'VITE_ADMIN_PASSWORD',
 ];
 
@@ -46,7 +48,12 @@ export const getEnvValue = (key, fallback = '') => {
 
 export const getEnvOverrides = () => ({ ...readOverrides() });
 
-const MAP_CONFIG_KEYS = ['VITE_GAODE_RASTER_STYLE', 'VITE_MAP_USE_AMAP_SDK'];
+const MAP_CONFIG_KEYS = [
+  'VITE_GAODE_RASTER_STYLE',
+  'VITE_MAP_USE_AMAP_SDK',
+  'VITE_MAP_STYLE_PRESET',
+  'VITE_AMAP_MAP_STYLE',
+];
 
 export const notifyMapConfigChanged = () => {
   if (typeof window !== 'undefined') {

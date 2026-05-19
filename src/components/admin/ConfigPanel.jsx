@@ -6,10 +6,11 @@
 import { useEffect, useRef } from 'react';
 import { getEnvValue, updateEnvOverrides, resetEnvOverrides, ENV_OVERRIDE_KEYS } from '../../utils/envConfig';
 import {
-  MAP_STYLE_PRESETS,
   getMapStylePresetFromEnv,
+  getMapStylePresetById,
   mapStylePresetToEnvUpdates,
 } from '../../utils/gaodeMapStyle';
+import { MapStylePicker } from './MapStylePicker';
 import {
   BRAND_LOGO_MAX_SIZE,
   BRAND_LOGO_SUPABASE_TABLE,
@@ -358,40 +359,22 @@ export const ConfigPanel = ({
           <div>
             <h2 className="admin-settings-card-title">地图样式</h2>
             <p className="admin-settings-card-subtitle">
-              控制前台发现页与选点地图的底图。保存后发现页地图会自动切换；不含卫星影像。
+              点击缩略图选择底图。栅格样式无需 JS SDK；标有 JS 的主题需配置高德 Key 且网络可访问高德 API。
             </p>
           </div>
         </div>
 
-        <div className="form-group" style={{ maxWidth: '480px' }}>
-          <label htmlFor="mapStylePreset">底图类型</label>
-          <select
-            id="mapStylePreset"
-            name="mapStylePreset"
-            value={envConfigForm.mapStylePreset || 'street'}
-            onChange={handleEnvConfigChange}
-            style={{
-              width: '100%',
-              padding: '10px 14px',
-              borderRadius: '10px',
-              border: '1px solid var(--border)',
-              background: 'rgba(255, 255, 255, 0.05)',
-              color: 'var(--text)',
-            }}
-          >
-            {MAP_STYLE_PRESETS.map((preset) => (
-              <option key={preset.id} value={preset.id}>
-                {preset.label}
-              </option>
-            ))}
-          </select>
-          <p style={{ marginTop: '8px', fontSize: '0.85rem', color: 'var(--muted)', lineHeight: 1.5 }}>
-            {MAP_STYLE_PRESETS.find((p) => p.id === (envConfigForm.mapStylePreset || 'street'))?.description}
-          </p>
-        </div>
+        <MapStylePicker
+          value={envConfigForm.mapStylePreset || 'street'}
+          onChange={(id) => setEnvConfigForm((prev) => ({ ...prev, mapStylePreset: id }))}
+        />
 
-        <p style={{ marginTop: '12px', fontSize: '0.85rem', color: 'var(--muted)' }}>
-          与上方 API Key 一并点击「保存配置」生效。选择「远山黛」前请确保已填写高德 Web Key 与安全密钥。
+        <p style={{ marginTop: '12px', fontSize: '0.85rem', color: 'var(--muted)', lineHeight: 1.5 }}>
+          当前：{getMapStylePresetById(envConfigForm.mapStylePreset || 'street').description}
+        </p>
+
+        <p style={{ marginTop: '8px', fontSize: '0.85rem', color: 'var(--muted)' }}>
+          与上方 API Key 一并点击「保存配置」生效。栅格缩略图为真实瓦片预览；JS 主题为示意配色。
         </p>
       </section>
 
