@@ -5,7 +5,7 @@
 import React, { useEffect, useState } from 'react';
 import { GalleryPhoto } from '../utils/photoDataUtils';
 import { handleError, ErrorType } from '../../../utils/errorHandler';
-import { ensureHttps, resolveMediaUrl } from '../../../utils/urlUtils';
+import { getDirectMediaUrl, resolveMediaUrl } from '../../../utils/urlUtils';
 
 interface PhotoGridProps {
   photos: GalleryPhoto[];
@@ -121,8 +121,8 @@ export const PhotoGrid: React.FC<PhotoGridProps> = ({
         const liked = likedPhotoIds.includes(item.id);
         const likeCount = typeof item.likes === 'number' ? item.likes : 0;
         const rawSrc = item.thumbnail || item.image;
-        const imageSrc = resolveMediaUrl(rawSrc);
-        const directSrc = ensureHttps(rawSrc);
+        const directSrc = getDirectMediaUrl(rawSrc);
+        const imageSrc = resolveMediaUrl(directSrc);
         return (
           <article
             key={item.id}

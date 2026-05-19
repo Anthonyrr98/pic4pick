@@ -29,7 +29,6 @@ import { TabStrip } from './components/TabStrip';
 import { PhotoGrid } from './components/PhotoGrid';
 import { CurationPanel } from './components/CurationPanel';
 import { LocationPanel } from './components/LocationPanel';
-import { HomeIntroSplash } from '../../components/HomeIntroSplash';
 
 function ApertureIcon(props) {
   return (
@@ -660,10 +659,6 @@ export function GalleryPage() {
   // ── Render
   return (
     <div className={`app-shell ${activeView === 'explore-view' ? 'explore-mode' : ''}`}>
-      <HomeIntroSplash
-        videoSrc={import.meta.env.VITE_HOME_INTRO_VIDEO || '/intro-splash.webm'}
-        imageSrc={import.meta.env.VITE_HOME_INTRO_IMAGE || '/intro-splash.png'}
-      />
       <header className="app-header">
         <div className={`brand ${activeView === 'explore-view' ? 'brand-anchor-only' : ''}`}>
           {brandLogo

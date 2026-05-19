@@ -11,6 +11,38 @@
  * @returns {string} - 转换后的 URL
  */
 const ALIYUN_OSS_HOST_RE = /\.aliyuncs\.com$/i;
+const MEDIA_PROXY_PATH = '/api/media/proxy';
+
+/** 从代理 URL 还原为原始 OSS/直链地址（兼容历史 localStorage 中的代理 URL） */
+export const getDirectMediaUrl = (url) => {
+  const httpsUrl = ensureHttps(url);
+  if (!httpsUrl) return '';
+
+  const tryUnwrap = (candidate) => {
+    try {
+      const base =
+        typeof window !== 'undefined' ? window.location.origin : 'http://localhost';
+      const parsed = new URL(candidate, base);
+      if (!parsed.pathname.endsWith(MEDIA_PROXY_PATH)) return null;
+      const inner = parsed.searchParams.get('url');
+      return inner ? ensureHttps(decodeURIComponent(inner)) : null;
+    } catch {
+      return null;
+    }
+  };
+
+  if (httpsUrl.startsWith(MEDIA_PROXY_PATH)) {
+    const inner = tryUnwrap(httpsUrl);
+    if (inner) return inner;
+  }
+
+  if (httpsUrl.includes(`${MEDIA_PROXY_PATH}?`)) {
+    const inner = tryUnwrap(httpsUrl);
+    if (inner) return inner;
+  }
+
+  return httpsUrl;
+};
 
 export const ensureHttps = (url) => {
   if (!url || typeof url !== 'string') {
@@ -36,7 +68,7 @@ export const ensureHttps = (url) => {
  * 设置 VITE_USE_OSS_MEDIA_PROXY=false 可关闭
  */
 export const resolveMediaUrl = (url) => {
-  const httpsUrl = ensureHttps(url);
+  const httpsUrl = getDirectMediaUrl(url);
   if (!httpsUrl) return '';
 
   if (import.meta.env.VITE_USE_OSS_MEDIA_PROXY === 'false') {
