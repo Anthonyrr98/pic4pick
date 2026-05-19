@@ -2,7 +2,7 @@
  * 照片数据处理和映射工具
  */
 
-import { getProvinceFromCoords } from './geoUtils';
+import { getProvinceFromCoords, normalizeLngLat } from './geoUtils';
 import { provinceCityData, cityMeta, MUNICIPALITY_PROVINCES } from '../constants/locationData';
 
 export interface GalleryPhoto {
@@ -237,16 +237,11 @@ export const buildCurationGroups = (cityPhotoMap: Map<string, any>): CurationGro
     const provinceData = provinceMap.get(provinceId);
     if (!provinceData.cities.has(cityName)) {
       let coords = cityMeta[cityName] || {};
-      if (
-        !coords.lat &&
-        photos.length > 0 &&
-        photos[0].latitude != null &&
-        photos[0].longitude != null
-      ) {
-        coords = {
-          lat: Number(photos[0].latitude),
-          lng: Number(photos[0].longitude),
-        };
+      if (!coords.lat && photos.length > 0) {
+        const normalized = normalizeLngLat(photos[0].latitude, photos[0].longitude);
+        if (normalized) {
+          coords = { lat: normalized.lat, lng: normalized.lng };
+        }
       }
 
       provinceData.cities.set(cityName, {
@@ -294,10 +289,9 @@ export const buildPhotosByLocation = (photos: GalleryPhoto[]): LocationGroup[] =
   const groups = new Map<string, LocationGroup>();
 
   photos.forEach((p) => {
-    if (p.latitude == null || p.longitude == null) return;
-    const lat = Number(p.latitude);
-    const lng = Number(p.longitude);
-    if (Number.isNaN(lat) || Number.isNaN(lng)) return;
+    const coords = normalizeLngLat(p.latitude, p.longitude);
+    if (!coords) return;
+    const { lat, lng } = coords;
 
     const key = `${lat.toFixed(3)},${lng.toFixed(3)}`;
     if (!groups.has(key)) {

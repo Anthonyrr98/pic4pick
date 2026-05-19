@@ -133,7 +133,12 @@ export function GalleryPage() {
     mapHint: exploreMapHint,
     resizeMap,
   } = useGaodeMapInit(mapContainerRef, activeView);
-  const focusMapOnCity = useFocusMapOnCity(mapInstance, isMapReady);
+  const focusMapOnCity = useFocusMapOnCity(
+    mapInstance,
+    maplibreExploreInstance,
+    exploreMapProvider,
+    isMapReady
+  );
 
   // 鈹€鈹€ 娲剧敓鏁版嵁
   const allPhotos = useMemo(() => approvedPhotos.filter((p) => !p.hidden), [approvedPhotos]);
@@ -464,33 +469,22 @@ export function GalleryPage() {
       const maplibregl = exploreMapProvider === 'maplibre' ? await ensureMapLibre() : null;
       if (cancelled) return;
       const palette = ['#cfa56a', '#111218', '#9b9dad', '#d48a48'];
-      const markerEls = [];
+      const markerDots = [];
       photosByLocation.forEach((group, index) => {
-      const el = document.createElement('div');
-      el.className = 'explore-marker';
       const color = palette[index % palette.length];
-      el.style.cssText = [
+      const anchor = document.createElement('div');
+      anchor.style.cssText = 'display:block;line-height:0;';
+      const dot = document.createElement('div');
+      dot.className = 'explore-marker';
+      dot.style.cssText = [
         'width:9px', 'height:9px', 'border-radius:999px',
         `background:${color}`, 'border:2px solid #ffffff',
         'box-shadow:0 0 0 1px rgba(0,0,0,0.35),0 6px 12px rgba(0,0,0,0.25)',
         'cursor:pointer', 'transition:transform 0.2s ease,opacity 0.2s ease',
         'opacity:0', 'transform:scale(0)',
       ].join(';');
-      if (exploreMapProvider === 'amap') {
-        if (!mapInstance.current || !window.AMap) return;
-        const marker = new window.AMap.Marker({
-          position: [group.lng, group.lat], content: el,
-          offset: new window.AMap.Pixel(-6, -6), map: mapInstance.current,
-        });
-        exploreMarkersRef.current.push(marker);
-      } else if (exploreMapProvider === 'maplibre') {
-        if (!maplibreExploreInstance.current || !maplibregl) return;
-        const marker = new maplibregl.Marker({ element: el, anchor: 'center' })
-          .setLngLat([group.lng, group.lat])
-          .addTo(maplibreExploreInstance.current);
-        exploreMaplibreMarkersRef.current.push(marker);
-      } else { return; }
-      el.addEventListener('click', () => {
+      anchor.appendChild(dot);
+      anchor.addEventListener('click', () => {
         showLocationPanel({
           title: group.location || group.country || '未命名地点',
           subtitle: group.country
@@ -500,11 +494,26 @@ export function GalleryPage() {
           emptyMessage: group.photos.length === 0 ? '当前地点暂时没有图库照片' : '',
         });
       });
-      markerEls.push(el);
+      if (exploreMapProvider === 'amap') {
+        if (!mapInstance.current || !window.AMap) return;
+        const marker = new window.AMap.Marker({
+          position: [group.lng, group.lat], content: anchor,
+          offset: new window.AMap.Pixel(-6, -6), map: mapInstance.current,
+        });
+        exploreMarkersRef.current.push(marker);
+      } else if (exploreMapProvider === 'maplibre') {
+        if (!maplibreExploreInstance.current || !maplibregl) return;
+        const marker = new maplibregl.Marker({ element: anchor, anchor: 'center' })
+          .setLngLat([group.lng, group.lat])
+          .addTo(maplibreExploreInstance.current);
+        exploreMaplibreMarkersRef.current.push(marker);
+      } else { return; }
+      markerDots.push(dot);
       });
-      markerEls.forEach((el, i) => {
-        if (i === 0) { requestAnimationFrame(() => { el.style.opacity = '1'; el.style.transform = 'scale(1)'; }); }
-        else { setTimeout(() => { el.style.opacity = '1'; el.style.transform = 'scale(1)'; }, i * 10); }
+      markerDots.forEach((dot, i) => {
+        const reveal = () => { dot.style.opacity = '1'; dot.style.transform = 'scale(1)'; };
+        if (i === 0) requestAnimationFrame(reveal);
+        else setTimeout(reveal, i * 10);
       });
     };
     drawMarkers();
@@ -527,15 +536,18 @@ export function GalleryPage() {
     const addCurrentMarker = async () => {
       const maplibregl = exploreMapProvider === 'maplibre' ? await ensureMapLibre() : null;
       if (cancelled) return;
-      const el = document.createElement('div');
-      el.style.cssText = 'width:12px;height:12px;border-radius:999px;background:rgba(80,155,255,0.9);border:2px solid #ffffff;box-shadow:0 0 0 1px rgba(0,0,0,0.3),0 4px 10px rgba(0,0,0,0.25);position:relative;z-index:1000;display:block;';
+      const locAnchor = document.createElement('div');
+      locAnchor.style.cssText = 'display:block;line-height:0;';
+      const locDot = document.createElement('div');
+      locDot.style.cssText = 'width:12px;height:12px;border-radius:999px;background:rgba(80,155,255,0.9);border:2px solid #ffffff;box-shadow:0 0 0 1px rgba(0,0,0,0.3),0 4px 10px rgba(0,0,0,0.25);position:relative;z-index:1000;display:block;';
+      locAnchor.appendChild(locDot);
       if (exploreMapProvider === 'amap' && mapInstance.current && window.AMap) {
         currentLocationMarkerRef.current = new window.AMap.Marker({
-          position: [browserLocation.lon, browserLocation.lat], content: el,
+          position: [browserLocation.lon, browserLocation.lat], content: locAnchor,
           offset: new window.AMap.Pixel(-6, -6), map: mapInstance.current, zIndex: 1000,
         });
       } else if (exploreMapProvider === 'maplibre' && maplibreExploreInstance.current && maplibregl) {
-        currentLocationMaplibreMarkerRef.current = new maplibregl.Marker({ element: el, anchor: 'center' })
+        currentLocationMaplibreMarkerRef.current = new maplibregl.Marker({ element: locAnchor, anchor: 'center' })
           .setLngLat([browserLocation.lon, browserLocation.lat])
           .addTo(maplibreExploreInstance.current);
       }

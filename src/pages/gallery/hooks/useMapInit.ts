@@ -283,25 +283,26 @@ export const useGaodeMapInit = (
 // ── 城市定焦 Hook
 export const useFocusMapOnCity = (
   mapInstance: React.MutableRefObject<any>,
+  maplibreInstance: React.MutableRefObject<MapLibreMap | null>,
+  mapProvider: 'amap' | 'maplibre' | null,
   isMapReady: boolean
 ) => {
   return useCallback(
     (lng: number, lat: number) => {
-      if (!isMapReady || !mapInstance.current) return;
-      if (lng == null || lat == null) return;
+      if (!isMapReady || lng == null || lat == null) return;
 
-      const map = mapInstance.current;
-      const isAMap = typeof map.setZoomAndCenter === 'function';
-
-      if (isAMap) {
+      if (mapProvider === 'amap' && mapInstance.current) {
+        const map = mapInstance.current;
         const currentZoom = typeof map.getZoom === 'function' ? map.getZoom() : 5.5;
         const targetZoom = Math.min(Math.max(currentZoom, 10.2), 15.2);
         map.setZoomAndCenter(targetZoom, [lng, lat]);
-      } else {
-        // MapLibre 备用底图
-        (map as MapLibreMap).flyTo({ center: [lng, lat], zoom: 11, speed: 1.4 });
+        return;
+      }
+
+      if (mapProvider === 'maplibre' && maplibreInstance.current) {
+        maplibreInstance.current.flyTo({ center: [lng, lat], zoom: 11, speed: 1.4 });
       }
     },
-    [isMapReady] // mapInstance 是 ref，不需要加入 deps
+    [isMapReady, mapProvider]
   );
 };

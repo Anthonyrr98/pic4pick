@@ -35,6 +35,29 @@ export const calculateDistance = (
   return Math.round(R * c);
 };
 
+/**
+ * 规范化经纬度：修正明显填反、越界的值
+ * 中国境内常见情况：经度(70–140) > 纬度(15–55)
+ */
+export const normalizeLngLat = (
+  latitude: number | string | null | undefined,
+  longitude: number | string | null | undefined
+): { lat: number; lng: number } | null => {
+  let lat = Number(latitude);
+  let lng = Number(longitude);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+
+  // 纬经度列填反：纬度列出现东半球经度量级
+  if (lat > 60 && lng < 55) {
+    [lat, lng] = [lng, lat];
+  } else if (Math.abs(lat) > 90 && Math.abs(lng) <= 90) {
+    [lat, lng] = [lng, lat];
+  }
+
+  if (Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
+  return { lat, lng };
+};
+
 // 根据经纬度判断省份
 export const getProvinceFromCoords = (lat: number, lng: number): { id: string; title: string } | null => {
   if (!lat || !lng || isNaN(lat) || isNaN(lng)) return null;
