@@ -33,7 +33,7 @@ import { useBrandConfig } from '../hooks/useBrandConfig';
 import { useFileUpload } from '../hooks/useFileUpload';
 import { ConfigPanel } from '../components/admin/ConfigPanel';
 import { loadMapLibre } from '../utils/maplibreLoader';
-import { DEFAULT_MAPLIBRE_STYLE } from '../utils/gaodeMapStyle';
+import { getDefaultMaplibreStyle, getMapStylePresetFromEnv } from '../utils/gaodeMapStyle';
 import { escapeHtml } from '../utils/security';
 
 const tabs = [
@@ -118,6 +118,7 @@ export function AdminPage() {
     amapWebKey: getEnvValue('VITE_AMAP_WEB_KEY', getEnvValue('VITE_AMAP_KEY', '')),
     amapSecurityJsCode: getEnvValue('VITE_AMAP_SECURITY_JS_CODE', ''),
     amapServiceKey: getEnvValue('VITE_AMAP_WEB_SERVICE_KEY', getEnvValue('VITE_AMAP_KEY', '')),
+    mapStylePreset: getMapStylePresetFromEnv(),
   }));
   const [envConfigMessage, setEnvConfigMessage] = useState({ type: '', text: '' });
   const importFileInputRef = useRef(null);
@@ -622,7 +623,7 @@ export function AdminPage() {
 
       locationMapInstance.current = new maplibregl.Map({
         container: locationMapContainerRef.current,
-        style: DEFAULT_MAPLIBRE_STYLE,
+        style: getDefaultMaplibreStyle(),
         center: [centerLon, centerLat],
         zoom: zoom,
         attributionControl: true,
@@ -992,7 +993,7 @@ export function AdminPage() {
 
       editLocationMapInstance.current = new maplibregl.Map({
         container: editLocationMapContainerRef.current,
-        style: DEFAULT_MAPLIBRE_STYLE,
+        style: getDefaultMaplibreStyle(),
         center: [centerLon, centerLat],
         zoom: zoom,
         attributionControl: true,

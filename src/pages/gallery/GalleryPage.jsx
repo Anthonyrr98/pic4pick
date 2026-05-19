@@ -23,7 +23,7 @@ import { usePhotoData, useLikePhoto } from './hooks/usePhotoData';
 import { useExifData, useBrowserLocation, useAltitudeFromCoords } from './hooks/useExifAndLocation';
 import { useGaodeMapInit, useFocusMapOnCity } from './hooks/useMapInit';
 import { loadMapLibre } from '../../utils/maplibreLoader';
-import { DEFAULT_MAPLIBRE_STYLE } from '../../utils/gaodeMapStyle';
+import { getDefaultMaplibreStyle } from '../../utils/gaodeMapStyle';
 import { escapeHtml } from '../../utils/security';
 import { TabStrip } from './components/TabStrip';
 import { PhotoGrid } from './components/PhotoGrid';
@@ -632,7 +632,7 @@ export function GalleryPage() {
       // 新建实例
       const map = new maplibregl.Map({
         container: geoMapContainerRef.current,
-        style: DEFAULT_MAPLIBRE_STYLE,
+        style: getDefaultMaplibreStyle(),
         center: [lon, lat], zoom: 10, attributionControl: true,
       });
       map._markers = [];

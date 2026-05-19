@@ -7,9 +7,7 @@ import type { Map as MapLibreMap } from 'maplibre-gl';
 import { getEnvValue } from '../../../utils/envConfig';
 import { handleError, ErrorType } from '../../../utils/errorHandler';
 import { loadMapLibre } from '../../../utils/maplibreLoader';
-import { AMAP_MAP_STYLE_WHITESMOKE, DEFAULT_MAPLIBRE_STYLE } from '../../../utils/gaodeMapStyle';
-
-const MAPLIBRE_RASTER_STYLE = DEFAULT_MAPLIBRE_STYLE;
+import { AMAP_MAP_STYLE_WHITESMOKE, getDefaultMaplibreStyle } from '../../../utils/gaodeMapStyle';
 
 const AMAP_READY_TIMEOUT_MS = 10000;
 
@@ -39,11 +37,20 @@ function ensureAMapLoaded(amapKey: string): Promise<void> {
 
     const existing = document.querySelector('script[data-amap-sdk]');
     if (existing) {
-      existing.addEventListener('load', () => resolve());
+      const finishExisting = () => {
+        if ((window as any).AMap?.Map) resolve();
+        else {
+          amapLoadPromise = null;
+          reject(new Error('高德地图 SDK 未就绪（请检查 Key / securityJsCode）'));
+        }
+      };
+      existing.addEventListener('load', finishExisting);
       existing.addEventListener('error', () => {
         amapLoadPromise = null;
         reject(new Error('高德地图 SDK 脚本加载失败'));
       });
+      // 脚本已加载过时不会再触发 load，需主动检查
+      queueMicrotask(finishExisting);
       return;
     }
 
@@ -76,6 +83,13 @@ export const useGaodeMapInit = (
   const maplibreInstance = useRef<MapLibreMap | null>(null);
   const [isMapReady, setIsMapReady] = useState(false);
   const [mapProvider, setMapProvider] = useState<'amap' | 'maplibre' | null>(null);
+  const [mapConfigRevision, setMapConfigRevision] = useState(0);
+
+  useEffect(() => {
+    const onMapConfigChanged = () => setMapConfigRevision((v) => v + 1);
+    window.addEventListener('pic4pick:map-config-changed', onMapConfigChanged);
+    return () => window.removeEventListener('pic4pick:map-config-changed', onMapConfigChanged);
+  }, []);
 
   const destroyAMap = useCallback(() => {
     if (mapInstance.current?.destroy) mapInstance.current.destroy();
@@ -115,7 +129,7 @@ export const useGaodeMapInit = (
 
       const map = new maplibregl.Map({
         container: containerRef.current,
-        style: MAPLIBRE_RASTER_STYLE,
+        style: getDefaultMaplibreStyle(),
         center: [105, 35],
         zoom: 3.2,
         attributionControl: true,
@@ -180,6 +194,7 @@ export const useGaodeMapInit = (
           type: ErrorType.NETWORK,
           silent: true,
         });
+        destroyAMap();
         await initMapLibreFallback();
       }
     };
@@ -196,7 +211,7 @@ export const useGaodeMapInit = (
       destroyAMap();
       destroyMapLibre();
     };
-  }, [activeView, containerRef, destroyAMap, destroyMapLibre]);
+  }, [activeView, mapConfigRevision, containerRef, destroyAMap, destroyMapLibre]);
 
   return { mapInstance, maplibreInstance, isMapReady, mapProvider, resizeMap };
 };

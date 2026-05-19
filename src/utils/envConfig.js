@@ -46,10 +46,20 @@ export const getEnvValue = (key, fallback = '') => {
 
 export const getEnvOverrides = () => ({ ...readOverrides() });
 
+const MAP_CONFIG_KEYS = ['VITE_GAODE_RASTER_STYLE', 'VITE_MAP_USE_AMAP_SDK'];
+
+export const notifyMapConfigChanged = () => {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('pic4pick:map-config-changed'));
+  }
+};
+
 export const updateEnvOverrides = (partial) => {
   const overrides = { ...readOverrides() };
+  let mapConfigTouched = false;
   Object.entries(partial || {}).forEach(([key, value]) => {
     if (!key) return;
+    if (MAP_CONFIG_KEYS.includes(key)) mapConfigTouched = true;
     const normalized = typeof value === 'string' ? value.trim() : value;
     if (normalized) {
       overrides[key] = normalized;
@@ -58,6 +68,7 @@ export const updateEnvOverrides = (partial) => {
     }
   });
   persistOverrides(overrides);
+  if (mapConfigTouched) notifyMapConfigChanged();
 };
 
 export const resetEnvOverrides = (keys) => {

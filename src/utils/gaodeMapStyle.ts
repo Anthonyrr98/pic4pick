@@ -16,8 +16,47 @@ export function getGaodeRasterTileStyle(): GaodeRasterTileStyle {
   return 8;
 }
 
-/** 默认 MapLibre 底图（发现页 / 后台小地图） */
-export const DEFAULT_MAPLIBRE_STYLE = buildGaodeRasterMaplibreStyle(getGaodeRasterTileStyle());
+/** 后台可选的地图样式（不含卫星） */
+export const MAP_STYLE_PRESETS = [
+  {
+    id: 'street',
+    label: '街道图（栅格）',
+    description: 'MapLibre + 高德街道瓦片，稳定、无需 JS SDK',
+    rasterStyle: 8 as GaodeRasterTileStyle,
+    useAmapSdk: false,
+  },
+  {
+    id: 'whitesmoke',
+    label: '远山黛（高德 JS）',
+    description: '需配置 Web Key 与安全密钥，且网络可访问高德 JS API',
+    rasterStyle: 8 as GaodeRasterTileStyle,
+    useAmapSdk: true,
+  },
+] as const;
+
+export type MapStylePresetId = (typeof MAP_STYLE_PRESETS)[number]['id'];
+
+export function getMapStylePresetFromEnv(): MapStylePresetId {
+  if (getEnvValue('VITE_MAP_USE_AMAP_SDK', '') === 'true') return 'whitesmoke';
+  return 'street';
+}
+
+export function getMapStylePresetById(id: string) {
+  return MAP_STYLE_PRESETS.find((p) => p.id === id) ?? MAP_STYLE_PRESETS[0];
+}
+
+export function mapStylePresetToEnvUpdates(presetId: string) {
+  const preset = getMapStylePresetById(presetId);
+  return {
+    VITE_GAODE_RASTER_STYLE: String(preset.rasterStyle),
+    VITE_MAP_USE_AMAP_SDK: preset.useAmapSdk ? 'true' : '',
+  };
+}
+
+/** 读取当前环境后的 MapLibre 样式（发现页 / 后台小地图） */
+export function getDefaultMaplibreStyle(): StyleSpecification {
+  return buildGaodeRasterMaplibreStyle(getGaodeRasterTileStyle());
+}
 
 /** MapLibre：高德栅格瓦片 */
 export function buildGaodeRasterMaplibreStyle(tileStyle: GaodeRasterTileStyle = getGaodeRasterTileStyle()): StyleSpecification {

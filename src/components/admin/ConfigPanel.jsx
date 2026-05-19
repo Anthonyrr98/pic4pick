@@ -6,6 +6,11 @@
 import { useEffect, useRef } from 'react';
 import { getEnvValue, updateEnvOverrides, resetEnvOverrides, ENV_OVERRIDE_KEYS } from '../../utils/envConfig';
 import {
+  MAP_STYLE_PRESETS,
+  getMapStylePresetFromEnv,
+  mapStylePresetToEnvUpdates,
+} from '../../utils/gaodeMapStyle';
+import {
   BRAND_LOGO_MAX_SIZE,
   BRAND_LOGO_SUPABASE_TABLE,
   BRAND_LOGO_SUPABASE_ID,
@@ -55,18 +60,18 @@ export const ConfigPanel = ({
         const record = Array.isArray(data) ? data[0] : null;
         const remote = record?.data || {};
         const legacyAmap = remote.VITE_AMAP_KEY || '';
+        updateEnvOverrides(remote);
         const nextForm = {
           supabaseUrl: remote.VITE_SUPABASE_URL || '',
           supabaseAnonKey: remote.VITE_SUPABASE_ANON_KEY || '',
           amapWebKey: remote.VITE_AMAP_WEB_KEY || legacyAmap,
           amapSecurityJsCode: remote.VITE_AMAP_SECURITY_JS_CODE || '',
           amapServiceKey: remote.VITE_AMAP_WEB_SERVICE_KEY || legacyAmap,
+          mapStylePreset: getMapStylePresetFromEnv(),
         };
 
         if (cancelled) return;
 
-        // 同步到本地覆写与表单（保持“刷新生效”的行为一致）
-        updateEnvOverrides(remote);
         setEnvConfigForm((prev) => ({
           ...prev,
           ...nextForm,
@@ -176,6 +181,7 @@ export const ConfigPanel = ({
       VITE_AMAP_WEB_KEY: envConfigForm.amapWebKey || '',
       VITE_AMAP_SECURITY_JS_CODE: envConfigForm.amapSecurityJsCode || '',
       VITE_AMAP_WEB_SERVICE_KEY: envConfigForm.amapServiceKey || '',
+      ...mapStylePresetToEnvUpdates(envConfigForm.mapStylePreset || 'street'),
     };
     updateEnvOverrides(updates);
     try {
@@ -189,7 +195,12 @@ export const ConfigPanel = ({
           });
         if (error) throw error;
       }
-      setEnvConfigMessage({ type: 'success', text: supabase ? '配置已保存并同步到数据库，请刷新页面生效' : '环境变量配置已保存，请刷新页面生效' });
+      setEnvConfigMessage({
+        type: 'success',
+        text: supabase
+          ? '配置已保存并同步到数据库。地图样式在发现页会自动更新；其他页面请刷新。'
+          : '配置已保存。地图样式在发现页会自动更新；其他页面请刷新。',
+      });
     } catch (e) {
       const appError = handleError(e, { context: 'handleSaveEnvConfig', type: ErrorType.NETWORK });
       setEnvConfigMessage({ type: 'error', text: `已保存到本地，但同步数据库失败：${formatErrorMessage(appError)}` });
@@ -205,6 +216,7 @@ export const ConfigPanel = ({
       amapWebKey: getEnvValue('VITE_AMAP_WEB_KEY', getEnvValue('VITE_AMAP_KEY', '')),
       amapSecurityJsCode: getEnvValue('VITE_AMAP_SECURITY_JS_CODE', ''),
       amapServiceKey: getEnvValue('VITE_AMAP_WEB_SERVICE_KEY', getEnvValue('VITE_AMAP_KEY', '')),
+      mapStylePreset: getMapStylePresetFromEnv(),
     });
     try {
       if (supabase) {
@@ -338,6 +350,49 @@ export const ConfigPanel = ({
             重置为默认
           </button>
         </div>
+      </section>
+
+      {/* 地图样式 */}
+      <section className="admin-settings-card">
+        <div className="admin-settings-card-header">
+          <div>
+            <h2 className="admin-settings-card-title">地图样式</h2>
+            <p className="admin-settings-card-subtitle">
+              控制前台发现页与选点地图的底图。保存后发现页地图会自动切换；不含卫星影像。
+            </p>
+          </div>
+        </div>
+
+        <div className="form-group" style={{ maxWidth: '480px' }}>
+          <label htmlFor="mapStylePreset">底图类型</label>
+          <select
+            id="mapStylePreset"
+            name="mapStylePreset"
+            value={envConfigForm.mapStylePreset || 'street'}
+            onChange={handleEnvConfigChange}
+            style={{
+              width: '100%',
+              padding: '10px 14px',
+              borderRadius: '10px',
+              border: '1px solid var(--border)',
+              background: 'rgba(255, 255, 255, 0.05)',
+              color: 'var(--text)',
+            }}
+          >
+            {MAP_STYLE_PRESETS.map((preset) => (
+              <option key={preset.id} value={preset.id}>
+                {preset.label}
+              </option>
+            ))}
+          </select>
+          <p style={{ marginTop: '8px', fontSize: '0.85rem', color: 'var(--muted)', lineHeight: 1.5 }}>
+            {MAP_STYLE_PRESETS.find((p) => p.id === (envConfigForm.mapStylePreset || 'street'))?.description}
+          </p>
+        </div>
+
+        <p style={{ marginTop: '12px', fontSize: '0.85rem', color: 'var(--muted)' }}>
+          与上方 API Key 一并点击「保存配置」生效。选择「远山黛」前请确保已填写高德 Web Key 与安全密钥。
+        </p>
       </section>
 
       {/* 品牌 Logo 设置 */}
