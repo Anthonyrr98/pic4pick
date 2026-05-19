@@ -23,7 +23,7 @@ import { usePhotoData, useLikePhoto } from './hooks/usePhotoData';
 import { useExifData, useBrowserLocation, useAltitudeFromCoords } from './hooks/useExifAndLocation';
 import { useGaodeMapInit, useFocusMapOnCity } from './hooks/useMapInit';
 import { loadMapLibre } from '../../utils/maplibreLoader';
-import { buildGaodeRasterMaplibreStyle } from '../../utils/gaodeMapStyle';
+import { DEFAULT_MAPLIBRE_STYLE } from '../../utils/gaodeMapStyle';
 import { escapeHtml } from '../../utils/security';
 import { TabStrip } from './components/TabStrip';
 import { PhotoGrid } from './components/PhotoGrid';
@@ -131,7 +131,6 @@ export function GalleryPage() {
     maplibreInstance: maplibreExploreInstance,
     isMapReady,
     mapProvider: exploreMapProvider,
-    mapHint: exploreMapHint,
     resizeMap,
   } = useGaodeMapInit(mapContainerRef, activeView);
   const focusMapOnCity = useFocusMapOnCity(
@@ -633,7 +632,7 @@ export function GalleryPage() {
       // 新建实例
       const map = new maplibregl.Map({
         container: geoMapContainerRef.current,
-        style: buildGaodeRasterMaplibreStyle(8),
+        style: DEFAULT_MAPLIBRE_STYLE,
         center: [lon, lat], zoom: 10, attributionControl: true,
       });
       map._markers = [];
@@ -739,16 +738,6 @@ export function GalleryPage() {
               onTogglePanelCollapse={() => setIsPanelCollapsed((p) => !p)}
             />
             <div className="map-wrapper">
-              {exploreMapHint && (
-                <div style={{ position: 'absolute', top: '18px', right: '18px', zIndex: 8,
-                  padding: '10px 12px', borderRadius: '14px',
-                  background: 'rgba(17,18,24,0.72)', color: '#fff',
-                  border: '1px solid rgba(255,255,255,0.12)',
-                  backdropFilter: 'blur(10px)',
-                  maxWidth: 'min(420px,calc(100vw - 48px))', fontSize: '0.85rem' }}>
-                  {exploreMapHint}
-                </div>
-              )}
               <div id="mapCanvas" ref={mapContainerRef} />
             </div>
           </section>

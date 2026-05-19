@@ -31,6 +31,7 @@ export const ENV_OVERRIDE_KEYS = [
   'VITE_AMAP_WEB_SERVICE_KEY',
   'VITE_AMAP_KEY', // legacy fallback
   'VITE_MAP_USE_AMAP_SDK',
+  'VITE_GAODE_RASTER_STYLE',
   'VITE_ADMIN_PASSWORD',
 ];
 

@@ -33,7 +33,7 @@ import { useBrandConfig } from '../hooks/useBrandConfig';
 import { useFileUpload } from '../hooks/useFileUpload';
 import { ConfigPanel } from '../components/admin/ConfigPanel';
 import { loadMapLibre } from '../utils/maplibreLoader';
-import { buildGaodeRasterMaplibreStyle } from '../utils/gaodeMapStyle';
+import { DEFAULT_MAPLIBRE_STYLE } from '../utils/gaodeMapStyle';
 import { escapeHtml } from '../utils/security';
 
 const tabs = [
@@ -622,7 +622,7 @@ export function AdminPage() {
 
       locationMapInstance.current = new maplibregl.Map({
         container: locationMapContainerRef.current,
-        style: buildGaodeRasterMaplibreStyle(8),
+        style: DEFAULT_MAPLIBRE_STYLE,
         center: [centerLon, centerLat],
         zoom: zoom,
         attributionControl: true,
@@ -992,7 +992,7 @@ export function AdminPage() {
 
       editLocationMapInstance.current = new maplibregl.Map({
         container: editLocationMapContainerRef.current,
-        style: buildGaodeRasterMaplibreStyle(8),
+        style: DEFAULT_MAPLIBRE_STYLE,
         center: [centerLon, centerLat],
         zoom: zoom,
         attributionControl: true,

@@ -10,6 +10,8 @@
  * @param {string} url - 要转换的 URL
  * @returns {string} - 转换后的 URL
  */
+const ALIYUN_OSS_HOST_RE = /\.aliyuncs\.com$/i;
+
 export const ensureHttps = (url) => {
   if (!url || typeof url !== 'string') {
     return url || '';
@@ -27,6 +29,29 @@ export const ensureHttps = (url) => {
 
   // 如果已经是 HTTPS 或其他协议，保持不变
   return url;
+};
+
+/**
+ * 将阿里云 OSS 直链改为经后端代理（解决浏览器无法直连 OSS 时的 ERR_CONNECTION_CLOSED）
+ * 设置 VITE_USE_OSS_MEDIA_PROXY=false 可关闭
+ */
+export const resolveMediaUrl = (url) => {
+  const httpsUrl = ensureHttps(url);
+  if (!httpsUrl) return '';
+
+  if (import.meta.env.VITE_USE_OSS_MEDIA_PROXY === 'false') {
+    return httpsUrl;
+  }
+
+  try {
+    const parsed = new URL(httpsUrl);
+    if (!ALIYUN_OSS_HOST_RE.test(parsed.hostname)) {
+      return httpsUrl;
+    }
+    return `/api/media/proxy?url=${encodeURIComponent(httpsUrl)}`;
+  } catch {
+    return httpsUrl;
+  }
 };
 
 /**

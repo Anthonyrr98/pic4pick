@@ -5,6 +5,7 @@
 import React, { useEffect, useState } from 'react';
 import { GalleryPhoto } from '../utils/photoDataUtils';
 import { handleError, ErrorType } from '../../../utils/errorHandler';
+import { ensureHttps, resolveMediaUrl } from '../../../utils/urlUtils';
 
 interface PhotoGridProps {
   photos: GalleryPhoto[];
@@ -30,6 +31,7 @@ export const PhotoGrid: React.FC<PhotoGridProps> = ({
   totalCount,
 }) => {
   const [loadedImageIds, setLoadedImageIds] = useState<Record<string, boolean>>({});
+  const [failedImageIds, setFailedImageIds] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     const currentPhotoIds = new Set(photos.map((photo) => photo.id));
@@ -37,6 +39,13 @@ export const PhotoGrid: React.FC<PhotoGridProps> = ({
       const next: Record<string, boolean> = {};
       Object.entries(prev).forEach(([id, loaded]) => {
         if (currentPhotoIds.has(id)) next[id] = loaded;
+      });
+      return next;
+    });
+    setFailedImageIds((prev) => {
+      const next: Record<string, boolean> = {};
+      Object.entries(prev).forEach(([id, failed]) => {
+        if (currentPhotoIds.has(id)) next[id] = failed;
       });
       return next;
     });
@@ -108,8 +117,12 @@ export const PhotoGrid: React.FC<PhotoGridProps> = ({
     <div className="gallery-grid">
       {photos.map((item, index) => {
         const isImageLoaded = !!loadedImageIds[item.id];
+        const imageFailed = !!failedImageIds[item.id];
         const liked = likedPhotoIds.includes(item.id);
         const likeCount = typeof item.likes === 'number' ? item.likes : 0;
+        const rawSrc = item.thumbnail || item.image;
+        const imageSrc = resolveMediaUrl(rawSrc);
+        const directSrc = ensureHttps(rawSrc);
         return (
           <article
             key={item.id}
@@ -125,28 +138,39 @@ export const PhotoGrid: React.FC<PhotoGridProps> = ({
                   className={`photo-skeleton ${isImageLoaded ? 'loaded' : ''}`}
                   aria-hidden="true"
                 />
-                {/** Keep first-screen cards high priority to avoid blank initial view. */}
-                <img
-                  className={isImageLoaded ? 'loaded' : ''}
-                  src={item.thumbnail || item.image}
-                  alt={item.title}
-                  loading={index < 6 ? 'eager' : 'lazy'}
-                  fetchPriority={index < 6 ? 'high' : 'auto'}
-                  referrerPolicy="no-referrer"
-                  decoding="async"
-                  onLoad={() => {
-                    setLoadedImageIds((prev) => (prev[item.id] ? prev : { ...prev, [item.id]: true }));
-                  }}
-                  onError={(e) => {
-                    handleError(new Error(`图片加载失败: ${item.title}`), {
-                      context: 'PhotoGrid.imageLoad',
-                      type: ErrorType.NETWORK,
-                      silent: true,
-                    });
-                    setLoadedImageIds((prev) => (prev[item.id] ? prev : { ...prev, [item.id]: true }));
-                    e.currentTarget.style.display = 'none';
-                  }}
-                />
+                {imageFailed ? (
+                  <div className="photo-load-failed" aria-label="图片加载失败">
+                    图片暂不可用
+                  </div>
+                ) : (
+                  <img
+                    className={isImageLoaded ? 'loaded' : ''}
+                    src={imageSrc}
+                    alt={item.title}
+                    loading={index < 6 ? 'eager' : 'lazy'}
+                    fetchPriority={index < 6 ? 'high' : 'auto'}
+                    referrerPolicy="no-referrer"
+                    decoding="async"
+                    onLoad={() => {
+                      setLoadedImageIds((prev) => (prev[item.id] ? prev : { ...prev, [item.id]: true }));
+                    }}
+                    onError={(e) => {
+                      const img = e.currentTarget;
+                      if (img.dataset.fallback !== '1' && imageSrc !== directSrc) {
+                        img.dataset.fallback = '1';
+                        img.src = directSrc;
+                        return;
+                      }
+                      handleError(new Error(`图片加载失败: ${item.title}`), {
+                        context: 'PhotoGrid.imageLoad',
+                        type: ErrorType.NETWORK,
+                        silent: true,
+                      });
+                      setLoadedImageIds((prev) => (prev[item.id] ? prev : { ...prev, [item.id]: true }));
+                      setFailedImageIds((prev) => ({ ...prev, [item.id]: true }));
+                    }}
+                  />
+                )}
               </>
             ) : (
               <div

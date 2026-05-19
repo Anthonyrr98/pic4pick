@@ -917,6 +917,18 @@ main {
   opacity: 0;
 }
 
+.photo-load-failed {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--panel, #e6e1d8);
+  color: var(--muted, #888);
+  font-size: 0.85rem;
+}
+
 @keyframes photo-skeleton-shimmer {
   0% {
     background-position: 200% 0;

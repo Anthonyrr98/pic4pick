@@ -4,7 +4,7 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { Storage, STORAGE_KEYS } from '../../../utils/storage';
-import { ensureHttps } from '../../../utils/urlUtils';
+import { ensureHttps, resolveMediaUrl } from '../../../utils/urlUtils';
 import { handleError, safeAsync, ErrorType } from '../../../utils/errorHandler';
 import { GalleryPhoto } from '../utils/photoDataUtils';
 
@@ -13,9 +13,9 @@ const loadApprovedPhotos = (): GalleryPhoto[] => {
   const photos = Storage.get(STORAGE_KEYS.APPROVED_PHOTOS, []);
   return photos.map((photo: any) => ({
     ...photo,
-    image: ensureHttps(photo.image || ''),
-    thumbnail: ensureHttps(photo.thumbnail || photo.preview || ''),
-    preview: ensureHttps(photo.preview || photo.thumbnail || ''),
+    image: resolveMediaUrl(photo.image || ''),
+    thumbnail: resolveMediaUrl(photo.thumbnail || photo.preview || ''),
+    preview: resolveMediaUrl(photo.preview || photo.thumbnail || ''),
   }));
 };
 
@@ -30,7 +30,7 @@ const mapSupabaseRowToGalleryPhoto = (row: any): GalleryPhoto => {
     country: row.country || '',
     location: row.location || '',
     category: row.category || 'featured',
-    image: ensureHttps(imageUrl),
+    image: resolveMediaUrl(imageUrl),
     focal: row.focal || '50mm',
     aperture: row.aperture || 'f/2.8',
     shutter: row.shutter || '1/125s',
@@ -44,7 +44,7 @@ const mapSupabaseRowToGalleryPhoto = (row: any): GalleryPhoto => {
     altitude: row.altitude ?? null,
     tags: row.tags || '',
     createdAt: row.created_at || row.createdAt || null,
-    thumbnail: ensureHttps(thumbnailUrl),
+    thumbnail: resolveMediaUrl(thumbnailUrl),
     hidden: row.hidden ?? false,
     shotDate: row.shot_date || null,
     rating: typeof row.rating === 'number' ? row.rating : null,

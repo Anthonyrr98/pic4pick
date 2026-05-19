@@ -171,6 +171,42 @@ if (process.env.ALIYUN_OSS_REGION && process.env.ALIYUN_OSS_BUCKET &&
   console.log('✅ 阿里云 OSS 客户端已初始化');
 }
 
+const OSS_OBJECT_KEY_PREFIX_RE = /^(origin|ore|pic4pick)\//;
+
+function parseAllowedOssObjectKey(rawUrl) {
+  if (!rawUrl || typeof rawUrl !== 'string') return null;
+  let parsed;
+  try {
+    parsed = new URL(rawUrl);
+  } catch {
+    return null;
+  }
+  if (!parsed.hostname.endsWith('.aliyuncs.com')) return null;
+  const key = decodeURIComponent(parsed.pathname.replace(/^\//, ''));
+  if (!key || !OSS_OBJECT_KEY_PREFIX_RE.test(key)) return null;
+  return key;
+}
+
+app.get('/api/media/proxy', async (req, res) => {
+  try {
+    if (!ossClient) {
+      return res.status(503).json({ error: 'OSS 客户端未配置' });
+    }
+    const objectKey = parseAllowedOssObjectKey(req.query.url);
+    if (!objectKey) {
+      return res.status(400).json({ error: '无效或不允许的 OSS URL' });
+    }
+    const result = await ossClient.getStream(objectKey);
+    const contentType = result.res?.headers?.['content-type'] || 'application/octet-stream';
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    result.stream.pipe(res);
+  } catch (error) {
+    console.error('OSS 代理读取失败:', error.message);
+    res.status(404).json({ error: '文件不存在或无法读取' });
+  }
+});
+
 // 上传到阿里云 OSS（后端代理）
 app.post('/api/upload/oss', upload.single('file'), async (req, res) => {
   try {
