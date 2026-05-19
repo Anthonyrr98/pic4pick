@@ -2463,7 +2463,6 @@ export function AdminPage() {
 
         {/* 内容区域 / 配置区域 */}
         {activeTab === 'config' ? (
-          <div className="admin-settings-grid">
             <ConfigPanel
               supabase={supabase}
               envConfigForm={envConfigForm}
@@ -2482,7 +2481,6 @@ export function AdminPage() {
               onImportPhotos={handleImportPhotos}
               importFileInputRef={importFileInputRef}
             />
-                </div>
         ) : (
         <div className="admin-content-wrapper">
           {activeTab === 'upload' && (

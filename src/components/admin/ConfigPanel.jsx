@@ -3,7 +3,7 @@
  * 环境变量配置、品牌 Logo、品牌标题等
  */
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { getEnvValue, updateEnvOverrides, resetEnvOverrides, ENV_OVERRIDE_KEYS } from '../../utils/envConfig';
 import {
   getMapStylePresetFromEnv,
@@ -24,6 +24,12 @@ import {
 import { handleError, formatErrorMessage, ErrorType } from '../../utils/errorHandler';
 import { STORAGE_KEYS } from '../../utils/storage';
 
+const SETTINGS_SECTIONS = [
+  { id: 'env', label: '环境变量' },
+  { id: 'map-style', label: '地图样式' },
+  { id: 'logo', label: '品牌 Logo' },
+  { id: 'brand-text', label: '品牌标题' },
+];
 export const ConfigPanel = ({
   supabase,
   envConfigForm,
@@ -43,6 +49,7 @@ export const ConfigPanel = ({
   importFileInputRef,
 }) => {
   const logoFileInputRef = useRef(null);
+  const [activeSection, setActiveSection] = useState('env');
 
   // 从云端回填环境变量配置（若 Supabase 可用）
   useEffect(() => {
@@ -272,8 +279,25 @@ export const ConfigPanel = ({
   };
 
   return (
-    <>
-      {/* 环境变量配置 */}
+    <div className="admin-settings-layout">
+      <aside className="admin-settings-sidebar" aria-label="设置分类">
+        <nav className="admin-settings-nav">
+          {SETTINGS_SECTIONS.map(({ id, label }) => (
+            <button
+              key={id}
+              type="button"
+              className={`admin-settings-nav-item${activeSection === id ? ' active' : ''}`}
+              onClick={() => setActiveSection(id)}
+              aria-current={activeSection === id ? 'page' : undefined}
+            >
+              {label}
+            </button>
+          ))}
+        </nav>
+      </aside>
+      <main className="admin-settings-main">
+        <div className="admin-settings-main-inner">
+      {activeSection === 'env' && (
       <section className="admin-settings-card">
         <div className="admin-settings-card-header">
           <div>
@@ -352,8 +376,9 @@ export const ConfigPanel = ({
           </button>
         </div>
       </section>
+      )}
 
-      {/* 地图样式 */}
+      {activeSection === 'map-style' && (
       <section className="admin-settings-card">
         <div className="admin-settings-card-header">
           <div>
@@ -377,8 +402,9 @@ export const ConfigPanel = ({
           与上方 API Key 一并点击「保存配置」生效。栅格缩略图为真实瓦片预览；JS 主题为示意配色。
         </p>
       </section>
+      )}
 
-      {/* 品牌 Logo 设置 */}
+      {activeSection === 'logo' && (
       <section className="admin-settings-card">
         <div className="admin-settings-card-header">
           <div>
@@ -434,8 +460,9 @@ export const ConfigPanel = ({
           style={{ display: 'none' }}
         />
       </section>
+      )}
 
-      {/* 品牌标题设置 */}
+      {activeSection === 'brand-text' && (
       <section className="admin-settings-card">
         <div className="admin-settings-card-header">
           <div>
@@ -549,7 +576,10 @@ export const ConfigPanel = ({
           </button>
         </div>
       </section>
-    </>
+      )}
+        </div>
+      </main>
+    </div>
   );
 };
 
