@@ -120,7 +120,7 @@ export const usePhotoData = (supabase: any) => {
           const mapped = (data || []).map(mapSupabaseRowToGalleryPhoto);
           console.log(`从 Supabase 加载了 ${mapped.length} 张已审核通过的照片`);
           setApprovedPhotos(mapped);
-          Storage.set(STORAGE_KEYS.APPROVED_PHOTOS, mapped);
+          Storage.remove(STORAGE_KEYS.APPROVED_PHOTOS);
           setSupabaseError('');
         }
       } catch (error) {

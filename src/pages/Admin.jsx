@@ -100,6 +100,12 @@ const STORAGE_KEY = STORAGE_KEYS.ADMIN_UPLOADS;
 const APPROVED_STORAGE_KEY = STORAGE_KEYS.APPROVED_PHOTOS;
 const REJECTED_STORAGE_KEY = STORAGE_KEYS.REJECTED_PHOTOS;
 
+const clearLocalPhotoCaches = () => {
+  Storage.remove(STORAGE_KEY);
+  Storage.remove(APPROVED_STORAGE_KEY);
+  Storage.remove(REJECTED_STORAGE_KEY);
+};
+
 // getUploadTypeName 已移至 adminUtils.js
 
 export function AdminPage() {
@@ -1148,16 +1154,7 @@ export function AdminPage() {
       setAdminUploads(pendingMapped);
       setApprovedPhotos(approvedMapped);
       setRejectedPhotos(rejectedMapped);
-      saveToStorage(pendingMapped);
-      try {
-        Storage.set(APPROVED_STORAGE_KEY, approvedMapped);
-      } catch (storageError) {
-        handleError(storageError, {
-          context: 'refreshSupabaseData.sync',
-          type: ErrorType.STORAGE,
-          silent: true,
-        });
-      }
+      clearLocalPhotoCaches();
     } catch (error) {
       handleError(error, {
         context: 'refreshSupabaseData',
@@ -1179,6 +1176,11 @@ export function AdminPage() {
     if (supabase) return;
     saveToStorage(adminUploads);
   }, [adminUploads, supabase]);
+
+  useEffect(() => {
+    if (!supabase) return;
+    clearLocalPhotoCaches();
+  }, [supabase]);
 
   // 更新已审核通过和已拒绝的作品列表
   useEffect(() => {
