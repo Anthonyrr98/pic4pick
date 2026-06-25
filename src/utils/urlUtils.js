@@ -71,7 +71,7 @@ export const resolveMediaUrl = (url) => {
   const httpsUrl = getDirectMediaUrl(url);
   if (!httpsUrl) return '';
 
-  if (import.meta.env.VITE_USE_OSS_MEDIA_PROXY === 'false') {
+  if (import.meta.env.VITE_USE_OSS_MEDIA_PROXY !== 'true') {
     return httpsUrl;
   }
 
@@ -108,4 +108,3 @@ export const ensureHttpsForFields = (urls, urlFields = ['url', 'image', 'imageUr
 
   return result;
 };
-
