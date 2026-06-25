@@ -35,6 +35,8 @@ export const ENV_OVERRIDE_KEYS = [
   'VITE_MAP_STYLE_PRESET',
   'VITE_AMAP_MAP_STYLE',
   'VITE_ADMIN_PASSWORD',
+  'VITE_ADMIN_USERNAME',
+  'VITE_API_BASE_URL',
 ];
 
 export const getEnvValue = (key, fallback = '') => {
@@ -89,4 +91,3 @@ export const resetEnvOverrides = (keys) => {
   }
   persistOverrides({});
 };
-
