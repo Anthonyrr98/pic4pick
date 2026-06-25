@@ -8,8 +8,19 @@ export function UploadProgress({ progress, fileName, isVisible, uploadedBytes, t
   // 平滑更新进度显示，避免跳跃
   useEffect(() => {
     if (progress === null) {
-      setDisplayProgress(0);
-      return;
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+      animationFrameRef.current = requestAnimationFrame(() => {
+        setDisplayProgress(0);
+        animationFrameRef.current = null;
+      });
+      return () => {
+        if (animationFrameRef.current) {
+          cancelAnimationFrame(animationFrameRef.current);
+          animationFrameRef.current = null;
+        }
+      };
     }
 
     const targetProgress = Math.min(100, Math.max(0, progress));

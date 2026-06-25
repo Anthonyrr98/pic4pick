@@ -5,7 +5,7 @@
 
 import { useState, useCallback } from 'react';
 import { Storage, STORAGE_KEYS } from '../utils/storage';
-import { mapSupabaseRowToPhoto, buildSupabasePayloadFromPhoto, deleteOSSFile } from '../utils/adminUtils';
+import { buildSupabasePayloadFromPhoto, deleteOSSFile } from '../utils/adminUtils';
 import { handleError, formatErrorMessage, ErrorType } from '../utils/errorHandler';
 import { ensureHttps } from '../utils/urlUtils';
 
@@ -82,7 +82,8 @@ export const usePhotoManagement = (supabase, refreshSupabaseData, setSubmitMessa
         
         // 使用 upsert 而不是 update，这样如果记录不存在会创建，存在则更新
         // 移除 reject_reason 字段（如果数据库中没有该字段）
-        const { reject_reason, ...updatePayload } = payload;
+        const updatePayload = { ...payload };
+        delete updatePayload.reject_reason;
         const { error } = await supabase
           .from('photos')
           .upsert(
@@ -142,7 +143,7 @@ export const usePhotoManagement = (supabase, refreshSupabaseData, setSubmitMessa
     }
     
     setSubmitMessage({ type: 'success', text: '作品已通过审核，已添加到前端图库' });
-  }, [adminUploads, supabase, refreshSupabaseData, setSubmitMessage]);
+  }, [adminUploads, supabase, setSubmitMessage]);
 
   /**
    * 审核拒绝
@@ -178,7 +179,8 @@ export const usePhotoManagement = (supabase, refreshSupabaseData, setSubmitMessa
         
         // 使用 upsert 而不是 update，这样如果记录不存在会创建，存在则更新
         // 移除 reject_reason 字段（如果数据库中没有该字段）
-        const { reject_reason, ...updatePayload } = payload;
+        const updatePayload = { ...payload };
+        delete updatePayload.reject_reason;
         const { error, data } = await supabase
           .from('photos')
           .upsert({

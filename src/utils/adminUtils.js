@@ -246,7 +246,7 @@ export const deleteOSSFile = async (url) => {
           type: ErrorType.NETWORK,
           silent: true,
         });
-      } catch (err) {
+      } catch {
         // 单个路径失败，尝试下一种路径
         continue;
       }
@@ -259,4 +259,3 @@ export const deleteOSSFile = async (url) => {
     });
   }
 };
-

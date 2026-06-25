@@ -3,9 +3,8 @@
  */
 
 import { useState, useCallback } from 'react';
-import { uploadImage, getUploadType, UPLOAD_TYPES } from '../utils/upload';
-import { getUploadTypeName } from '../utils/adminUtils';
-import { handleError, formatErrorMessage, ErrorType } from '../utils/errorHandler';
+import { uploadImage } from '../utils/upload';
+import { handleError, ErrorType } from '../utils/errorHandler';
 
 export const useFileUpload = () => {
   const [isUploading, setIsUploading] = useState(false);

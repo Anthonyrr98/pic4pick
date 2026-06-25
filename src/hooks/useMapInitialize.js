@@ -1,5 +1,4 @@
 import { useEffect, useRef, useCallback } from 'react';
-import { getEnvValue } from '../utils/envConfig';
 import { handleError, ErrorType } from '../utils/errorHandler';
 import { loadMapLibre } from '../utils/maplibreLoader';
 
@@ -28,16 +27,6 @@ export function useMapInitialize({
   const maplibreRef = useRef(null);
   const containerRef = useRef(null);
   const markersRef = useRef(new Map());
-
-  // 获取地图 API URL
-  const getMapUrl = useCallback(() => {
-    const amapKey = getEnvValue('VITE_AMAP_WEB_KEY', getEnvValue('VITE_AMAP_KEY', ''));
-    if (!amapKey) {
-      console.warn('VITE_AMAP_WEB_KEY not configured');
-      return null;
-    }
-    return `https://webapi.amap.com/maps?v=2.0&key=${amapKey}`;
-  }, []);
 
   // 初始化地图
   const initializeMap = useCallback(async () => {
@@ -196,8 +185,8 @@ export function useMapInitialize({
   }, [initializeMap, destroyMap]);
 
   return {
-    map: mapRef.current,
-    container: containerRef.current,
+    mapRef,
+    containerRef,
     addMarker,
     removeMarker,
     clearMarkers,

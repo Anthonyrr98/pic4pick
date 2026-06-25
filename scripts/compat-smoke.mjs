@@ -77,7 +77,6 @@ const runs = [
 
 const results = [];
 for (const [name, bt] of runs) {
-  // eslint-disable-next-line no-await-in-loop
   results.push(await runFor(name, bt));
 }
 

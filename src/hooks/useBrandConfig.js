@@ -119,10 +119,19 @@ export const useBrandConfig = (supabase) => {
    * 初始化时加载远程配置
    */
   useEffect(() => {
-    if (supabase) {
+    if (!supabase) return undefined;
+
+    let cancelled = false;
+    const frame = requestAnimationFrame(() => {
+      if (cancelled) return;
       loadRemoteBrandLogo();
       loadRemoteBrandText();
-    }
+    });
+
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(frame);
+    };
   }, [supabase, loadRemoteBrandLogo, loadRemoteBrandText]);
 
   return {

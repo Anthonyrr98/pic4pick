@@ -90,9 +90,6 @@ export function GalleryPage() {
   // 鈹€鈹€ 鍝佺墝鐘舵€?
   const [brandLogo, setBrandLogo] = useState(() => getStoredBrandLogo());
   const [brandText, setBrandText] = useState(() => getStoredBrandText());
-  const [isDesktop, setIsDesktop] = useState(() =>
-    typeof window !== 'undefined' ? window.innerWidth > 768 : false
-  );
 
   // 鈹€鈹€ 鍦板浘 ref
   const mapContainerRef = useRef(null);
@@ -362,15 +359,16 @@ export function GalleryPage() {
   }, [lightboxPhoto, metaPopover]);
 
   useEffect(() => {
-    if (!loadMoreRef.current || !hasMore) return;
+    const loadMoreNode = loadMoreRef.current;
+    if (!loadMoreNode || !hasMore) return;
     const obs = new IntersectionObserver(
       (entries) => {
         if (entries[0].isIntersecting && !isLoadingMore && hasMore) loadMore();
       },
       { rootMargin: '200px', threshold: 0.1 }
     );
-    obs.observe(loadMoreRef.current);
-    return () => { if (loadMoreRef.current) obs.unobserve(loadMoreRef.current); };
+    obs.observe(loadMoreNode);
+    return () => { obs.unobserve(loadMoreNode); };
   }, [hasMore, isLoadingMore, loadMore]);
 
   useEffect(() => {
@@ -385,13 +383,6 @@ export function GalleryPage() {
       window.removeEventListener(BRAND_LOGO_EVENT, onBroadcast);
       window.removeEventListener('storage', onStorage);
     };
-  }, []);
-
-  useEffect(() => {
-    const onResize = () => setIsDesktop(window.innerWidth > 768);
-    onResize();
-    window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
   }, []);
 
   // 浠?Supabase 鍚屾鍝佺墝閰嶇疆
@@ -519,7 +510,16 @@ export function GalleryPage() {
     return () => {
       cancelled = true;
     };
-  }, [photosByLocation, activeView, isMapReady, showLocationPanel, exploreMapProvider]);
+  }, [
+    photosByLocation,
+    activeView,
+    isMapReady,
+    showLocationPanel,
+    exploreMapProvider,
+    ensureMapLibre,
+    mapInstance,
+    maplibreExploreInstance,
+  ]);
 
   // 当前位置标记
   useEffect(() => {
@@ -557,7 +557,15 @@ export function GalleryPage() {
       currentLocationMarkerRef.current?.setMap?.(null); currentLocationMarkerRef.current = null;
       currentLocationMaplibreMarkerRef.current?.remove(); currentLocationMaplibreMarkerRef.current = null;
     };
-  }, [browserLocation, isMapReady, activeView, exploreMapProvider, ensureMapLibre]);
+  }, [
+    browserLocation,
+    isMapReady,
+    activeView,
+    exploreMapProvider,
+    ensureMapLibre,
+    mapInstance,
+    maplibreExploreInstance,
+  ]);
 
   // 地理位置弹窗内的小地图
   useEffect(() => {

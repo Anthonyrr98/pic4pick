@@ -13,7 +13,7 @@ function coverLayout(containerW, containerH, mediaW, mediaH) {
   return { scale, offsetX, offsetY, dispW, dispH };
 }
 
-function mediaPixelToScreen(px, py, layout, cw, ch) {
+function mediaPixelToScreen(px, py, layout) {
   const x = layout.offsetX + px * layout.scale;
   const y = layout.offsetY + py * layout.scale;
   return { x, y };
@@ -164,18 +164,21 @@ export function HomeIntroSplash({
   const videoRef = useRef(null);
   const imageRef = useRef(null);
   const sourceModeRef = useRef(sourceMode);
-  sourceModeRef.current = sourceMode;
   const particlesRef = useRef(null);
   const overlayRef = useRef(null);
   const canvasRef = useRef(null);
   const rafRef = useRef(0);
-  const startedAt = useRef(performance.now());
+  const startedAt = useRef(0);
   const finishedRef = useRef(false);
   const dissolveStarted = useRef(false);
   const dissolveScheduledRef = useRef(false);
   /** 为 false 时（图片 / 占位）不再额外等待 minHoldMs，由各自定时器控制总展示时长 */
   const pendingMinHoldRef = useRef(true);
   const timersRef = useRef([]);
+
+  useEffect(() => {
+    sourceModeRef.current = sourceMode;
+  }, [sourceMode]);
 
   const clearTimers = useCallback(() => {
     timersRef.current.forEach(clearTimeout);
@@ -194,6 +197,9 @@ export function HomeIntroSplash({
   const runDissolve = useCallback(() => {
     if (phase !== 'ready' || dissolveScheduledRef.current) return;
     dissolveScheduledRef.current = true;
+    if (!startedAt.current) {
+      startedAt.current = performance.now();
+    }
     const elapsed = performance.now() - startedAt.current;
     const hold = pendingMinHoldRef.current ? minHoldMs : 0;
     const go = () => {
@@ -240,24 +246,26 @@ export function HomeIntroSplash({
   useEffect(() => {
     if (phase !== 'dissolve') return undefined;
 
+    const finishOnNextFrame = () => {
+      markSessionDone();
+      requestAnimationFrame(() => setPhase('done'));
+    };
+
     const particles = particlesRef.current;
     if (!particles?.length) {
-      markSessionDone();
-      setPhase('done');
+      finishOnNextFrame();
       return undefined;
     }
 
     const canvas = canvasRef.current;
     if (!canvas) {
-      markSessionDone();
-      setPhase('done');
+      finishOnNextFrame();
       return undefined;
     }
 
     const ctx = canvas.getContext('2d');
     if (!ctx) {
-      markSessionDone();
-      setPhase('done');
+      finishOnNextFrame();
       return undefined;
     }
 
@@ -272,7 +280,7 @@ export function HomeIntroSplash({
     resize();
     window.addEventListener('resize', resize);
 
-    let start = performance.now();
+    const start = performance.now();
     const duration = 920;
 
     const tick = (now) => {

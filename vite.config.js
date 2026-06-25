@@ -16,14 +16,12 @@ export default defineConfig({
         // 只移除 console.log 和 console.debug，保留 console.error 和 console.warn
         pure_funcs: ['console.log', 'console.debug', 'console.info'],
         drop_debugger: true,
-        // 确保不会移除未使用的变量（防止破坏解构）
-        unused: false,
-        // 保留函数名，避免破坏 React hooks
+        // 保留函数名，方便线上错误栈排查
         keep_fnames: true,
         keep_classnames: true,
       },
       mangle: {
-        // 保留函数名，避免破坏 React hooks 和组件
+        // 保留函数名和类名，方便线上错误栈排查
         keep_fnames: true,
         keep_classnames: true,
       },

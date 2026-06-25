@@ -15,7 +15,7 @@ export class ErrorBoundary extends React.Component {
     };
   }
 
-  static getDerivedStateFromError(error) {
+  static getDerivedStateFromError() {
     // 更新 state 使下一次渲染能够显示降级后的 UI
     return { hasError: true };
   }
@@ -107,7 +107,7 @@ export class ErrorBoundary extends React.Component {
           >
             重试
           </button>
-          {process.env.NODE_ENV === 'development' && this.state.errorInfo && (
+          {import.meta.env.DEV && this.state.errorInfo && (
             <details
               style={{
                 marginTop: '24px',

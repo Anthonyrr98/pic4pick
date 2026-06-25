@@ -44,9 +44,6 @@ export const ConfigPanel = ({
   setBrandText,
   brandTextMessage,
   setBrandTextMessage,
-  onExportPhotos,
-  onImportPhotos,
-  importFileInputRef,
 }) => {
   const logoFileInputRef = useRef(null);
   const [activeSection, setActiveSection] = useState('env');
@@ -268,13 +265,6 @@ export const ConfigPanel = ({
         silent: true,
       });
       setBrandTextMessage({ type: 'error', text: '保存失败，请稍后重试' });
-    }
-  };
-
-  const handleImportClick = () => {
-    if (importFileInputRef?.current) {
-      importFileInputRef.current.value = '';
-      importFileInputRef.current.click();
     }
   };
 

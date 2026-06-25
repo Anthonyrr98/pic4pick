@@ -301,9 +301,9 @@ const uploadToSupabase = async (file, filename, onProgress) => {
     xhr.addEventListener('load', () => {
       if (xhr.status >= 200 && xhr.status < 300) {
         try {
-          const data = JSON.parse(xhr.responseText);
+          JSON.parse(xhr.responseText);
           resolve(`${supabaseUrl}/storage/v1/object/public/${bucket}/${filePath}`);
-        } catch (error) {
+        } catch {
           resolve(`${supabaseUrl}/storage/v1/object/public/${bucket}/${filePath}`);
         }
       } else {
@@ -470,4 +470,3 @@ const uploadToAliyunOSS = async (file, filename, onProgress) => {
     }
   });
 };
-

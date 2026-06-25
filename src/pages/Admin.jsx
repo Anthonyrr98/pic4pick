@@ -4,30 +4,16 @@ import 'react-datepicker/dist/react-datepicker.css';
 import { zhCN } from 'date-fns/locale';
 import exifr from 'exifr';
 import '../App.css';
-import { uploadImage, getUploadType, setUploadType, UPLOAD_TYPES } from '../utils/upload';
+import { uploadImage, getUploadType, UPLOAD_TYPES } from '../utils/upload';
 import { getSupabaseClient } from '../utils/supabaseClient';
 import { UploadProgress } from '../components/UploadProgress';
-import { getEnvValue, updateEnvOverrides, resetEnvOverrides, ENV_OVERRIDE_KEYS } from '../utils/envConfig';
-import {
-  BRAND_LOGO_EVENT,
-  BRAND_LOGO_STORAGE_KEY,
-  BRAND_LOGO_SUPABASE_ID,
-  BRAND_LOGO_SUPABASE_TABLE,
-  BRAND_LOGO_MAX_SIZE,
-  getStoredBrandLogo,
-  saveBrandLogo,
-  removeBrandLogo,
-  getStoredBrandText,
-  saveBrandText,
-  resetBrandText,
-} from '../utils/branding';
+import { getEnvValue } from '../utils/envConfig';
 import { Storage, StorageString, STORAGE_KEYS } from '../utils/storage';
-import { handleError, formatErrorMessage, safeAsync, safeSync, ErrorType } from '../utils/errorHandler';
-import { mapSupabaseRowToPhoto, buildSupabasePayloadFromPhoto, getUploadTypeName, extractOSSFileInfo, deleteOSSFile, getAmapApiUrl } from '../utils/adminUtils';
+import { handleError, formatErrorMessage, ErrorType } from '../utils/errorHandler';
+import { mapSupabaseRowToPhoto, buildSupabasePayloadFromPhoto, getUploadTypeName, deleteOSSFile, getAmapApiUrl } from '../utils/adminUtils';
 import { ensureHttps } from '../utils/urlUtils';
 import { login as loginWithApi } from '../utils/auth';
 import { usePhotoManagement } from '../hooks/usePhotoManagement';
-import { useLocationPicker } from '../hooks/useLocationPicker';
 import { useGearOptions } from '../hooks/useGearOptions';
 import { useBrandConfig } from '../hooks/useBrandConfig';
 import { useFileUpload } from '../hooks/useFileUpload';
@@ -110,11 +96,6 @@ const clearLocalPhotoCaches = () => {
 
 export function AdminPage() {
   // === 原有状态 ===
-  // 从 localStorage 加载数据
-  const loadFromStorage = () => {
-    return Storage.get(STORAGE_KEY, []);
-  };
-
   // mapSupabaseRowToPhoto 和 buildSupabasePayloadFromPhoto 已移至 adminUtils.js
 
   const supabase = getSupabaseClient();
@@ -127,8 +108,6 @@ export function AdminPage() {
     mapStylePreset: getMapStylePresetFromEnv(),
   }));
   const [envConfigMessage, setEnvConfigMessage] = useState({ type: '', text: '' });
-  const importFileInputRef = useRef(null);
-  const logoFileInputRef = useRef(null);
   // 照片管理 hook 将在后面初始化（需要 refreshSupabaseData）
   const [uploadForm, setUploadForm] = useState({
     title: '',
@@ -160,9 +139,7 @@ export function AdminPage() {
   // 使用相机/镜头选项管理 hook
   const {
     cameraOptions,
-    setCameraOptions,
     lensOptions,
-    setLensOptions,
     showCameraDropdown,
     setShowCameraDropdown,
     showLensDropdown,
@@ -194,19 +171,16 @@ export function AdminPage() {
     uploadProgress,
     uploadingFileName,
     uploadBytes,
-    uploadFile,
-    resetUploadState,
     setIsUploading,
     setUploadProgress,
     setUploadingFileName,
     setUploadBytes,
   } = useFileUpload();
   // 默认使用阿里云 OSS
-  const [uploadType, setUploadTypeState] = useState(() => {
+  const [uploadType] = useState(() => {
     const currentType = getUploadType();
     // 如果不是阿里云 OSS，自动设置为阿里云 OSS
     if (currentType !== UPLOAD_TYPES.ALIYUN_OSS) {
-      setUploadType(UPLOAD_TYPES.ALIYUN_OSS);
       return UPLOAD_TYPES.ALIYUN_OSS;
     }
     return currentType;
@@ -240,8 +214,6 @@ export function AdminPage() {
     setRejectedPhotos,
     handleApprove,
     handleReject,
-    handleDelete,
-    handleResubmit,
   } = usePhotoManagement(
     supabase, 
     async () => {
@@ -253,19 +225,6 @@ export function AdminPage() {
   );
 
   const pendingReviewCount = useMemo(() => adminUploads.length, [adminUploads]);
-
-  // 切换上传目标存储（本地 / 阿里云 OSS 等）
-  const handleUploadTypeChange = (type) => {
-    setUploadType(type);           // 写入 localStorage
-    setUploadTypeState(type);      // 更新当前页面状态
-    setSubmitMessage({
-      type: 'success',
-      text: `已切换上传目标为：${getUploadTypeName(type)}`,
-    });
-    setTimeout(() => {
-      setSubmitMessage({ type: '', text: '' });
-    }, 2000);
-  };
 
   // 调试：在开发环境打印高德 KEY 是否存在
   useEffect(() => {
@@ -371,231 +330,6 @@ export function AdminPage() {
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
   const paginatedPhotos = filteredPhotos.slice(startIndex, endIndex);
-
-  // .env.local 运行时配置
-  const handleEnvConfigChange = (event) => {
-    const { name, value } = event.target;
-    setEnvConfigForm((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
-  };
-
-  const handleSaveEnvConfig = () => {
-    updateEnvOverrides({
-      VITE_SUPABASE_URL: envConfigForm.supabaseUrl,
-      VITE_SUPABASE_ANON_KEY: envConfigForm.supabaseAnonKey,
-      VITE_AMAP_KEY: envConfigForm.amapKey,
-    });
-    setEnvConfigMessage({ type: 'success', text: '配置已保存，已覆盖当前会话的 .env.local' });
-    setTimeout(() => setEnvConfigMessage({ type: '', text: '' }), 3000);
-  };
-
-  const handleResetEnvConfig = () => {
-    resetEnvOverrides(ENV_OVERRIDE_KEYS);
-    setEnvConfigForm({
-      supabaseUrl: getEnvValue('VITE_SUPABASE_URL', ''),
-      supabaseAnonKey: getEnvValue('VITE_SUPABASE_ANON_KEY', ''),
-      amapKey: getEnvValue('VITE_AMAP_KEY', ''),
-    });
-    setEnvConfigMessage({ type: 'info', text: '已恢复为 .env.local 默认值' });
-    setTimeout(() => setEnvConfigMessage({ type: '', text: '' }), 3000);
-  };
-
-  const handleLogoUploadClick = () => {
-    if (logoFileInputRef.current) {
-      logoFileInputRef.current.value = '';
-      logoFileInputRef.current.click();
-    }
-  };
-
-  const handleLogoFileChange = (event) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    if (!file.type.startsWith('image/')) {
-      setLogoMessage({ type: 'error', text: '请上传图片文件（PNG / JPG / SVG）' });
-      event.target.value = '';
-      return;
-    }
-
-    if (file.size > BRAND_LOGO_MAX_SIZE) {
-      setLogoMessage({ type: 'error', text: '图片过大，请控制在 1MB 以内' });
-      event.target.value = '';
-      return;
-    }
-
-    const reader = new FileReader();
-    reader.onload = async () => {
-      const dataUrl = typeof reader.result === 'string' ? reader.result : '';
-      if (!dataUrl) {
-        setLogoMessage({ type: 'error', text: '读取文件失败，请重试' });
-        return;
-      }
-      try {
-        if (supabase) {
-          const payload = {
-            id: BRAND_LOGO_SUPABASE_ID,
-            logo_data: dataUrl,
-            logo_mime: file.type || null,
-            updated_by: 'admin-panel',
-            updated_at: new Date().toISOString(),
-          };
-          const { error } = await supabase.from(BRAND_LOGO_SUPABASE_TABLE).upsert(payload);
-          if (error) throw error;
-        }
-        saveBrandLogo(dataUrl);
-        setBrandLogo(dataUrl);
-        setLogoMessage({ type: 'success', text: supabase ? 'Logo 已上传并同步到云端' : 'Logo 已更新' });
-      } catch (error) {
-        const appError = handleError(error, {
-          context: 'handleLogoUpload',
-          type: ErrorType.STORAGE,
-        });
-        setLogoMessage({ type: 'error', text: `保存失败：${formatErrorMessage(appError)}` });
-      }
-    };
-    reader.onerror = () => {
-      setLogoMessage({ type: 'error', text: '读取文件失败，请重试' });
-    };
-    reader.readAsDataURL(file);
-    event.target.value = '';
-  };
-
-  const handleResetLogo = async () => {
-    try {
-      if (supabase) {
-        const { error } = await supabase
-          .from(BRAND_LOGO_SUPABASE_TABLE)
-          .delete()
-          .eq('id', BRAND_LOGO_SUPABASE_ID);
-        if (error) throw error;
-      }
-      removeBrandLogo();
-      setBrandLogo('');
-      setLogoMessage({ type: 'info', text: '已恢复默认圆环 Logo' });
-    } catch (error) {
-      const appError = handleError(error, {
-        context: 'handleResetLogo',
-        type: ErrorType.NETWORK,
-      });
-      setLogoMessage({ type: 'error', text: `重置失败：${formatErrorMessage(appError)}` });
-    }
-  };
-
-  // 数据导出 / 导入
-  const handleExportPhotos = async () => {
-    try {
-      let rows = [];
-
-      if (supabase) {
-        const { data, error } = await supabase.from('photos').select('*').order('created_at', { ascending: false });
-        if (error) throw error;
-        rows = data || [];
-      } else {
-        const pending = adminUploads || [];
-        const approved = loadApprovedPhotos() || [];
-        rows = [...pending.map((p) => buildSupabasePayloadFromPhoto(p, p.status || 'pending'))];
-        approved.forEach((p) => {
-          rows.push({
-            id: p.id,
-            title: p.title,
-            location: p.location,
-            country: p.country,
-            category: p.category,
-            tags: p.mood || '',
-            image_url: p.image,
-            latitude: p.latitude,
-            longitude: p.longitude,
-            altitude: p.altitude,
-            focal: p.focal,
-            aperture: p.aperture,
-            shutter: p.shutter,
-            iso: p.iso,
-            camera: p.camera,
-            lens: p.lens,
-            status: 'approved',
-          });
-        });
-      }
-
-      const payload = {
-        exportedAt: new Date().toISOString(),
-        version: 1,
-        rows,
-      };
-
-      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `pic4pick_photos_backup_${Date.now()}.json`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      setSubmitMessage({ type: 'success', text: '数据已导出为 JSON 文件' });
-      setTimeout(() => setSubmitMessage({ type: '', text: '' }), 3000);
-    } catch (error) {
-      const appError = handleError(error, {
-        context: 'handleExportData',
-        type: ErrorType.UNKNOWN,
-      });
-      setSubmitMessage({ type: 'error', text: `导出失败：${formatErrorMessage(appError)}` });
-    }
-  };
-
-  const handleImportClick = () => {
-    if (importFileInputRef.current) {
-      importFileInputRef.current.value = '';
-      importFileInputRef.current.click();
-    }
-  };
-
-  const handleImportPhotos = async (event) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    try {
-      const text = await file.text();
-      const json = JSON.parse(text);
-      const rows = Array.isArray(json) ? json : Array.isArray(json.rows) ? json.rows : [];
-      if (!rows.length) {
-        setSubmitMessage({ type: 'error', text: '导入文件中没有可用数据' });
-        return;
-      }
-
-      if (supabase) {
-        const { error } = await supabase.from('photos').upsert(rows, { onConflict: 'id' });
-        if (error) throw error;
-        await refreshSupabaseData();
-      } else {
-        const pending = rows.filter((r) => (r.status || 'pending') !== 'approved');
-        const approved = rows.filter((r) => (r.status || 'pending') === 'approved');
-        try {
-          Storage.set(STORAGE_KEY, pending);
-          Storage.set(APPROVED_STORAGE_KEY, approved);
-        } catch (storageError) {
-          handleError(storageError, {
-            context: 'handleImportPhotos.storage',
-            type: ErrorType.STORAGE,
-            silent: true,
-          });
-        }
-        setAdminUploads(pending.map((r) => mapSupabaseRowToPhoto(r)));
-        setApprovedPhotos(approved.map((r) => mapSupabaseRowToPhoto(r)));
-      }
-
-      setSubmitMessage({ type: 'success', text: '数据导入成功' });
-      setTimeout(() => setSubmitMessage({ type: '', text: '' }), 3000);
-    } catch (error) {
-      const appError = handleError(error, {
-        context: 'handleImportPhotos',
-        type: ErrorType.PARSE,
-      });
-      setSubmitMessage({ type: 'error', text: `导入失败：${formatErrorMessage(appError)}` });
-    }
-  };
 
   // 当筛选条件改变时，重置到第一页
   useEffect(() => {
@@ -814,7 +548,7 @@ export function AdminPage() {
               allResults = [...allResults, ...autocompleteResults];
             }
           }
-        } catch (e) {
+        } catch {
         console.log('输入提示 API 调用失败，继续使用地点搜索 API');
         }
         
@@ -845,7 +579,7 @@ export function AdminPage() {
               allResults = [...allResults, ...placeResults];
             }
           }
-        } catch (e) {
+        } catch {
         console.log('地点搜索 API 调用失败');
         }
         
@@ -895,7 +629,7 @@ export function AdminPage() {
         setIsSearching(false);
       }
     }
-  }, [getAmapApiUrl]);
+  }, []);
 
   // 选择搜索结果并在地图上定位
   const selectSearchResult = async (result, isEdit = false) => {
@@ -960,7 +694,7 @@ export function AdminPage() {
       searchLocation(locationSearchQuery, false);
     }, 500);
     return () => clearTimeout(timeoutId);
-  }, [locationSearchQuery]);
+  }, [locationSearchQuery, searchLocation]);
 
   // 编辑表单搜索防抖处理
   useEffect(() => {
@@ -972,7 +706,7 @@ export function AdminPage() {
       searchLocation(editLocationSearchQuery, true);
     }, 500);
     return () => clearTimeout(timeoutId);
-  }, [editLocationSearchQuery]);
+  }, [editLocationSearchQuery, searchLocation]);
 
   // 初始化编辑表单的地图选择器
   useEffect(() => {
@@ -1735,46 +1469,6 @@ export function AdminPage() {
     }
   };
 
-  // 保存审核通过的作品到共享存储
-  const saveApprovedPhoto = (item) => {
-    if (supabase) return;
-    try {
-      const approved = loadApprovedPhotos();
-      // 转换为前端图库需要的格式
-      const approvedPhoto = {
-        id: item.id,
-        title: item.title,
-        country: item.country,
-        location: item.location,
-        category: item.category,
-        image: item.preview, // 使用预览图作为图片
-        focal: '50mm', // 默认值，可以后续扩展
-        aperture: 'f/2.8',
-        shutter: '1/125s',
-        iso: '200',
-        camera: 'Unknown',
-        lens: 'Unknown',
-        mood: item.tags && item.tags.trim() ? item.tags.split(',')[0].trim() : '未分类',
-        latitude: item.latitude || null,
-        longitude: item.longitude || null,
-        altitude: item.altitude || null,
-      };
-      
-      // 检查是否已存在，避免重复
-      if (!approved.find((p) => p.id === item.id)) {
-        approved.push(approvedPhoto);
-        Storage.set(APPROVED_STORAGE_KEY, approved);
-        setApprovedPhotos([...approved]);
-      }
-    } catch (error) {
-      handleError(error, {
-        context: 'handleApprove.storage',
-        type: ErrorType.STORAGE,
-        silent: true,
-      });
-    }
-  };
-
   // 包装函数：添加切换标签页的功能
   const handleApproveWithTabSwitch = async (id) => {
     await handleApprove(id);
@@ -2479,9 +2173,6 @@ export function AdminPage() {
               setBrandText={setBrandText}
               brandTextMessage={brandTextMessage}
               setBrandTextMessage={setBrandTextMessage}
-              onExportPhotos={handleExportPhotos}
-              onImportPhotos={handleImportPhotos}
-              importFileInputRef={importFileInputRef}
             />
         ) : (
         <div className="admin-content-wrapper">

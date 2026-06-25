@@ -44,8 +44,7 @@ export async function generateOSSSignature({
   bucket,
   objectKey,
   contentType = '',
-  date,
-  headers = {}
+  date
 }) {
   // 构建 Canonical String
   // 格式：Method\nContent-MD5\nContent-Type\nDate\nCanonicalizedOSSHeaders\nCanonicalizedResource

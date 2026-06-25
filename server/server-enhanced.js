@@ -9,7 +9,6 @@ import OSS from 'ali-oss';
 import dotenv from 'dotenv';
 import winston from 'winston';
 import jwt from 'jsonwebtoken';
-import bcrypt from 'bcryptjs';
 
 // 加载环境变量
 dotenv.config();
@@ -317,9 +316,6 @@ app.post('/api/upload/oss', authenticateToken, requireAdmin, upload.single('file
     let processedOriginBuffer;
     try {
       const originImage = sharp(file.path);
-      // 先读取元数据，确保能获取 EXIF Orientation
-      const metadata = await originImage.metadata();
-      
       // 根据 EXIF Orientation 旋转图片，并移除 EXIF（避免浏览器重复旋转）
       processedOriginBuffer = await originImage
         .rotate() // 自动根据 EXIF Orientation 旋转
@@ -498,8 +494,6 @@ app.post('/api/auth/register', async (req, res) => {
       return res.status(400).json({ error: '密码长度至少6位' });
     }
 
-    const hashedPassword = await bcrypt.hash(password, 10);
-
     logger.info(`User registered: ${username}`);
 
     res.json({
@@ -582,7 +576,7 @@ if (process.env.NODE_ENV === 'production' || process.env.SERVE_STATIC === 'true'
 }
 
 // 错误处理中间件
-app.use((error, req, res, next) => {
+app.use((error, req, res, _next) => {
   if (error instanceof multer.MulterError) {
     if (error.code === 'LIMIT_FILE_SIZE') {
       return res.status(400).json({ error: '文件大小超过限制（最大 50MB）' });

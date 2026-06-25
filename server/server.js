@@ -335,7 +335,7 @@ app.delete('/api/upload/oss/:filename(*)', async (req, res) => {
 });
 
 // 错误处理中间件
-app.use((error, req, res, next) => {
+app.use((error, req, res, _next) => {
   if (error instanceof multer.MulterError) {
     if (error.code === 'LIMIT_FILE_SIZE') {
       return res.status(400).json({ error: '文件大小超过限制（最大 10MB）' });
@@ -349,4 +349,3 @@ app.listen(PORT, () => {
   console.log(`📁 上传目录: ${UPLOAD_DIR}`);
   console.log(`🌐 静态文件: http://localhost:${PORT}/uploads/pic4pick/`);
 });
-

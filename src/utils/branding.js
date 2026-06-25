@@ -1,5 +1,4 @@
 import { Storage, StorageString, STORAGE_KEYS } from './storage';
-import { safeSync } from './errorHandler';
 
 const BRAND_LOGO_STORAGE_KEY = STORAGE_KEYS.BRAND_LOGO;
 const BRAND_LOGO_EVENT = 'camarts-brand-logo-change';
@@ -30,7 +29,7 @@ const applyFavicon = (dataUrl) => {
       link.href = dataUrl;
     }
     // 如果传入空值，则保留 HTML 里配置的默认 favicon
-  } catch (error) {
+  } catch {
     // Favicon 应用失败不影响主要功能，静默处理
   }
 };
@@ -66,7 +65,7 @@ export const applyFaviconFromStoredLogo = () => {
     if (logo) {
       applyFavicon(logo);
     }
-  } catch (error) {
+  } catch {
     // Favicon 初始化失败不影响主要功能，静默处理
   }
 };

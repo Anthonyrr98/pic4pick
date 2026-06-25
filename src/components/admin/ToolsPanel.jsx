@@ -9,7 +9,6 @@ import { compressImage } from '../../utils/upload';
 import { handleError, ErrorType } from '../../utils/errorHandler';
 
 export const ToolsPanel = () => {
-  const [toolFile, setToolFile] = useState(null);
   const [toolOriginalPreview, setToolOriginalPreview] = useState('');
   const [toolCompressedPreview, setToolCompressedPreview] = useState('');
   const [toolMessage, setToolMessage] = useState({ type: '', text: '' });
@@ -19,7 +18,6 @@ export const ToolsPanel = () => {
     const file = e.target.files?.[0];
     if (!file) return;
     setToolMessage({ type: '', text: '' });
-    setToolFile(file);
 
     // 原图预览
     const reader = new FileReader();
@@ -174,7 +172,7 @@ export const ToolsPanel = () => {
           exif?.LensSpecification ||
           exif?.lensSpecification ||
           '';
-      } catch (exifError) {
+      } catch {
         // 读取 EXIF 失败，使用空模板
       }
 
