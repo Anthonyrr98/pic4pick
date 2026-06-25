@@ -2986,7 +2986,7 @@ main {
     top: 32px;
     right: clamp(24px, 5vw, 72px);
   }
-}
+
   /* 移动端：回退为上下布局，卡片不再悬浮在地图上 */
   #explore-view {
     display: flex;
@@ -4466,119 +4466,6 @@ main {
   font-size: 0.9rem;
   color: var(--muted);
 }
-
-/* 已废弃：WebDAV 配置面板 */
-/* 
-.webdav-config-panel {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 100;
-  padding: 24px;
-}
-
-.webdav-config-content {
-  background: var(--panel);
-  border-radius: 24px;
-  padding: 32px;
-  max-width: 700px;
-  width: 100%;
-  max-height: 90vh;
-  overflow-y: auto;
-  overflow-x: hidden;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-  /* 自定义滚动条样式 */
-  scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
-}
-
-.webdav-config-content::-webkit-scrollbar {
-  width: 8px;
-}
-
-.webdav-config-content::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.webdav-config-content::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.3);
-  border-radius: 4px;
-}
-
-.webdav-config-content::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.5);
-}
-
-.webdav-config-content h3 {
-  margin: 0 0 16px;
-  font-size: 1.5rem;
-  font-weight: 600;
-  color: var(--text);
-}
-
-.webdav-hint {
-  background: rgba(207, 165, 106, 0.1);
-  border: 1px solid rgba(207, 165, 106, 0.3);
-  border-radius: 12px;
-  padding: 12px 16px;
-  margin-bottom: 24px;
-}
-
-.webdav-hint p {
-  margin: 0 0 8px;
-  font-size: 0.85rem;
-  color: var(--text);
-  line-height: 1.5;
-}
-
-.webdav-hint p:last-child {
-  margin-bottom: 0;
-}
-
-.webdav-form {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-}
-
-.webdav-form label {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  font-size: 0.9rem;
-  font-weight: 500;
-  color: var(--text);
-}
-
-.webdav-form input {
-  padding: 12px 16px;
-  border: 1.5px solid rgba(0, 0, 0, 0.1);
-  border-radius: 12px;
-  font-size: 0.95rem;
-  font-family: inherit;
-  background: #fff;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
-}
-
-.webdav-form input:focus {
-  outline: none;
-  border-color: var(--panel-dark);
-  box-shadow: 0 0 0 3px rgba(17, 18, 24, 0.1);
-}
-
-.webdav-actions {
-  display: flex;
-  gap: 12px;
-  margin-top: 8px;
-}
-
-.webdav-actions button {
-  flex: 1;
-}
-*/
 
 .btn-primary:disabled {
   opacity: 0.6;

@@ -64,8 +64,7 @@ export const ensureHttps = (url) => {
 };
 
 /**
- * 将阿里云 OSS 直链改为经后端代理（解决浏览器无法直连 OSS 时的 ERR_CONNECTION_CLOSED）
- * 设置 VITE_USE_OSS_MEDIA_PROXY=false 可关闭
+ * 默认直接使用阿里云 OSS 直链；设置 VITE_USE_OSS_MEDIA_PROXY=true 时才走后端代理。
  */
 export const resolveMediaUrl = (url) => {
   const httpsUrl = getDirectMediaUrl(url);
