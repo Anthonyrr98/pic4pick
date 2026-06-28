@@ -880,6 +880,10 @@ export function AdminPage() {
 
   const refreshSupabaseData = useCallback(async () => {
     if (!supabase) return;
+    if (!isAdminAuthed) {
+      setIsSupabaseLoading(false);
+      return;
+    }
     setIsSupabaseLoading(true);
     setSupabaseError('');
     try {
@@ -909,7 +913,7 @@ export function AdminPage() {
     } finally {
       setIsSupabaseLoading(false);
     }
-  }, [supabase, setAdminUploads, setApprovedPhotos, setRejectedPhotos]);
+  }, [supabase, isAdminAuthed, setAdminUploads, setApprovedPhotos, setRejectedPhotos]);
 
   // 更新 ref，使 hook 可以调用 refreshSupabaseData
   useEffect(() => {
@@ -935,9 +939,9 @@ export function AdminPage() {
   }, [supabase, setApprovedPhotos, setRejectedPhotos]);
 
   useEffect(() => {
-    if (!supabase) return;
+    if (!supabase || !isAdminAuthed) return;
     refreshSupabaseData();
-  }, [supabase, refreshSupabaseData]);
+  }, [supabase, isAdminAuthed, refreshSupabaseData]);
 
   const handleFormChange = (event) => {
     const { name, value } = event.target;
@@ -1803,6 +1807,8 @@ export function AdminPage() {
       await loginWithApi(adminUsernameInput.trim(), adminPasswordInput);
       setIsAdminAuthed(true);
       setAdminAuthError('');
+      setSubmitMessage({ type: '', text: '' });
+      setSupabaseError('');
     } catch (error) {
       const message = formatErrorMessage(error);
       const isNetworkFailure =
