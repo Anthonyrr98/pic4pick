@@ -2,7 +2,7 @@
 
 ## 阿里云 OSS 签名直传函数
 
-`upload-oss` 不接收图片文件本体，只生成短期有效的阿里云 OSS `PUT` 签名 URL。浏览器随后直接把原图上传到 `origin/`，把缩略图上传到 `ore/`。这样图片流量不会经过 Supabase Edge Function，可显著减少 Supabase Egress。
+`upload-oss` 不接收图片文件本体，只生成短期有效的阿里云 OSS `PUT` 签名 URL。浏览器随后直接把原图上传到 `origin/YYYY/MM/DD/`，把缩略图上传到 `ore/YYYY/MM/DD/`。日期目录按北京时间生成。这样图片流量不会经过 Supabase Edge Function，可显著减少 Supabase Egress。
 
 ### 部署步骤
 

@@ -6,6 +6,8 @@
 
 当前推荐方案是：Supabase Edge Function 只生成短期 OSS `PUT` 签名，浏览器直接上传到阿里云 OSS。图片文件不经过 Supabase，因此不会因为上传图片本体而增加 Supabase Egress。
 
+上传后的 OSS 路径按北京时间日期归档：原图在 `origin/YYYY/MM/DD/`，缩略图在 `ore/YYYY/MM/DD/`。旧的平铺路径仍可继续访问，不需要迁移。
+
 ### 部署
 
 ```bash

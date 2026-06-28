@@ -159,7 +159,6 @@ app.post('/api/upload', authenticateToken, requireAdmin, upload.single('file'), 
 
     const file = req.file;
     const filename = req.body.filename || file.filename;
-
     let processedFilename = filename;
     if (req.body.optimize === 'true') {
       const optimizedPath = path.join(PUBLIC_DIR, `optimized-${filename}`);
@@ -272,6 +271,15 @@ if (ossConfigReady) {
 
 const OSS_OBJECT_KEY_PREFIX_RE = /^(origin|ore|pic4pick)\//;
 
+const getBeijingDatePrefix = (date = new Date()) => {
+  const beijingOffsetMs = 8 * 60 * 60 * 1000;
+  const [year, month, day] = new Date(date.getTime() + beijingOffsetMs)
+    .toISOString()
+    .slice(0, 10)
+    .split('-');
+  return `${year}/${month}/${day}`;
+};
+
 function parseAllowedOssObjectKey(rawUrl) {
   if (!rawUrl || typeof rawUrl !== 'string') return null;
   let parsed;
@@ -328,8 +336,9 @@ app.post('/api/upload/oss', authenticateToken, requireAdmin, upload.single('file
     const file = req.file;
     const filename = req.body.filename || file.filename;
     // 原图放在 origin 目录，缩略图放在 ore 目录
-    const originKey = `origin/${filename}`;
-    const thumbKey = `ore/${filename}`;
+    const datePrefix = getBeijingDatePrefix();
+    const originKey = `origin/${datePrefix}/${filename}`;
+    const thumbKey = `ore/${datePrefix}/${filename}`;
 
     // 处理原图：根据 EXIF Orientation 自动旋转并去除 EXIF（避免浏览器再次旋转）
     let processedOriginBuffer;

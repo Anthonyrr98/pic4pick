@@ -11,7 +11,7 @@
 
 1. OSS AccessKey 只保存在 Supabase Function Secrets，不暴露到浏览器。
 2. 图片文件不经过 Supabase，可减少 Supabase Egress。
-3. 前端仍会生成缩略图并上传到 `ore/`，原图上传到 `origin/`。
+3. 前端仍会生成缩略图并上传到 `ore/YYYY/MM/DD/`，原图上传到 `origin/YYYY/MM/DD/`，日期目录按北京时间生成。
 
 ## 如何启用？
 

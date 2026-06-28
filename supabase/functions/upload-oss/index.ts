@@ -49,6 +49,15 @@ const sanitizeFilename = (value?: string) => {
   return safe || `${crypto.randomUUID()}.jpg`;
 };
 
+const getBeijingDatePrefix = (date = new Date()) => {
+  const beijingOffsetMs = 8 * 60 * 60 * 1000;
+  const [year, month, day] = new Date(date.getTime() + beijingOffsetMs)
+    .toISOString()
+    .slice(0, 10)
+    .split("-");
+  return `${year}/${month}/${day}`;
+};
+
 const hmacSha1Base64 = async (secret: string, message: string) => {
   const encoder = new TextEncoder();
   const key = await crypto.subtle.importKey(
@@ -139,9 +148,10 @@ Deno.serve(async (req) => {
 
     const config = getOssConfig();
     const filename = sanitizeFilename(payload.filename);
-    const origin = await signPutUrl(`origin/${filename}`, contentType, config);
+    const datePrefix = getBeijingDatePrefix();
+    const origin = await signPutUrl(`origin/${datePrefix}/${filename}`, contentType, config);
     const thumbnail = thumbnailContentType
-      ? await signPutUrl(`ore/${filename}`, thumbnailContentType, config)
+      ? await signPutUrl(`ore/${datePrefix}/${filename}`, thumbnailContentType, config)
       : null;
 
     return jsonResponse({

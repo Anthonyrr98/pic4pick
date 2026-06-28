@@ -144,8 +144,10 @@ export const extractOSSFileInfo = (url) => {
     match = pathname.match(/^\/(origin|ore)\/(.+)$/);
     if (match) {
       const subDir = match[1]; // origin 或 ore
-      const filename = match[2];
-      return { filename, subDir, fullPath: `${subDir}/${filename}` };
+      const pathInDir = match[2];
+      const parts = pathInDir.split('/').filter(Boolean);
+      const filename = parts[parts.length - 1];
+      return { filename, subDir, fullPath: `${subDir}/${pathInDir}` };
     }
     
     // 如果都不匹配，尝试直接取文件名
@@ -216,14 +218,14 @@ export const deleteOSSFile = async (url) => {
     if (!token) return;
 
     // 尝试删除多个可能的路径
-    const pathsToTry = [
+    const pathsToTry = [...new Set([
       fileInfo.fullPath, // 完整路径
       `origin/${fileInfo.filename}`,
       `ore/${fileInfo.filename}`,
       `pic4pick/${fileInfo.fullPath}`,
       `pic4pick/origin/${fileInfo.filename}`,
       `pic4pick/ore/${fileInfo.filename}`,
-    ];
+    ].filter(Boolean))];
     
     for (const pathToDelete of pathsToTry) {
       try {

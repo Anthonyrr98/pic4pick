@@ -192,6 +192,15 @@ if (ossConfigReady) {
 
 const OSS_OBJECT_KEY_PREFIX_RE = /^(origin|ore|pic4pick)\//;
 
+const getBeijingDatePrefix = (date = new Date()) => {
+  const beijingOffsetMs = 8 * 60 * 60 * 1000;
+  const [year, month, day] = new Date(date.getTime() + beijingOffsetMs)
+    .toISOString()
+    .slice(0, 10)
+    .split('-');
+  return `${year}/${month}/${day}`;
+};
+
 function parseAllowedOssObjectKey(rawUrl) {
   if (!rawUrl || typeof rawUrl !== 'string') return null;
   let parsed;
@@ -239,7 +248,7 @@ app.post('/api/upload/oss', upload.single('file'), async (req, res) => {
 
     const file = req.file;
     const filename = req.body.filename || file.filename;
-    const objectKey = `pic4pick/${filename}`;
+    const objectKey = `pic4pick/${getBeijingDatePrefix()}/${filename}`;
 
     // 可选：使用 sharp 优化图片
     let fileBuffer = fs.readFileSync(file.path);
