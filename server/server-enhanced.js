@@ -10,11 +10,11 @@ import dotenv from 'dotenv';
 import winston from 'winston';
 import jwt from 'jsonwebtoken';
 
-// 加载环境变量
-dotenv.config();
-
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// 加载环境变量
+dotenv.config({ path: path.join(__dirname, '.env') });
 
 const app = express();
 const PORT = process.env.PORT || 3002;
@@ -232,23 +232,42 @@ app.get('/api/images', (req, res) => {
   }
 });
 
+const isPlaceholderConfigValue = (value) => {
+  const normalized = String(value || '').trim().toLowerCase();
+  return !normalized || normalized.startsWith('your-') || normalized.includes('your_');
+};
+
+const ossConfig = {
+  region: process.env.ALIYUN_OSS_REGION,
+  bucket: process.env.ALIYUN_OSS_BUCKET,
+  accessKeyId: process.env.ALIYUN_OSS_ACCESS_KEY_ID,
+  accessKeySecret: process.env.ALIYUN_OSS_ACCESS_KEY_SECRET,
+};
+
+const ossConfigReady = Object.values(ossConfig).every((value) => !isPlaceholderConfigValue(value));
+
 // 初始化阿里云 OSS 客户端
 let ossClient = null;
-if (process.env.ALIYUN_OSS_REGION && process.env.ALIYUN_OSS_BUCKET &&
-    process.env.ALIYUN_OSS_ACCESS_KEY_ID && process.env.ALIYUN_OSS_ACCESS_KEY_SECRET) {
+if (ossConfigReady) {
   // 自动处理 Region 格式：如果用户输入的是 cn-beijing，自动转换为 oss-cn-beijing
-  let region = process.env.ALIYUN_OSS_REGION.trim();
+  let region = ossConfig.region.trim();
   if (!region.startsWith('oss-')) {
     region = `oss-${region}`;
   }
   
   ossClient = new OSS({
     region: region,
-    accessKeyId: process.env.ALIYUN_OSS_ACCESS_KEY_ID,
-    accessKeySecret: process.env.ALIYUN_OSS_ACCESS_KEY_SECRET,
-    bucket: process.env.ALIYUN_OSS_BUCKET,
+    accessKeyId: ossConfig.accessKeyId,
+    accessKeySecret: ossConfig.accessKeySecret,
+    bucket: ossConfig.bucket,
   });
-  logger.info(`✅ 阿里云 OSS 客户端已初始化 (Region: ${region}, Bucket: ${process.env.ALIYUN_OSS_BUCKET})`);
+  logger.info(`✅ 阿里云 OSS 客户端已初始化 (Region: ${region}, Bucket: ${ossConfig.bucket})`);
+} else {
+  const invalidKeys = Object.entries(ossConfig)
+    .filter(([, value]) => isPlaceholderConfigValue(value))
+    .map(([key]) => key)
+    .join(', ');
+  logger.warn(`阿里云 OSS 客户端未初始化，配置缺失或仍为占位值: ${invalidKeys}`);
 }
 
 const OSS_OBJECT_KEY_PREFIX_RE = /^(origin|ore|pic4pick)\//;

@@ -8,10 +8,10 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
-dotenv.config();
-
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+dotenv.config({ path: path.join(__dirname, '.env') });
 
 console.log('========================================');
 console.log('   后端服务器配置检查');
@@ -33,21 +33,26 @@ const ossEnvVars = {
   'ALIYUN_OSS_ACCESS_KEY_SECRET': process.env.ALIYUN_OSS_ACCESS_KEY_SECRET,
 };
 
+const isPlaceholderConfigValue = (value) => {
+  const normalized = String(value || '').trim().toLowerCase();
+  return !normalized || normalized.startsWith('your-') || normalized.includes('your_');
+};
+
 Object.entries(requiredEnvVars).forEach(([key, value]) => {
   console.log(`  ${key}: ${value}`);
 });
 
 console.log('\n📦 阿里云 OSS 配置：');
-const ossConfigured = Object.values(ossEnvVars).every(v => v);
+const ossConfigured = Object.values(ossEnvVars).every(v => !isPlaceholderConfigValue(v));
 if (ossConfigured) {
   console.log('  ✅ OSS 配置完整');
   console.log(`  Region: ${process.env.ALIYUN_OSS_REGION}`);
   console.log(`  Bucket: ${process.env.ALIYUN_OSS_BUCKET}`);
   console.log(`  AccessKey ID: ${process.env.ALIYUN_OSS_ACCESS_KEY_ID?.substring(0, 8)}...`);
 } else {
-  console.log('  ⚠️  OSS 配置不完整，以下变量未设置：');
+  console.log('  ⚠️  OSS 配置不完整或仍为占位值，以下变量需要检查：');
   Object.entries(ossEnvVars).forEach(([key, value]) => {
-    if (!value) {
+    if (isPlaceholderConfigValue(value)) {
       console.log(`    - ${key}`);
     }
   });

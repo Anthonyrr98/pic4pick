@@ -17,7 +17,7 @@ export const UPLOAD_TYPES = {
 
 // 获取当前上传方式
 export const getUploadType = () => {
-  return StorageString.get(STORAGE_KEYS.UPLOAD_TYPE, UPLOAD_TYPES.BASE64);
+  return StorageString.get(STORAGE_KEYS.UPLOAD_TYPE, UPLOAD_TYPES.ALIYUN_OSS);
 };
 
 // 设置上传方式
@@ -26,8 +26,8 @@ export const setUploadType = (type) => {
 };
 
 // 通用上传函数
-export const uploadImage = async (file, filename, onProgress) => {
-  const uploadType = getUploadType();
+export const uploadImage = async (file, filename, onProgress, uploadTypeOverride) => {
+  const uploadType = uploadTypeOverride || getUploadType();
   const normalizeResult = (result) => {
     if (!result) {
       return { url: '', thumbnailUrl: null };
@@ -331,10 +331,8 @@ export const resolveOssBackendApiUrl = (path = '/api/upload/oss') => {
   const applyBase = (baseRaw) => {
     const base = typeof baseRaw === 'string' ? baseRaw.trim() : '';
     if (!base) return null;
-    if (base.startsWith('http://') || base.startsWith('https://')) {
-      return base.endsWith(path) ? base : `${base}${path}`;
-    }
-    return base.endsWith(path) ? base : `${base}${path}`;
+    if (base.endsWith(path)) return base;
+    return `${base.replace(/\/+$/, '')}${path}`;
   };
 
   const fromStorage = applyBase(StorageString.get(STORAGE_KEYS.ALIYUN_OSS_BACKEND_URL, ''));
@@ -351,32 +349,12 @@ const getBackendApiUrl = (path = '/api/upload/oss') => {
   const explicit = resolveOssBackendApiUrl(path);
   if (explicit) return explicit;
 
-  // 检测是否为生产环境
   const isProduction = import.meta.env.PROD || 
     (typeof window !== 'undefined' && 
      window.location.hostname !== 'localhost' && 
      window.location.hostname !== '127.0.0.1');
   
-  // 如果配置了 Supabase，尝试使用 Supabase Edge Functions
   if (isProduction) {
-    const supabaseUrl = StorageString.get(STORAGE_KEYS.SUPABASE_URL, '') || 
-                       (typeof window !== 'undefined' && import.meta.env.VITE_SUPABASE_URL) || '';
-    
-    if (supabaseUrl && supabaseUrl.includes('supabase.co')) {
-      // 从 Supabase URL 构建 Edge Functions URL
-      // 格式：https://<project-ref>.supabase.co/functions/v1/upload-oss
-      try {
-        const url = new URL(supabaseUrl);
-        const functionsUrl = `${url.origin}/functions/v1/upload-oss`;
-        console.log('[uploadToAliyunOSS] 检测到 Supabase，使用 Edge Functions:', functionsUrl);
-        return functionsUrl;
-      } catch (e) {
-        console.warn('[uploadToAliyunOSS] 无法解析 Supabase URL:', e);
-      }
-    }
-    
-    // 生产环境：使用相对路径（假设后端和前端在同一域名下）
-    // 或者用户需要在管理面板中配置完整的后端 URL
     return path;
   }
   
@@ -443,7 +421,15 @@ const uploadToAliyunOSS = async (file, filename, onProgress) => {
           );
         }
       } else {
-        reject(new Error(`上传失败: ${xhr.status} ${xhr.statusText || ''}`));
+        let message = `上传失败: ${xhr.status} ${xhr.statusText || ''}`;
+        try {
+          const errorData = JSON.parse(xhr.responseText);
+          message = errorData.error || errorData.message || message;
+        } catch {
+          const errorText = xhr.responseText?.trim();
+          if (errorText) message = errorText;
+        }
+        reject(new Error(message));
       }
     });
 

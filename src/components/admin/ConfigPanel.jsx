@@ -22,7 +22,6 @@ import {
   resetBrandText,
 } from '../../utils/branding';
 import { handleError, formatErrorMessage, ErrorType } from '../../utils/errorHandler';
-import { STORAGE_KEYS } from '../../utils/storage';
 
 const SETTINGS_SECTIONS = [
   { id: 'env', label: '环境变量' },
@@ -69,6 +68,7 @@ export const ConfigPanel = ({
         const nextForm = {
           supabaseUrl: remote.VITE_SUPABASE_URL || '',
           supabaseAnonKey: remote.VITE_SUPABASE_ANON_KEY || '',
+          ossBackendUrl: remote.VITE_ALIYUN_OSS_BACKEND_URL || '',
           amapWebKey: remote.VITE_AMAP_WEB_KEY || legacyAmap,
           amapSecurityJsCode: remote.VITE_AMAP_SECURITY_JS_CODE || '',
           amapServiceKey: remote.VITE_AMAP_WEB_SERVICE_KEY || legacyAmap,
@@ -183,6 +183,7 @@ export const ConfigPanel = ({
     const updates = {
       VITE_SUPABASE_URL: envConfigForm.supabaseUrl || '',
       VITE_SUPABASE_ANON_KEY: envConfigForm.supabaseAnonKey || '',
+      VITE_ALIYUN_OSS_BACKEND_URL: envConfigForm.ossBackendUrl || '',
       VITE_AMAP_WEB_KEY: envConfigForm.amapWebKey || '',
       VITE_AMAP_SECURITY_JS_CODE: envConfigForm.amapSecurityJsCode || '',
       VITE_AMAP_WEB_SERVICE_KEY: envConfigForm.amapServiceKey || '',
@@ -218,6 +219,7 @@ export const ConfigPanel = ({
     setEnvConfigForm({
       supabaseUrl: getEnvValue('VITE_SUPABASE_URL', ''),
       supabaseAnonKey: getEnvValue('VITE_SUPABASE_ANON_KEY', ''),
+      ossBackendUrl: getEnvValue('VITE_ALIYUN_OSS_BACKEND_URL', ''),
       amapWebKey: getEnvValue('VITE_AMAP_WEB_KEY', getEnvValue('VITE_AMAP_KEY', '')),
       amapSecurityJsCode: getEnvValue('VITE_AMAP_SECURITY_JS_CODE', ''),
       amapServiceKey: getEnvValue('VITE_AMAP_WEB_SERVICE_KEY', getEnvValue('VITE_AMAP_KEY', '')),
@@ -323,6 +325,16 @@ export const ConfigPanel = ({
               value={envConfigForm.supabaseAnonKey}
               onChange={handleEnvConfigChange}
               placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+            />
+          </div>
+          <div className="form-group">
+            <label>阿里云 OSS 上传后端 URL</label>
+            <input
+              type="text"
+              name="ossBackendUrl"
+              value={envConfigForm.ossBackendUrl}
+              onChange={handleEnvConfigChange}
+              placeholder="同源部署可留空；跨域部署填 https://api.example.com/api/upload/oss"
             />
           </div>
           <div className="form-group">

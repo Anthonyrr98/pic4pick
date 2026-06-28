@@ -4,7 +4,7 @@ import 'react-datepicker/dist/react-datepicker.css';
 import { zhCN } from 'date-fns/locale';
 import exifr from 'exifr';
 import '../App.css';
-import { uploadImage, getUploadType, UPLOAD_TYPES } from '../utils/upload';
+import { uploadImage, getUploadType, setUploadType, UPLOAD_TYPES } from '../utils/upload';
 import { getSupabaseClient } from '../utils/supabaseClient';
 import { UploadProgress } from '../components/UploadProgress';
 import { getEnvValue } from '../utils/envConfig';
@@ -102,6 +102,7 @@ export function AdminPage() {
   const [envConfigForm, setEnvConfigForm] = useState(() => ({
     supabaseUrl: getEnvValue('VITE_SUPABASE_URL', ''),
     supabaseAnonKey: getEnvValue('VITE_SUPABASE_ANON_KEY', ''),
+    ossBackendUrl: getEnvValue('VITE_ALIYUN_OSS_BACKEND_URL', ''),
     amapWebKey: getEnvValue('VITE_AMAP_WEB_KEY', getEnvValue('VITE_AMAP_KEY', '')),
     amapSecurityJsCode: getEnvValue('VITE_AMAP_SECURITY_JS_CODE', ''),
     amapServiceKey: getEnvValue('VITE_AMAP_WEB_SERVICE_KEY', getEnvValue('VITE_AMAP_KEY', '')),
@@ -177,14 +178,13 @@ export function AdminPage() {
     setUploadBytes,
   } = useFileUpload();
   // 默认使用阿里云 OSS
-  const [uploadType] = useState(() => {
-    const currentType = getUploadType();
-    // 如果不是阿里云 OSS，自动设置为阿里云 OSS
-    if (currentType !== UPLOAD_TYPES.ALIYUN_OSS) {
-      return UPLOAD_TYPES.ALIYUN_OSS;
+  const [uploadType] = useState(UPLOAD_TYPES.ALIYUN_OSS);
+
+  useEffect(() => {
+    if (getUploadType() !== UPLOAD_TYPES.ALIYUN_OSS) {
+      setUploadType(UPLOAD_TYPES.ALIYUN_OSS);
     }
-    return currentType;
-  });
+  }, []);
   const [isSupabaseLoading, setIsSupabaseLoading] = useState(Boolean(supabase));
   const [supabaseError, setSupabaseError] = useState('');
   // 使用品牌配置管理 hook
@@ -1312,7 +1312,8 @@ export function AdminPage() {
               if (uploaded !== undefined && total !== undefined) {
                 setUploadBytes({ uploaded, total });
               }
-            }
+            },
+            uploadType
           );
           imageURL = url || imageURL;
           // 如果后端返回了缩略图（例如 OSS 的 ore 目录），优先使用
@@ -1331,7 +1332,8 @@ export function AdminPage() {
             type: ErrorType.NETWORK,
           });
           if (uploadType !== UPLOAD_TYPES.BASE64) {
-            setSubmitMessage({ type: 'error', text: `上传失败: ${formatErrorMessage(appError)}，使用本地预览` });
+            setSubmitMessage({ type: 'error', text: `上传失败: ${formatErrorMessage(appError)}` });
+            throw appError;
           }
           // 继续使用 base64 预览
         }
