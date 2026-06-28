@@ -25,6 +25,14 @@ const JWT_SECRET = process.env.JWT_SECRET || DEFAULT_JWT_SECRET;
 const ADMIN_USERNAME = process.env.ADMIN_USERNAME || DEFAULT_ADMIN_USERNAME;
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || DEFAULT_ADMIN_PASSWORD;
 
+const parsePositiveIntegerEnv = (key, fallback) => {
+  const value = Number.parseInt(process.env[key] || '', 10);
+  return Number.isFinite(value) && value > 0 ? value : fallback;
+};
+
+const UPLOAD_REQUEST_TIMEOUT_MS = parsePositiveIntegerEnv('UPLOAD_REQUEST_TIMEOUT_MS', 10 * 60 * 1000);
+const ALIYUN_OSS_TIMEOUT_MS = parsePositiveIntegerEnv('ALIYUN_OSS_TIMEOUT_MS', 5 * 60 * 1000);
+
 if (process.env.NODE_ENV === 'production') {
   if (!process.env.JWT_SECRET || JWT_SECRET === DEFAULT_JWT_SECRET || JWT_SECRET.length < 32) {
     throw new Error('生产环境必须配置长度至少 32 位的 JWT_SECRET，不能使用默认值');
@@ -38,7 +46,7 @@ if (process.env.NODE_ENV === 'production') {
 }
 
 // 设置服务器级别的超时（10分钟，适合大文件上传）
-app.timeout = 10 * 60 * 1000;
+app.timeout = UPLOAD_REQUEST_TIMEOUT_MS;
 
 // 配置 Winston 日志
 const logger = winston.createLogger({
@@ -274,8 +282,9 @@ if (ossConfigReady) {
     accessKeyId: ossConfig.accessKeyId,
     accessKeySecret: ossConfig.accessKeySecret,
     bucket: ossConfig.bucket,
+    timeout: ALIYUN_OSS_TIMEOUT_MS,
   });
-  logger.info(`✅ 阿里云 OSS 客户端已初始化 (Region: ${region}, Bucket: ${ossConfig.bucket})`);
+  logger.info(`✅ 阿里云 OSS 客户端已初始化 (Region: ${region}, Bucket: ${ossConfig.bucket}, Timeout: ${ALIYUN_OSS_TIMEOUT_MS}ms)`);
 } else {
   const invalidKeys = Object.entries(ossConfig)
     .filter(([, value]) => isPlaceholderConfigValue(value))
@@ -401,7 +410,7 @@ app.get('/api/media/proxy', async (req, res) => {
     if (!objectKey) {
       return res.status(400).json({ error: '无效或不允许的 OSS URL' });
     }
-    const result = await ossClient.getStream(objectKey);
+    const result = await ossClient.getStream(objectKey, { timeout: ALIYUN_OSS_TIMEOUT_MS });
     const contentType = result.res?.headers?.['content-type'] || 'application/octet-stream';
     res.setHeader('Content-Type', contentType);
     res.setHeader('Cache-Control', 'public, max-age=86400');
@@ -449,8 +458,8 @@ app.patch('/api/photos/:id/likes', async (req, res) => {
 
 // 上传到阿里云 OSS
 app.post('/api/upload/oss', authenticateToken, requireAdmin, upload.single('file'), async (req, res) => {
-  // 设置较长的超时时间（5分钟）
-  req.setTimeout(5 * 60 * 1000);
+  // 设置较长的超时时间，避免大文件或慢速 OSS 响应被过早中断
+  req.setTimeout(UPLOAD_REQUEST_TIMEOUT_MS);
   
   try {
     if (!ossClient) {
@@ -509,6 +518,7 @@ app.post('/api/upload/oss', authenticateToken, requireAdmin, upload.single('file
 
     // 上传原图到 origin 目录（已根据 EXIF 旋转）
     const originResult = await ossClient.put(originKey, processedOriginBuffer, {
+      timeout: ALIYUN_OSS_TIMEOUT_MS,
       headers: {
         'Content-Type': 'image/jpeg', // 统一为 JPEG（因为经过 sharp 处理）
         'x-oss-object-acl': 'public-read',
@@ -519,6 +529,7 @@ app.post('/api/upload/oss', authenticateToken, requireAdmin, upload.single('file
     let thumbResult = null;
     if (thumbBuffer) {
       thumbResult = await ossClient.put(thumbKey, thumbBuffer, {
+        timeout: ALIYUN_OSS_TIMEOUT_MS,
         headers: {
           'Content-Type': 'image/jpeg',
           'x-oss-object-acl': 'public-read',
@@ -591,7 +602,7 @@ app.delete('/api/upload/oss/:filename(*)', authenticateToken, requireAdmin, asyn
     const deleteResults = [];
     for (const objectKey of objectKeys) {
       try {
-        await ossClient.delete(objectKey);
+        await ossClient.delete(objectKey, { timeout: ALIYUN_OSS_TIMEOUT_MS });
         deleteResults.push({ objectKey, success: true });
         logger.info('成功删除OSS文件:', objectKey);
       } catch (deleteError) {

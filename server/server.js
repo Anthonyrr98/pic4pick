@@ -17,6 +17,17 @@ dotenv.config({ path: path.join(__dirname, '.env') });
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+const parsePositiveIntegerEnv = (key, fallback) => {
+  const value = Number.parseInt(process.env[key] || '', 10);
+  return Number.isFinite(value) && value > 0 ? value : fallback;
+};
+
+const UPLOAD_REQUEST_TIMEOUT_MS = parsePositiveIntegerEnv('UPLOAD_REQUEST_TIMEOUT_MS', 10 * 60 * 1000);
+const ALIYUN_OSS_TIMEOUT_MS = parsePositiveIntegerEnv('ALIYUN_OSS_TIMEOUT_MS', 5 * 60 * 1000);
+
+// 设置服务器级别的超时，适合大文件上传
+app.timeout = UPLOAD_REQUEST_TIMEOUT_MS;
+
 // 中间件
 app.use(cors());
 app.use(express.json());
@@ -180,8 +191,9 @@ if (ossConfigReady) {
     accessKeyId: ossConfig.accessKeyId,
     accessKeySecret: ossConfig.accessKeySecret,
     bucket: ossConfig.bucket,
+    timeout: ALIYUN_OSS_TIMEOUT_MS,
   });
-  console.log('✅ 阿里云 OSS 客户端已初始化');
+  console.log(`✅ 阿里云 OSS 客户端已初始化 (Timeout: ${ALIYUN_OSS_TIMEOUT_MS}ms)`);
 } else {
   const invalidKeys = Object.entries(ossConfig)
     .filter(([, value]) => isPlaceholderConfigValue(value))
@@ -224,7 +236,7 @@ app.get('/api/media/proxy', async (req, res) => {
     if (!objectKey) {
       return res.status(400).json({ error: '无效或不允许的 OSS URL' });
     }
-    const result = await ossClient.getStream(objectKey);
+    const result = await ossClient.getStream(objectKey, { timeout: ALIYUN_OSS_TIMEOUT_MS });
     const contentType = result.res?.headers?.['content-type'] || 'application/octet-stream';
     res.setHeader('Content-Type', contentType);
     res.setHeader('Cache-Control', 'public, max-age=86400');
@@ -237,6 +249,8 @@ app.get('/api/media/proxy', async (req, res) => {
 
 // 上传到阿里云 OSS（后端代理）
 app.post('/api/upload/oss', upload.single('file'), async (req, res) => {
+  req.setTimeout(UPLOAD_REQUEST_TIMEOUT_MS);
+
   try {
     if (!ossClient) {
       return res.status(500).json({ error: 'OSS 客户端未配置，请检查环境变量' });
@@ -261,6 +275,7 @@ app.post('/api/upload/oss', upload.single('file'), async (req, res) => {
 
     // 上传到 OSS
     const result = await ossClient.put(objectKey, fileBuffer, {
+      timeout: ALIYUN_OSS_TIMEOUT_MS,
       headers: {
         'Content-Type': file.mimetype,
         'x-oss-object-acl': 'public-read', // 设置为公共读
@@ -317,7 +332,7 @@ app.delete('/api/upload/oss/:filename(*)', async (req, res) => {
     const deleteResults = [];
     for (const objectKey of objectKeys) {
       try {
-        await ossClient.delete(objectKey);
+        await ossClient.delete(objectKey, { timeout: ALIYUN_OSS_TIMEOUT_MS });
         deleteResults.push({ objectKey, success: true });
         console.log('成功删除OSS文件:', objectKey);
       } catch (deleteError) {
