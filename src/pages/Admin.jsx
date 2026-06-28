@@ -12,6 +12,7 @@ import { Storage, StorageString, STORAGE_KEYS } from '../utils/storage';
 import { handleError, formatErrorMessage, ErrorType } from '../utils/errorHandler';
 import { mapSupabaseRowToPhoto, buildSupabasePayloadFromPhoto, getUploadTypeName, deleteOSSFile, getAmapApiUrl } from '../utils/adminUtils';
 import { ensureHttps } from '../utils/urlUtils';
+import { PHOTO_SELECT_FIELDS } from '../utils/photoFields';
 import { login as loginWithApi } from '../utils/auth';
 import { usePhotoManagement } from '../hooks/usePhotoManagement';
 import { useGearOptions } from '../hooks/useGearOptions';
@@ -857,7 +858,7 @@ export function AdminPage() {
       // 同时限制单次拉取量，避免大表查询触发 statement timeout。
       let { data, error } = await supabase
         .from('photos')
-        .select('*')
+        .select(PHOTO_SELECT_FIELDS)
         .order('created_at', { ascending: false })
         .limit(1000);
 
@@ -865,7 +866,7 @@ export function AdminPage() {
       if (error && /statement timeout/i.test(error.message || '')) {
         const fallback = await supabase
           .from('photos')
-          .select('*')
+          .select(PHOTO_SELECT_FIELDS)
           .limit(1000);
         data = fallback.data;
         error = fallback.error;
@@ -1418,8 +1419,10 @@ export function AdminPage() {
         });
         const msg = formatErrorMessage(appError);
         const isUniqueViolation = (error?.code || '').includes('23505') || (error?.message || msg || '').toLowerCase().includes('unique') || (error?.message || '').includes('duplicate');
+        setAdminUploads((prev) => prev.filter((item) => item.id !== newUpload.id));
         const hint = isUniqueViolation ? ' 可能是图片 URL 重复或数据库唯一约束冲突，请检查是否重复上传。' : '';
         setSubmitMessage({ type: 'error', text: `上传到云端失败：${msg}${hint}` });
+        throw appError;
       }
     }
       setSubmitMessage({ type: 'success', text: '提交成功！作品已添加到待审核列表' });

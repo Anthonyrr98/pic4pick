@@ -7,6 +7,9 @@ import { handleError, ErrorType } from './errorHandler';
 import { ensureHttps } from './urlUtils';
 import { getAuthToken } from './auth';
 
+const isEmbeddedImageDataUrl = (url) =>
+  typeof url === 'string' && /^data:image\//i.test(url.trim());
+
 /**
  * 映射 Supabase 行数据到照片对象
  */
@@ -50,6 +53,12 @@ export const buildSupabasePayloadFromPhoto = (photo, statusOverride) => {
   // 确保相机和镜头信息被正确提取（即使为空字符串也要包含）
   const camera = photo.camera !== undefined && photo.camera !== null ? String(photo.camera) : '';
   const lens = photo.lens !== undefined && photo.lens !== null ? String(photo.lens) : '';
+  const imageUrl = photo.image || photo.preview || '';
+  const thumbnailUrl = photo.thumbnail || photo.preview || '';
+
+  if (isEmbeddedImageDataUrl(imageUrl) || isEmbeddedImageDataUrl(thumbnailUrl)) {
+    throw new Error('图片上传失败：不能把 Base64 图片写入 Supabase，请先上传到 OSS/Storage 后再提交。');
+  }
   
   const payload = {
     id: photo.id,
@@ -58,8 +67,8 @@ export const buildSupabasePayloadFromPhoto = (photo, statusOverride) => {
     country: photo.country || '',
     category: photo.category || 'featured',
     tags: photo.tags || '',
-    image_url: photo.image || photo.preview || '',
-    thumbnail_url: photo.thumbnail || photo.preview || '',
+    image_url: imageUrl,
+    thumbnail_url: thumbnailUrl,
     latitude: photo.latitude ?? null,
     longitude: photo.longitude ?? null,
     altitude: photo.altitude ?? null,

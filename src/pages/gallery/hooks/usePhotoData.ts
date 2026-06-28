@@ -6,7 +6,10 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { Storage, STORAGE_KEYS } from '../../../utils/storage';
 import { ensureHttps } from '../../../utils/urlUtils';
 import { handleError, safeAsync, ErrorType } from '../../../utils/errorHandler';
+import { PHOTO_SELECT_FIELDS } from '../../../utils/photoFields';
 import { GalleryPhoto } from '../utils/photoDataUtils';
+
+const SUPABASE_REFRESH_MIN_INTERVAL_MS = 60 * 1000;
 
 // 从 localStorage 加载审核通过的作品
 const loadApprovedPhotos = (): GalleryPhoto[] => {
@@ -57,6 +60,7 @@ export const usePhotoData = (supabase: any) => {
   const [approvedPhotos, setApprovedPhotos] = useState<GalleryPhoto[]>(() => loadApprovedPhotos());
   const [supabaseError, setSupabaseError] = useState('');
   const localApprovedPhotosSnapshotRef = useRef<string | null>(null);
+  const lastSupabaseFetchAtRef = useRef(0);
 
   // 监听 localStorage 变化（非 Supabase 模式）
   useEffect(() => {
@@ -93,11 +97,17 @@ export const usePhotoData = (supabase: any) => {
 
     let isMounted = true;
 
-    const fetchApprovedFromSupabase = async () => {
+    const fetchApprovedFromSupabase = async (force = false) => {
+      const now = Date.now();
+      if (!force && now - lastSupabaseFetchAtRef.current < SUPABASE_REFRESH_MIN_INTERVAL_MS) {
+        return;
+      }
+      lastSupabaseFetchAtRef.current = now;
+
       try {
         let { data, error } = await supabase
           .from('photos')
-          .select('*')
+          .select(PHOTO_SELECT_FIELDS)
           .eq('status', 'approved')
           .order('created_at', { ascending: false })
           .limit(1000);
@@ -105,7 +115,7 @@ export const usePhotoData = (supabase: any) => {
         if (error && /statement timeout/i.test(error.message || '')) {
           const fallback = await supabase
             .from('photos')
-            .select('*')
+            .select(PHOTO_SELECT_FIELDS)
             .eq('status', 'approved')
             .limit(1000);
           data = fallback.data;
@@ -134,12 +144,21 @@ export const usePhotoData = (supabase: any) => {
       }
     };
 
-    fetchApprovedFromSupabase();
-    const intervalId = setInterval(fetchApprovedFromSupabase, 15000);
+    fetchApprovedFromSupabase(true);
+
+    const refreshWhenActive = () => {
+      if (document.visibilityState === 'visible') {
+        fetchApprovedFromSupabase();
+      }
+    };
+
+    window.addEventListener('focus', refreshWhenActive);
+    document.addEventListener('visibilitychange', refreshWhenActive);
 
     return () => {
       isMounted = false;
-      clearInterval(intervalId);
+      window.removeEventListener('focus', refreshWhenActive);
+      document.removeEventListener('visibilitychange', refreshWhenActive);
     };
   }, [supabase]);
 
