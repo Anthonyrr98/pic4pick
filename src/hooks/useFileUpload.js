@@ -11,6 +11,7 @@ export const useFileUpload = () => {
   const [uploadProgress, setUploadProgress] = useState(null);
   const [uploadingFileName, setUploadingFileName] = useState(null);
   const [uploadBytes, setUploadBytes] = useState({ uploaded: 0, total: 0 });
+  const [uploadStatus, setUploadStatus] = useState('');
 
   /**
    * 上传文件
@@ -20,27 +21,34 @@ export const useFileUpload = () => {
     setUploadingFileName(filename);
     setUploadProgress(0);
     setUploadBytes({ uploaded: 0, total: file.size });
+    setUploadStatus('准备上传...');
 
     try {
       const result = await uploadImage(
         file,
         filename,
-        (progress, uploaded, total) => {
+        (progress, uploaded, total, status) => {
           setUploadProgress(progress);
+          if (status?.label) {
+            setUploadStatus(status.label);
+          }
           if (uploaded !== undefined && total !== undefined) {
             setUploadBytes({ uploaded, total });
           }
           if (onProgress) {
-            onProgress(progress, uploaded, total);
+            onProgress(progress, uploaded, total, status);
           }
         }
       );
 
+      setUploadProgress(100);
+      setUploadStatus('上传完成');
       // 延迟隐藏进度条，让用户看到100%完成
       setTimeout(() => {
         setUploadProgress(null);
         setUploadingFileName(null);
         setUploadBytes({ uploaded: 0, total: 0 });
+        setUploadStatus('');
       }, 500);
 
       return result;
@@ -52,6 +60,7 @@ export const useFileUpload = () => {
       setUploadProgress(null);
       setUploadingFileName(null);
       setUploadBytes({ uploaded: 0, total: 0 });
+      setUploadStatus('');
       throw appError;
     } finally {
       setIsUploading(false);
@@ -66,6 +75,7 @@ export const useFileUpload = () => {
     setUploadProgress(null);
     setUploadingFileName(null);
     setUploadBytes({ uploaded: 0, total: 0 });
+    setUploadStatus('');
   }, []);
 
   // 返回所有状态和函数
@@ -74,6 +84,7 @@ export const useFileUpload = () => {
     uploadProgress,
     uploadingFileName,
     uploadBytes,
+    uploadStatus,
     uploadFile,
     resetUploadState,
     // 导出 setter 函数，供外部手动控制状态
@@ -81,6 +92,7 @@ export const useFileUpload = () => {
     setUploadProgress,
     setUploadingFileName,
     setUploadBytes,
+    setUploadStatus,
   };
 };
 

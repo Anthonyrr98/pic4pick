@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import './UploadProgress.css';
 
-export function UploadProgress({ progress, fileName, isVisible, uploadedBytes, totalBytes }) {
+export function UploadProgress({ progress, fileName, isVisible, uploadedBytes, totalBytes, statusLabel }) {
   const [displayProgress, setDisplayProgress] = useState(0);
   const animationFrameRef = useRef(null);
 
@@ -74,7 +74,7 @@ export function UploadProgress({ progress, fileName, isVisible, uploadedBytes, t
   return (
     <div className="upload-progress-container">
       <div className="upload-progress-header">
-        <span className="upload-progress-label">上传中...</span>
+        <span className="upload-progress-label">{statusLabel || '上传中...'}</span>
         <span className="upload-progress-percentage">{Math.round(percentage)}%</span>
       </div>
       {fileName && (

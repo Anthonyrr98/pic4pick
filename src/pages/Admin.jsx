@@ -179,10 +179,12 @@ export function AdminPage() {
     uploadProgress,
     uploadingFileName,
     uploadBytes,
+    uploadStatus,
     setIsUploading,
     setUploadProgress,
     setUploadingFileName,
     setUploadBytes,
+    setUploadStatus,
   } = useFileUpload();
   // 默认使用阿里云 OSS
   const [uploadType] = useState(UPLOAD_TYPES.ALIYUN_OSS);
@@ -1304,6 +1306,7 @@ export function AdminPage() {
     setUploadProgress(0);
     setUploadingFileName(uploadForm.file?.name || null);
     setUploadBytes({ uploaded: 0, total: uploadForm.file?.size || 0 });
+    setUploadStatus('准备上传...');
 
     try {
       let imageURL = '';
@@ -1322,8 +1325,13 @@ export function AdminPage() {
           const { url, thumbnailUrl: returnedThumb } = await uploadImage(
             uploadForm.file, 
             filename,
-            (progress, uploaded, total) => {
-              setUploadProgress(progress);
+            (progress, uploaded, total, status) => {
+              setUploadProgress(status?.stage === 'complete' ? 98 : progress);
+              if (status?.label) {
+                setUploadStatus(
+                  status.stage === 'complete' ? '文件上传完成，正在保存作品信息...' : status.label
+                );
+              }
               if (uploaded !== undefined && total !== undefined) {
                 setUploadBytes({ uploaded, total });
               }
@@ -1381,6 +1389,8 @@ export function AdminPage() {
     };
 
     setAdminUploads((prev) => [newUpload, ...prev]);
+    setUploadProgress(99);
+    setUploadStatus(supabase ? '正在同步作品信息...' : '正在完成提交...');
 
     // 记录常用相机/镜头到本地存储和 gear_presets 表
     console.log('[handleSubmit] 准备更新 gear_presets:', {
@@ -1435,6 +1445,8 @@ export function AdminPage() {
         throw appError;
       }
     }
+      setUploadProgress(100);
+      setUploadStatus('提交完成');
       setSubmitMessage({ type: 'success', text: '提交成功！作品已添加到待审核列表' });
       setActiveTab('pending'); // 切换到待审核标签
       
@@ -1481,6 +1493,7 @@ export function AdminPage() {
         setUploadProgress(null);
         setUploadingFileName(null);
         setUploadBytes({ uploaded: 0, total: 0 });
+        setUploadStatus('');
       }, 500);
     }
   };
@@ -1992,6 +2005,7 @@ export function AdminPage() {
         isVisible={uploadProgress !== null}
         uploadedBytes={uploadBytes.uploaded}
         totalBytes={uploadBytes.total}
+        statusLabel={uploadStatus}
       />
       <header className="app-header admin-header">
         <div className="brand">

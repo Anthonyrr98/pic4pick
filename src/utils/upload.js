@@ -15,6 +15,85 @@ export const UPLOAD_TYPES = {
   ALIYUN_OSS: 'aliyun_oss',   // 阿里云 OSS
 };
 
+const BYTE_TRANSFER_PROGRESS_MAX = 92;
+const SERVER_CONFIRM_PROGRESS = 94;
+const RESPONSE_PROCESS_PROGRESS = 98;
+
+const clampProgress = (progress) => {
+  const numericProgress = Number(progress);
+  if (!Number.isFinite(numericProgress)) return 0;
+  return Math.min(100, Math.max(0, numericProgress));
+};
+
+const reportUploadProgress = (onProgress, progress, uploaded, total, status = {}) => {
+  if (!onProgress) return;
+  onProgress(clampProgress(progress), uploaded, total, status);
+};
+
+const createXhrProgressReporter = (file, onProgress) => {
+  let uploadedBytes = 0;
+  let totalBytes = file?.size || 0;
+  let lastUpdateTime = 0;
+
+  const getDoneBytes = () => totalBytes || uploadedBytes || file?.size || 0;
+
+  const report = (progress, status, uploaded = uploadedBytes, total = totalBytes) => {
+    reportUploadProgress(onProgress, progress, uploaded, total, status);
+  };
+
+  return {
+    markPreparing() {
+      report(2, { stage: 'preparing', label: '准备上传...' }, 0, totalBytes);
+    },
+    handleTransferProgress(e) {
+      if (!e.lengthComputable) return;
+
+      uploadedBytes = e.loaded;
+      totalBytes = e.total;
+
+      const now = Date.now();
+      const isDone = e.loaded >= e.total;
+      if (now - lastUpdateTime < 50 && !isDone) return;
+
+      const transferRatio = e.total > 0 ? e.loaded / e.total : 0;
+      const progress = Math.min(BYTE_TRANSFER_PROGRESS_MAX, transferRatio * BYTE_TRANSFER_PROGRESS_MAX);
+      report(
+        isDone ? BYTE_TRANSFER_PROGRESS_MAX : progress,
+        isDone
+          ? { stage: 'confirming', label: '文件已传完，等待服务器确认...' }
+          : { stage: 'transferring', label: '上传文件中...' },
+        e.loaded,
+        e.total
+      );
+      lastUpdateTime = now;
+    },
+    markWaitingForServer() {
+      const doneBytes = getDoneBytes();
+      uploadedBytes = doneBytes;
+      totalBytes = doneBytes;
+      report(
+        SERVER_CONFIRM_PROGRESS,
+        { stage: 'confirming', label: '文件已传完，等待服务器确认...' },
+        doneBytes,
+        doneBytes
+      );
+    },
+    markResponseReceived() {
+      const doneBytes = getDoneBytes();
+      report(
+        RESPONSE_PROCESS_PROGRESS,
+        { stage: 'finalizing', label: '服务器已响应，正在完成...' },
+        doneBytes,
+        doneBytes
+      );
+    },
+    markComplete() {
+      const doneBytes = getDoneBytes();
+      report(100, { stage: 'complete', label: '上传完成' }, doneBytes, doneBytes);
+    },
+  };
+};
+
 // 获取当前上传方式
 export const getUploadType = () => {
   return StorageString.get(STORAGE_KEYS.UPLOAD_TYPE, UPLOAD_TYPES.ALIYUN_OSS);
@@ -133,16 +212,27 @@ export const compressImage = (file, options = {}) => {
 const uploadToBase64 = async (file, onProgress) => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
+    let isComplete = false;
+    const fileSize = file?.size || 0;
     
     // 模拟进度（Base64 转换很快，但为了用户体验还是显示进度）
     if (onProgress) {
-      onProgress(10);
-      setTimeout(() => onProgress(50), 50);
-      setTimeout(() => onProgress(90), 100);
+      reportUploadProgress(onProgress, 10, 0, fileSize, { stage: 'preparing', label: '准备读取文件...' });
+      setTimeout(() => {
+        if (!isComplete) {
+          reportUploadProgress(onProgress, 50, Math.round(fileSize * 0.5), fileSize, { stage: 'transferring', label: '正在处理文件...' });
+        }
+      }, 50);
+      setTimeout(() => {
+        if (!isComplete) {
+          reportUploadProgress(onProgress, 90, Math.round(fileSize * 0.9), fileSize, { stage: 'finalizing', label: '正在完成...' });
+        }
+      }, 100);
     }
     
     reader.onload = () => {
-      if (onProgress) onProgress(100);
+      isComplete = true;
+      reportUploadProgress(onProgress, 100, fileSize, fileSize, { stage: 'complete', label: '上传完成' });
       resolve(reader.result?.toString() || '');
     };
     reader.onerror = reject;
@@ -163,15 +253,13 @@ const uploadToAPI = async (file, filename, onProgress) => {
   
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
+    const progressReporter = createXhrProgressReporter(file, onProgress);
     
-    xhr.upload.addEventListener('progress', (e) => {
-      if (e.lengthComputable && onProgress) {
-        const percent = (e.loaded / e.total) * 100;
-        onProgress(percent, e.loaded, e.total);
-      }
-    });
+    xhr.upload.addEventListener('progress', progressReporter.handleTransferProgress);
+    xhr.upload.addEventListener('load', progressReporter.markWaitingForServer);
     
     xhr.addEventListener('load', () => {
+      progressReporter.markResponseReceived();
       if (xhr.status >= 200 && xhr.status < 300) {
         try {
           const data = JSON.parse(xhr.responseText);
@@ -179,6 +267,7 @@ const uploadToAPI = async (file, filename, onProgress) => {
             reject(new Error(data.error || '上传失败'));
             return;
           }
+          progressReporter.markComplete();
           resolve(data.url || data.imageUrl || data.fileUrl);
         } catch (error) {
           const appError = handleError(error, {
@@ -206,6 +295,7 @@ const uploadToAPI = async (file, filename, onProgress) => {
     });
     
     xhr.open('POST', apiUrl);
+    progressReporter.markPreparing();
     xhr.send(formData);
   });
 };
@@ -226,24 +316,17 @@ const uploadToCloudinary = async (file, filename, onProgress) => {
   
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
+    const progressReporter = createXhrProgressReporter(file, onProgress);
     
-    let lastUpdateTime = 0;
-    
-    xhr.upload.addEventListener('progress', (e) => {
-      if (e.lengthComputable && onProgress) {
-        const now = Date.now();
-        if (now - lastUpdateTime >= 50 || e.loaded === e.total) {
-          const percent = (e.loaded / e.total) * 100;
-          onProgress(percent, e.loaded, e.total);
-          lastUpdateTime = now;
-        }
-      }
-    });
+    xhr.upload.addEventListener('progress', progressReporter.handleTransferProgress);
+    xhr.upload.addEventListener('load', progressReporter.markWaitingForServer);
     
     xhr.addEventListener('load', () => {
+      progressReporter.markResponseReceived();
       if (xhr.status >= 200 && xhr.status < 300) {
         try {
           const data = JSON.parse(xhr.responseText);
+          progressReporter.markComplete();
           resolve(data.secure_url || data.url);
         } catch (error) {
           const appError = handleError(error, {
@@ -266,6 +349,7 @@ const uploadToCloudinary = async (file, filename, onProgress) => {
     });
     
     xhr.open('POST', `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`);
+    progressReporter.markPreparing();
     xhr.send(formData);
   });
 };
@@ -284,26 +368,20 @@ const uploadToSupabase = async (file, filename, onProgress) => {
   
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
+    const progressReporter = createXhrProgressReporter(file, onProgress);
     
-    let lastUpdateTime = 0;
-    
-    xhr.upload.addEventListener('progress', (e) => {
-      if (e.lengthComputable && onProgress) {
-        const now = Date.now();
-        if (now - lastUpdateTime >= 50 || e.loaded === e.total) {
-          const percent = (e.loaded / e.total) * 100;
-          onProgress(percent, e.loaded, e.total);
-          lastUpdateTime = now;
-        }
-      }
-    });
+    xhr.upload.addEventListener('progress', progressReporter.handleTransferProgress);
+    xhr.upload.addEventListener('load', progressReporter.markWaitingForServer);
     
     xhr.addEventListener('load', () => {
+      progressReporter.markResponseReceived();
       if (xhr.status >= 200 && xhr.status < 300) {
         try {
           JSON.parse(xhr.responseText);
+          progressReporter.markComplete();
           resolve(`${supabaseUrl}/storage/v1/object/public/${bucket}/${filePath}`);
         } catch {
+          progressReporter.markComplete();
           resolve(`${supabaseUrl}/storage/v1/object/public/${bucket}/${filePath}`);
         }
       } else {
@@ -322,6 +400,7 @@ const uploadToSupabase = async (file, filename, onProgress) => {
     xhr.open('POST', `${supabaseUrl}/storage/v1/object/${bucket}/${filePath}`);
     xhr.setRequestHeader('Authorization', `Bearer ${supabaseKey}`);
     xhr.setRequestHeader('Content-Type', file.type);
+    progressReporter.markPreparing();
     xhr.send(file);
   });
 };
@@ -414,20 +493,13 @@ const uploadToAliyunOSS = async (file, filename, onProgress) => {
 
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
+    const progressReporter = createXhrProgressReporter(file, onProgress);
 
-    let lastUpdateTime = 0;
-    xhr.upload.addEventListener('progress', (e) => {
-      if (e.lengthComputable && onProgress) {
-        const now = Date.now();
-        if (now - lastUpdateTime >= 50 || e.loaded === e.total) {
-          const percent = (e.loaded / e.total) * 100;
-          onProgress(percent, e.loaded, e.total);
-          lastUpdateTime = now;
-        }
-      }
-    });
+    xhr.upload.addEventListener('progress', progressReporter.handleTransferProgress);
+    xhr.upload.addEventListener('load', progressReporter.markWaitingForServer);
 
     xhr.addEventListener('load', () => {
+      progressReporter.markResponseReceived();
       if (xhr.status >= 200 && xhr.status < 300) {
         try {
           const data = JSON.parse(xhr.responseText);
@@ -435,6 +507,7 @@ const uploadToAliyunOSS = async (file, filename, onProgress) => {
             reject(new Error(data.error || '上传失败：服务器未返回 URL'));
             return;
           }
+          progressReporter.markComplete();
           resolve({
             url: data.url || data.imageUrl || data.fileUrl || '',
             thumbnailUrl: data.thumbnailUrl || data.thumbnail_url || null,
@@ -479,6 +552,7 @@ const uploadToAliyunOSS = async (file, filename, onProgress) => {
     try {
       xhr.open('POST', apiUrl);
       xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+      progressReporter.markPreparing();
       xhr.send(formData);
     } catch (error) {
       reject(
