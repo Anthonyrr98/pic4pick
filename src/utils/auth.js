@@ -3,9 +3,7 @@ import { safeAsync } from './errorHandler';
 import { getEnvValue } from './envConfig';
 
 const STATIC_AUTH_TOKEN_PREFIX = 'pic4pick-static-admin:';
-
-const getStaticAdminPassword = () => getEnvValue('VITE_ADMIN_PASSWORD', '').trim();
-const getStaticAdminUsername = () => getEnvValue('VITE_ADMIN_USERNAME', '').trim();
+const LEGACY_ADMIN_AUTHED_KEY = 'admin_authed';
 
 const isStaticAuthToken = (token) => {
   return typeof token === 'string' && token.startsWith(STATIC_AUTH_TOKEN_PREFIX);
@@ -23,40 +21,6 @@ const createAuthApiUnavailableError = (message) => {
   const error = new Error(message);
   error.authApiUnavailable = true;
   return error;
-};
-
-const isAuthApiUnavailableError = (error) => {
-  return Boolean(
-    error?.authApiUnavailable ||
-    error?.name === 'TypeError' ||
-    /failed to fetch|network|load failed/i.test(error?.message || '')
-  );
-};
-
-const loginWithStaticPassword = (username, password) => {
-  const staticPassword = getStaticAdminPassword();
-  if (!staticPassword) {
-    throw new Error('后台登录接口不可用，且未配置 VITE_ADMIN_PASSWORD');
-  }
-
-  const staticUsername = getStaticAdminUsername();
-  const normalizedUsername = username.trim();
-  const usernameMatches = !staticUsername || normalizedUsername === staticUsername;
-
-  if (!usernameMatches || password !== staticPassword) {
-    throw new Error('用户名或密码不正确');
-  }
-
-  const token = `${STATIC_AUTH_TOKEN_PREFIX}${Date.now()}`;
-  setAuthToken(token);
-
-  return {
-    success: true,
-    token,
-    username: normalizedUsername || staticUsername || 'admin',
-    expiresIn: 'local-session',
-    mode: 'static',
-  };
 };
 
 const parseAuthResponse = async (response) => {
@@ -117,18 +81,12 @@ export const setAuthToken = (token) => {
 
 export const clearAuthToken = () => {
   Storage.remove(STORAGE_KEYS.AUTH_TOKEN);
+  Storage.remove(LEGACY_ADMIN_AUTHED_KEY);
 };
 
 export const login = async (username, password) => {
   return safeAsync(async () => {
-    try {
-      return await loginWithApi(username.trim(), password);
-    } catch (error) {
-      if (isAuthApiUnavailableError(error)) {
-        return loginWithStaticPassword(username, password);
-      }
-      throw error;
-    }
+    return await loginWithApi(username.trim(), password);
   }, {
     context: 'login',
     throwError: true,
@@ -142,11 +100,8 @@ export const verifyToken = async () => {
   }
 
   if (isStaticAuthToken(token)) {
-    return {
-      success: true,
-      authenticated: true,
-      user: { username: getStaticAdminUsername() || 'admin', mode: 'static' },
-    };
+    clearAuthToken();
+    return { success: false, authenticated: false };
   }
 
   return safeAsync(async () => {

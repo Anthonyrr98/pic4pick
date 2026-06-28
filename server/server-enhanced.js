@@ -18,9 +18,24 @@ dotenv.config({ path: path.join(__dirname, '.env') });
 
 const app = express();
 const PORT = process.env.PORT || 3002;
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-this-in-production';
-const ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'admin';
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123';
+const DEFAULT_JWT_SECRET = 'your-secret-key-change-this-in-production';
+const DEFAULT_ADMIN_USERNAME = 'admin';
+const DEFAULT_ADMIN_PASSWORD = 'admin123';
+const JWT_SECRET = process.env.JWT_SECRET || DEFAULT_JWT_SECRET;
+const ADMIN_USERNAME = process.env.ADMIN_USERNAME || DEFAULT_ADMIN_USERNAME;
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || DEFAULT_ADMIN_PASSWORD;
+
+if (process.env.NODE_ENV === 'production') {
+  if (!process.env.JWT_SECRET || JWT_SECRET === DEFAULT_JWT_SECRET || JWT_SECRET.length < 32) {
+    throw new Error('生产环境必须配置长度至少 32 位的 JWT_SECRET，不能使用默认值');
+  }
+  if (!process.env.ADMIN_USERNAME || ADMIN_USERNAME === DEFAULT_ADMIN_USERNAME) {
+    throw new Error('生产环境必须配置非默认 ADMIN_USERNAME');
+  }
+  if (!process.env.ADMIN_PASSWORD || ADMIN_PASSWORD === DEFAULT_ADMIN_PASSWORD || ADMIN_PASSWORD.length < 12) {
+    throw new Error('生产环境必须配置长度至少 12 位的非默认 ADMIN_PASSWORD');
+  }
+}
 
 // 设置服务器级别的超时（10分钟，适合大文件上传）
 app.timeout = 10 * 60 * 1000;
@@ -271,6 +286,88 @@ if (ossConfigReady) {
 
 const OSS_OBJECT_KEY_PREFIX_RE = /^(origin|ore|pic4pick)\//;
 
+const SUPABASE_URL = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '').replace(/\/+$/, '');
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+const PHOTO_SELECT_FIELDS = [
+  'id',
+  'title',
+  'location',
+  'country',
+  'category',
+  'tags',
+  'image_url',
+  'thumbnail_url',
+  'latitude',
+  'longitude',
+  'altitude',
+  'focal',
+  'aperture',
+  'shutter',
+  'iso',
+  'camera',
+  'lens',
+  'film_stock',
+  'rating',
+  'shot_date',
+  'created_at',
+  'status',
+  'hidden',
+  'reject_reason',
+  'likes',
+].join(',');
+
+const isSupabaseAdminConfigured = () => Boolean(SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY);
+
+const supabaseAdminFetch = async (table, params = new URLSearchParams(), options = {}) => {
+  if (!isSupabaseAdminConfigured()) {
+    const error = new Error('Supabase 管理端未配置：请在 server/.env 配置 SUPABASE_URL 和 SUPABASE_SERVICE_ROLE_KEY');
+    error.status = 503;
+    throw error;
+  }
+
+  const query = params.toString();
+  const response = await fetch(`${SUPABASE_URL}/rest/v1/${table}${query ? `?${query}` : ''}`, {
+    method: options.method || 'GET',
+    headers: {
+      apikey: SUPABASE_SERVICE_ROLE_KEY,
+      Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+      'Accept-Profile': 'public',
+      'Content-Profile': 'public',
+      ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+      ...(options.prefer ? { Prefer: options.prefer } : {}),
+    },
+    body: options.body ? JSON.stringify(options.body) : undefined,
+  });
+
+  const rawBody = await response.text();
+  let data = null;
+  if (rawBody) {
+    try {
+      data = JSON.parse(rawBody);
+    } catch {
+      data = rawBody;
+    }
+  }
+
+  if (!response.ok) {
+    const message = data?.message || data?.error || data?.details || response.statusText;
+    const error = new Error(message || `Supabase REST 请求失败: ${response.status}`);
+    error.status = response.status;
+    error.details = data;
+    throw error;
+  }
+
+  return data;
+};
+
+const sendSupabaseAdminError = (res, error, fallbackMessage) => {
+  logger.error(fallbackMessage, { message: error.message, details: error.details });
+  res.status(error.status || 500).json({
+    error: error.message || fallbackMessage,
+    details: process.env.NODE_ENV === 'development' ? error.details : undefined,
+  });
+};
+
 const getBeijingDatePrefix = (date = new Date()) => {
   const beijingOffsetMs = 8 * 60 * 60 * 1000;
   const [year, month, day] = new Date(date.getTime() + beijingOffsetMs)
@@ -312,6 +409,41 @@ app.get('/api/media/proxy', async (req, res) => {
   } catch (error) {
     logger.warn(`OSS 代理读取失败: ${error.message}`);
     res.status(404).json({ error: '文件不存在或无法读取' });
+  }
+});
+
+app.patch('/api/photos/:id/likes', async (req, res) => {
+  try {
+    const delta = Number(req.body?.delta);
+    if (![-1, 1].includes(delta)) {
+      return res.status(400).json({ error: 'delta 只能是 1 或 -1' });
+    }
+
+    const currentRows = await supabaseAdminFetch('photos', new URLSearchParams({
+      select: 'id,likes',
+      id: `eq.${req.params.id}`,
+      status: 'eq.approved',
+      hidden: 'eq.false',
+      limit: '1',
+    }));
+    const current = Array.isArray(currentRows) ? currentRows[0] : null;
+    if (!current) {
+      return res.status(404).json({ error: '照片不存在或不可公开点赞' });
+    }
+
+    const nextLikes = Math.max(0, Number(current.likes || 0) + delta);
+    const updated = await supabaseAdminFetch('photos', new URLSearchParams({
+      id: `eq.${req.params.id}`,
+      select: 'id,likes',
+    }), {
+      method: 'PATCH',
+      body: { likes: nextLikes },
+      prefer: 'return=representation',
+    });
+
+    res.json({ success: true, data: Array.isArray(updated) ? updated[0] || null : null });
+  } catch (error) {
+    sendSupabaseAdminError(res, error, '点赞更新失败');
   }
 });
 
@@ -584,6 +716,184 @@ app.post('/api/auth/refresh', authenticateToken, (req, res) => {
     token: newToken,
     expiresIn: '24h'
   });
+});
+
+// === 管理端 Supabase API（所有写操作必须经过 JWT 管理员校验） ===
+
+app.get('/api/admin/photos', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const params = new URLSearchParams({
+      select: PHOTO_SELECT_FIELDS,
+      order: 'created_at.desc',
+      limit: String(Math.min(Number(req.query.limit) || 1000, 1000)),
+    });
+    const data = await supabaseAdminFetch('photos', params);
+    res.json({ success: true, data: data || [] });
+  } catch (error) {
+    sendSupabaseAdminError(res, error, '管理端照片列表读取失败');
+  }
+});
+
+app.get('/api/admin/photos/:id', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const params = new URLSearchParams({
+      select: typeof req.query.select === 'string' ? req.query.select : PHOTO_SELECT_FIELDS,
+      id: `eq.${req.params.id}`,
+      limit: '1',
+    });
+    const data = await supabaseAdminFetch('photos', params);
+    res.json({ success: true, data: Array.isArray(data) ? data[0] || null : null });
+  } catch (error) {
+    sendSupabaseAdminError(res, error, '管理端照片读取失败');
+  }
+});
+
+app.post('/api/admin/photos', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const data = await supabaseAdminFetch('photos', new URLSearchParams({ select: PHOTO_SELECT_FIELDS }), {
+      method: 'POST',
+      body: req.body,
+      prefer: 'return=representation',
+    });
+    res.status(201).json({ success: true, data });
+  } catch (error) {
+    sendSupabaseAdminError(res, error, '管理端照片创建失败');
+  }
+});
+
+app.post('/api/admin/photos/upsert', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const data = await supabaseAdminFetch('photos', new URLSearchParams({
+      on_conflict: 'id',
+      select: PHOTO_SELECT_FIELDS,
+    }), {
+      method: 'POST',
+      body: req.body,
+      prefer: 'resolution=merge-duplicates,return=representation',
+    });
+    res.json({ success: true, data });
+  } catch (error) {
+    sendSupabaseAdminError(res, error, '管理端照片 upsert 失败');
+  }
+});
+
+app.patch('/api/admin/photos/:id', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const data = await supabaseAdminFetch('photos', new URLSearchParams({
+      id: `eq.${req.params.id}`,
+      select: PHOTO_SELECT_FIELDS,
+    }), {
+      method: 'PATCH',
+      body: req.body,
+      prefer: 'return=representation',
+    });
+    res.json({ success: true, data });
+  } catch (error) {
+    sendSupabaseAdminError(res, error, '管理端照片更新失败');
+  }
+});
+
+app.delete('/api/admin/photos/:id', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const data = await supabaseAdminFetch('photos', new URLSearchParams({
+      id: `eq.${req.params.id}`,
+      select: 'id',
+    }), {
+      method: 'DELETE',
+      prefer: 'return=representation',
+    });
+    res.json({ success: true, data });
+  } catch (error) {
+    sendSupabaseAdminError(res, error, '管理端照片删除失败');
+  }
+});
+
+app.get('/api/admin/app-settings/:id', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const data = await supabaseAdminFetch('app_settings', new URLSearchParams({
+      select: 'id,data,updated_at',
+      id: `eq.${req.params.id}`,
+      limit: '1',
+    }));
+    res.json({ success: true, data: Array.isArray(data) ? data[0] || null : null });
+  } catch (error) {
+    sendSupabaseAdminError(res, error, '管理端配置读取失败');
+  }
+});
+
+app.put('/api/admin/app-settings/:id', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const data = await supabaseAdminFetch('app_settings', new URLSearchParams({
+      on_conflict: 'id',
+      select: 'id,data,updated_at',
+    }), {
+      method: 'POST',
+      body: {
+        id: req.params.id,
+        data: req.body?.data || {},
+        updated_at: new Date().toISOString(),
+      },
+      prefer: 'resolution=merge-duplicates,return=representation',
+    });
+    res.json({ success: true, data });
+  } catch (error) {
+    sendSupabaseAdminError(res, error, '管理端配置保存失败');
+  }
+});
+
+app.put('/api/admin/brand-settings/:id', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const data = await supabaseAdminFetch('brand_settings', new URLSearchParams({
+      on_conflict: 'id',
+      select: '*',
+    }), {
+      method: 'POST',
+      body: {
+        ...req.body,
+        id: req.params.id,
+        updated_at: new Date().toISOString(),
+      },
+      prefer: 'resolution=merge-duplicates,return=representation',
+    });
+    res.json({ success: true, data });
+  } catch (error) {
+    sendSupabaseAdminError(res, error, '品牌配置保存失败');
+  }
+});
+
+app.delete('/api/admin/brand-settings/:id', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const data = await supabaseAdminFetch('brand_settings', new URLSearchParams({
+      id: `eq.${req.params.id}`,
+      select: 'id',
+    }), {
+      method: 'DELETE',
+      prefer: 'return=representation',
+    });
+    res.json({ success: true, data });
+  } catch (error) {
+    sendSupabaseAdminError(res, error, '品牌配置删除失败');
+  }
+});
+
+app.post('/api/admin/gear-presets', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const { type, name } = req.body || {};
+    if (!['camera', 'lens'].includes(type) || !String(name || '').trim()) {
+      return res.status(400).json({ error: '无效的器材预设' });
+    }
+    const data = await supabaseAdminFetch('gear_presets', new URLSearchParams({
+      on_conflict: 'type,name',
+      select: 'type,name',
+    }), {
+      method: 'POST',
+      body: { type, name: String(name).trim() },
+      prefer: 'resolution=merge-duplicates,return=representation',
+    });
+    res.json({ success: true, data });
+  } catch (error) {
+    sendSupabaseAdminError(res, error, '器材预设保存失败');
+  }
 });
 
 // 生产模式：服务前端构建文件

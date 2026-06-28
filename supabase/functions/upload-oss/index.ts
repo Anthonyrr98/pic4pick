@@ -134,6 +134,13 @@ Deno.serve(async (req) => {
     return jsonResponse({ success: false, error: "只支持 POST 请求" }, 405);
   }
 
+  if (Deno.env.get("ENABLE_EDGE_OSS_SIGNING") !== "true") {
+    return jsonResponse({
+      success: false,
+      error: "OSS Edge 签名直传已禁用，请改用受管理员 JWT 保护的后端 /api/upload/oss",
+    }, 410);
+  }
+
   try {
     const payload = (await req.json().catch(() => ({}))) as SignRequest;
     const contentType = payload.contentType || "application/octet-stream";

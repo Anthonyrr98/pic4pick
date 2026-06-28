@@ -5,6 +5,7 @@
 import { useState, useEffect } from 'react';
 import { Storage, STORAGE_KEYS } from '../utils/storage';
 import { handleError, ErrorType } from '../utils/errorHandler';
+import { upsertGearPreset } from '../utils/adminApi';
 
 export const useGearOptions = (supabase) => {
   const [cameraOptions, setCameraOptions] = useState(() => {
@@ -17,6 +18,22 @@ export const useGearOptions = (supabase) => {
 
   const [showCameraDropdown, setShowCameraDropdown] = useState(false);
   const [showLensDropdown, setShowLensDropdown] = useState(false);
+
+  const syncGearPreset = async (type, name, context) => {
+    if (!supabase) {
+      console.warn(`[${context}] Supabase 未配置，无法同步到数据库`);
+      return;
+    }
+    try {
+      await upsertGearPreset(type, name);
+    } catch (e) {
+      handleError(e, {
+        context,
+        type: ErrorType.NETWORK,
+        silent: true,
+      });
+    }
+  };
 
   /**
    * 添加相机选项
@@ -36,33 +53,7 @@ export const useGearOptions = (supabase) => {
         console.log('[addCameraOption] 相机选项已存在于本地，但仍会尝试同步到数据库');
         // 即使本地已存在，也尝试同步到数据库（可能数据库中没有）
         if (supabase) {
-          (async () => {
-            try {
-              const { error } = await supabase
-                .from('gear_presets')
-                .upsert(
-                  { type: 'camera', name: trimmed },
-                  { onConflict: 'type,name' }
-                );
-              if (error) {
-                if (error.code === '23505' || String(error.code) === '409') {
-                  console.log('[addCameraOption] 相机预设已存在于数据库:', trimmed);
-                } else {
-                  handleError(error, {
-                    context: 'addCameraOption.supabase',
-                    type: ErrorType.NETWORK,
-                    silent: true,
-                  });
-                }
-              }
-            } catch (e) {
-              handleError(e, {
-                context: 'addCameraOption',
-                type: ErrorType.UNKNOWN,
-                silent: true,
-              });
-            }
-          })();
+          syncGearPreset('camera', trimmed, 'addCameraOption.supabase');
         }
         return prev;
       }
@@ -72,33 +63,7 @@ export const useGearOptions = (supabase) => {
       console.log('[addCameraOption] 更新本地存储，新选项:', next);
       
       if (supabase) {
-        (async () => {
-          try {
-            const { error } = await supabase
-              .from('gear_presets')
-              .upsert(
-                { type: 'camera', name: trimmed },
-                { onConflict: 'type,name' }
-              );
-            if (error) {
-              if (error.code === '23505' || String(error.code) === '409') {
-                console.log('[addCameraOption] 相机预设已存在于数据库:', trimmed);
-              } else {
-                handleError(error, {
-                  context: 'addCameraOption.supabase',
-                  type: ErrorType.NETWORK,
-                  silent: true,
-                });
-              }
-            }
-          } catch (e) {
-            handleError(e, {
-              context: 'addCameraOption',
-              type: ErrorType.UNKNOWN,
-              silent: true,
-            });
-          }
-        })();
+        syncGearPreset('camera', trimmed, 'addCameraOption.supabase');
       } else {
         console.warn('[addCameraOption] Supabase 未配置，无法同步到数据库');
       }
@@ -124,33 +89,7 @@ export const useGearOptions = (supabase) => {
         console.log('[addLensOption] 镜头选项已存在于本地，但仍会尝试同步到数据库');
         // 即使本地已存在，也尝试同步到数据库（可能数据库中没有）
         if (supabase) {
-          (async () => {
-            try {
-              const { error } = await supabase
-                .from('gear_presets')
-                .upsert(
-                  { type: 'lens', name: trimmed },
-                  { onConflict: 'type,name' }
-                );
-              if (error) {
-                if (error.code === '23505' || String(error.code) === '409') {
-                  console.log('[addLensOption] 镜头预设已存在于数据库:', trimmed);
-                } else {
-                  handleError(error, {
-                    context: 'addLensOption.supabase',
-                    type: ErrorType.NETWORK,
-                    silent: true,
-                  });
-                }
-              }
-            } catch (e) {
-              handleError(e, {
-                context: 'addLensOption',
-                type: ErrorType.UNKNOWN,
-                silent: true,
-              });
-            }
-          })();
+          syncGearPreset('lens', trimmed, 'addLensOption.supabase');
         }
         return prev;
       }
@@ -160,33 +99,7 @@ export const useGearOptions = (supabase) => {
       console.log('[addLensOption] 更新本地存储，新选项:', next);
       
       if (supabase) {
-        (async () => {
-          try {
-            const { error } = await supabase
-              .from('gear_presets')
-              .upsert(
-                { type: 'lens', name: trimmed },
-                { onConflict: 'type,name' }
-              );
-            if (error) {
-              if (error.code === '23505' || String(error.code) === '409') {
-                console.log('[addLensOption] 镜头预设已存在于数据库:', trimmed);
-              } else {
-                handleError(error, {
-                  context: 'addLensOption.supabase',
-                  type: ErrorType.NETWORK,
-                  silent: true,
-                });
-              }
-            }
-          } catch (e) {
-            handleError(e, {
-              context: 'addLensOption',
-              type: ErrorType.UNKNOWN,
-              silent: true,
-            });
-          }
-        })();
+        syncGearPreset('lens', trimmed, 'addLensOption.supabase');
       } else {
         console.warn('[addLensOption] Supabase 未配置，无法同步到数据库');
       }

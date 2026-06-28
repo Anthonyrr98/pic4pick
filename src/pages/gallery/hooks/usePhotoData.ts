@@ -7,9 +7,33 @@ import { Storage, STORAGE_KEYS } from '../../../utils/storage';
 import { ensureHttps } from '../../../utils/urlUtils';
 import { handleError, safeAsync, ErrorType } from '../../../utils/errorHandler';
 import { PHOTO_SELECT_FIELDS } from '../../../utils/photoFields';
+import { getEnvValue } from '../../../utils/envConfig';
 import { GalleryPhoto } from '../utils/photoDataUtils';
 
 const SUPABASE_REFRESH_MIN_INTERVAL_MS = 60 * 1000;
+
+const getApiUrl = (path: string) => {
+  const rawBase = getEnvValue('VITE_API_BASE_URL', '').trim();
+  if (!rawBase) return path;
+
+  const base = rawBase.replace(/\/+$/, '').replace(/\/api$/, '');
+  return `${base}${path}`;
+};
+
+const updatePhotoLike = async (photoId: string, delta: number) => {
+  const response = await fetch(getApiUrl(`/api/photos/${encodeURIComponent(photoId)}/likes`), {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ delta }),
+  });
+
+  if (!response.ok) {
+    const data = await response.json().catch(() => null);
+    throw new Error(data?.error || `点赞更新失败: ${response.status}`);
+  }
+};
 
 // 从 localStorage 加载审核通过的作品
 const loadApprovedPhotos = (): GalleryPhoto[] => {
@@ -195,18 +219,7 @@ export const useLikePhoto = (supabase: any, setApprovedPhotos: React.Dispatch<Re
 
       await safeAsync(
         async () => {
-          const newLikes = Math.max(0, (photo.likes || 0) + delta);
-          const { error } = await supabase
-            .from('photos')
-            .update({ likes: newLikes })
-            .eq('id', photo.id);
-
-          if (error) {
-            throw handleError(error, {
-              context: 'handleToggleLike.updateLikes',
-              type: ErrorType.NETWORK,
-            });
-          }
+          await updatePhotoLike(photo.id, delta);
         },
         {
           context: 'handleToggleLike',

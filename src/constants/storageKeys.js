@@ -20,9 +20,6 @@ export const STORAGE_KEYS = {
   // 当前激活的视图（gallery-view | explore-view）
   ACTIVE_VIEW: 'camarts_active_view',
   
-  // 管理员认证状态
-  ADMIN_AUTHED: 'admin_authed',
-  
   // JWT 认证 Token
   AUTH_TOKEN: 'auth_token',
   

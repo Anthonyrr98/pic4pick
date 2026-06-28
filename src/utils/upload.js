@@ -331,8 +331,9 @@ export const resolveOssBackendApiUrl = (path = '/api/upload/oss') => {
   const applyBase = (baseRaw, { stripApiBase = false } = {}) => {
     const base = typeof baseRaw === 'string' ? baseRaw.trim() : '';
     if (!base) return null;
-    if (base.endsWith(path)) return base;
     let normalizedBase = base.replace(/\/+$/, '');
+    if (normalizedBase.includes('/functions/v1/upload-oss')) return normalizedBase;
+    if (normalizedBase.endsWith(path)) return normalizedBase;
     if (stripApiBase && normalizedBase.endsWith('/api') && path.startsWith('/api/')) {
       normalizedBase = normalizedBase.slice(0, -4);
     }
@@ -351,20 +352,6 @@ export const resolveOssBackendApiUrl = (path = '/api/upload/oss') => {
   return null;
 };
 
-const getSupabaseEdgeUploadUrl = () => {
-  const supabaseUrl =
-    getEnvValue('VITE_SUPABASE_URL', '') ||
-    StorageString.get(STORAGE_KEYS.SUPABASE_URL, '');
-  if (!supabaseUrl) return null;
-
-  try {
-    const parsed = new URL(supabaseUrl);
-    return `${parsed.origin}/functions/v1/upload-oss`;
-  } catch {
-    return null;
-  }
-};
-
 // 获取后端 API URL（根据环境自动选择）
 const getBackendApiUrl = (path = '/api/upload/oss') => {
   const explicit = resolveOssBackendApiUrl(path);
@@ -374,13 +361,11 @@ const getBackendApiUrl = (path = '/api/upload/oss') => {
     (typeof window !== 'undefined' && 
      window.location.hostname !== 'localhost' && 
      window.location.hostname !== '127.0.0.1');
-  
+
   if (isProduction) {
-    const edgeUrl = getSupabaseEdgeUploadUrl();
-    if (edgeUrl) return edgeUrl;
-    return path;
+    return null;
   }
-  
+
   // 开发环境：默认使用 localhost:3002
   return `http://localhost:3002${path}`;
 };
@@ -392,127 +377,6 @@ const isSupabaseEdgeUploadUrl = (apiUrl) => {
   } catch {
     return false;
   }
-};
-
-const getSupabaseAnonKey = () =>
-  getEnvValue('VITE_SUPABASE_ANON_KEY', '') ||
-  StorageString.get(STORAGE_KEYS.SUPABASE_ANON_KEY, '');
-
-const getImageContentType = (file, filename) => {
-  if (file?.type) return file.type;
-  const ext = String(filename || file?.name || '').split('.').pop()?.toLowerCase();
-  const byExt = {
-    jpg: 'image/jpeg',
-    jpeg: 'image/jpeg',
-    png: 'image/png',
-    gif: 'image/gif',
-    webp: 'image/webp',
-    heic: 'image/heic',
-    heif: 'image/heif',
-  };
-  return byExt[ext] || 'image/jpeg';
-};
-
-const putSignedObject = (blob, upload, completedBytes, totalBytes, onProgress) => (
-  new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-
-    xhr.upload.addEventListener('progress', (e) => {
-      if (e.lengthComputable && onProgress) {
-        const loaded = completedBytes + e.loaded;
-        onProgress((loaded / totalBytes) * 100, loaded, totalBytes);
-      }
-    });
-
-    xhr.addEventListener('load', () => {
-      if (xhr.status >= 200 && xhr.status < 300) {
-        resolve();
-        return;
-      }
-      const errorText = xhr.responseText?.trim();
-      reject(new Error(errorText || `OSS 直传失败: ${xhr.status} ${xhr.statusText || ''}`));
-    });
-
-    xhr.addEventListener('error', () => {
-      reject(new Error('网络错误，无法直连阿里云 OSS。请检查 OSS Bucket 的 CORS 配置是否允许当前站点 PUT 上传。'));
-    });
-
-    xhr.addEventListener('timeout', () => {
-      reject(new Error('OSS 直传超时，请检查网络或文件大小'));
-    });
-
-    xhr.timeout = 5 * 60 * 1000;
-    xhr.open('PUT', upload.uploadUrl);
-    Object.entries(upload.headers || {}).forEach(([key, value]) => {
-      xhr.setRequestHeader(key, value);
-    });
-    xhr.send(blob);
-  })
-);
-
-const uploadToAliyunOSSWithSignedPut = async (apiUrl, file, filename, onProgress) => {
-  let thumbnailFile = null;
-  try {
-    thumbnailFile = await compressImage(file, {
-      maxWidth: 600,
-      maxHeight: 600,
-      quality: 0.8,
-    });
-  } catch (error) {
-    console.warn('[uploadToAliyunOSS] 缩略图生成失败，将只上传原图:', error);
-  }
-
-  const contentType = getImageContentType(file, filename);
-  const thumbnailContentType = thumbnailFile ? getImageContentType(thumbnailFile, filename) : null;
-  const anonKey = getSupabaseAnonKey();
-  const headers = {
-    'Content-Type': 'application/json',
-  };
-  if (anonKey) {
-    headers.Authorization = `Bearer ${anonKey}`;
-    headers.apikey = anonKey;
-  }
-
-  const signResponse = await fetch(apiUrl, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({
-      filename,
-      contentType,
-      thumbnailContentType,
-    }),
-  });
-
-  const signData = await signResponse.json().catch(() => null);
-  if (!signResponse.ok || !signData?.success || signData.mode !== 'signed-put') {
-    throw new Error(signData?.error || `生成 OSS 上传签名失败: ${signResponse.status}`);
-  }
-
-  const originUpload = signData.uploads?.origin;
-  const thumbnailUpload = signData.uploads?.thumbnail;
-  if (!originUpload?.uploadUrl) {
-    throw new Error('生成 OSS 上传签名失败：缺少原图上传地址');
-  }
-
-  const totalBytes = file.size + (thumbnailFile && thumbnailUpload ? thumbnailFile.size : 0);
-  let completedBytes = 0;
-
-  await putSignedObject(file, originUpload, completedBytes, totalBytes, onProgress);
-  completedBytes += file.size;
-
-  if (thumbnailFile && thumbnailUpload?.uploadUrl) {
-    await putSignedObject(thumbnailFile, thumbnailUpload, completedBytes, totalBytes, onProgress);
-    completedBytes += thumbnailFile.size;
-  }
-
-  if (onProgress) {
-    onProgress(100, completedBytes, totalBytes);
-  }
-
-  return {
-    url: signData.url || originUpload.publicUrl,
-    thumbnailUrl: signData.thumbnailUrl || thumbnailUpload?.publicUrl || null,
-  };
 };
 
 // 阿里云 OSS 上传
@@ -529,8 +393,11 @@ const uploadToAliyunOSS = async (file, filename, onProgress) => {
   }, { context: 'uploadToAliyunOSS.clearLegacySecrets', silent: true });
 
   const apiUrl = getBackendApiUrl('/api/upload/oss');
+  if (!apiUrl) {
+    throw new Error('生产环境未配置受保护的 OSS 上传后端。请配置 VITE_API_BASE_URL 或 VITE_ALIYUN_OSS_BACKEND_URL 指向 server-enhanced.js 的 /api/upload/oss。');
+  }
   if (isSupabaseEdgeUploadUrl(apiUrl)) {
-    return uploadToAliyunOSSWithSignedPut(apiUrl, file, filename, onProgress);
+    throw new Error('Supabase Edge OSS 签名直传已禁用。请改用带管理员 JWT 校验的后端 /api/upload/oss。');
   }
 
   const token = getAuthToken();

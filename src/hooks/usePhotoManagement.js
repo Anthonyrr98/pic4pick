@@ -8,6 +8,7 @@ import { Storage, STORAGE_KEYS } from '../utils/storage';
 import { buildSupabasePayloadFromPhoto, deleteOSSFile } from '../utils/adminUtils';
 import { handleError, formatErrorMessage, ErrorType } from '../utils/errorHandler';
 import { ensureHttps } from '../utils/urlUtils';
+import { deleteAdminPhoto, updateAdminPhoto, upsertAdminPhoto } from '../utils/adminApi';
 
 const STORAGE_KEY = STORAGE_KEYS.ADMIN_UPLOADS;
 const APPROVED_STORAGE_KEY = STORAGE_KEYS.APPROVED_PHOTOS;
@@ -84,37 +85,10 @@ export const usePhotoManagement = (supabase, refreshSupabaseData, setSubmitMessa
         // 移除 reject_reason 字段（如果数据库中没有该字段）
         const updatePayload = { ...payload };
         delete updatePayload.reject_reason;
-        const { error } = await supabase
-          .from('photos')
-          .upsert(
-            {
-              ...updatePayload,
-              status: 'approved',
-            },
-            {
-              onConflict: 'id', // 如果 id 已存在则更新
-            },
-          );
-        
-        if (error) {
-          const message = (error.message || error.details || '').toLowerCase();
-          const isTimeout =
-            message.includes('statement timeout') ||
-            message.includes('canceling statement due to statement timeout');
-
-          if (isTimeout) {
-            // 对于超时，前端保持乐观状态，仅提示用户稍后在 Supabase 控制台确认
-            setSubmitMessage({
-              type: 'error',
-              text: '云端审核可能已成功，但查询超时，请稍后在 Supabase 控制台确认状态。',
-            });
-          } else {
-            throw handleError(new Error(error.message || error.details || '更新失败'), {
-              context: 'handleApprove.supabase',
-              type: ErrorType.NETWORK,
-            });
-          }
-        }
+        await upsertAdminPhoto({
+          ...updatePayload,
+          status: 'approved',
+        });
       } catch (error) {
         console.error('审核失败详情:', error);
 
@@ -181,27 +155,12 @@ export const usePhotoManagement = (supabase, refreshSupabaseData, setSubmitMessa
         // 移除 reject_reason 字段（如果数据库中没有该字段）
         const updatePayload = { ...payload };
         delete updatePayload.reject_reason;
-        const { error, data } = await supabase
-          .from('photos')
-          .upsert({
-            ...updatePayload,
-            status: 'rejected',
-            // reject_reason: rejectReason || null, // 暂时注释
-          }, {
-            onConflict: 'id' // 如果 id 已存在则更新
-          })
-          .select();
-        
-        if (error) {
-          const errorMessage = error.message || error.details || '更新失败';
-          const errorDetails = error.hint ? ` (${error.hint})` : '';
-          throw handleError(new Error(`${errorMessage}${errorDetails}`), {
-            context: 'handleReject.supabase',
-            type: ErrorType.NETWORK,
-          });
-        }
-        
-        // 验证操作是否成功（upsert 应该总是返回数据）
+        const data = await upsertAdminPhoto({
+          ...updatePayload,
+          status: 'rejected',
+          // reject_reason: rejectReason || null, // 暂时注释
+        });
+
         if (!data || data.length === 0) {
           console.warn('拒绝操作完成，但 Supabase 未返回数据。这可能是因为记录已存在且未更改。');
           // 不抛出错误，继续执行（可能是记录已存在且状态相同）
@@ -311,17 +270,7 @@ export const usePhotoManagement = (supabase, refreshSupabaseData, setSubmitMessa
 
       // 从 Supabase 删除
       if (supabase) {
-        const { error } = await supabase
-          .from('photos')
-          .delete()
-          .eq('id', id);
-        
-        if (error) {
-          throw handleError(error, {
-            context: 'handleDelete.supabase',
-            type: ErrorType.NETWORK,
-          });
-        }
+        await deleteAdminPhoto(id);
         await refreshSupabaseData();
       }
 
@@ -366,10 +315,7 @@ export const usePhotoManagement = (supabase, refreshSupabaseData, setSubmitMessa
     if (supabase) {
       try {
         // 更新状态为 pending，不包含 reject_reason（如果数据库没有该字段）
-        await supabase
-          .from('photos')
-          .update({ status: 'pending' })
-          .eq('id', id);
+        await updateAdminPhoto(id, { status: 'pending' });
         await refreshSupabaseData();
       } catch (error) {
         handleError(error, {

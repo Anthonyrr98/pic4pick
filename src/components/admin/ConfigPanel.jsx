@@ -13,7 +13,6 @@ import {
 import { MapStylePicker } from './MapStylePicker';
 import {
   BRAND_LOGO_MAX_SIZE,
-  BRAND_LOGO_SUPABASE_TABLE,
   BRAND_LOGO_SUPABASE_ID,
   saveBrandLogo,
   removeBrandLogo,
@@ -22,6 +21,12 @@ import {
   resetBrandText,
 } from '../../utils/branding';
 import { handleError, formatErrorMessage, ErrorType } from '../../utils/errorHandler';
+import {
+  deleteBrandSettings,
+  fetchAdminSetting,
+  upsertAdminSetting,
+  upsertBrandSettings,
+} from '../../utils/adminApi';
 
 const SETTINGS_SECTIONS = [
   { id: 'env', label: '环境变量' },
@@ -54,14 +59,7 @@ export const ConfigPanel = ({
 
     const loadRemoteEnvConfig = async () => {
       try {
-        const { data, error } = await supabase
-          .from('app_settings')
-          .select('data')
-          .eq('id', 'env_config')
-          .limit(1);
-        if (error) throw error;
-
-        const record = Array.isArray(data) ? data[0] : null;
+        const record = await fetchAdminSetting('env_config');
         const remote = record?.data || {};
         const legacyAmap = remote.VITE_AMAP_KEY || '';
         updateEnvOverrides(remote);
@@ -121,18 +119,10 @@ export const ConfigPanel = ({
 
         // 2）如果 Supabase 可用，再同步到云端 brand_settings 表
         if (supabase) {
-          const { error } = await supabase
-            .from(BRAND_LOGO_SUPABASE_TABLE)
-            .upsert({
-              id: BRAND_LOGO_SUPABASE_ID,
-              logo_data: dataUrl,
-              logo_mime: file.type || null,
-              updated_at: new Date().toISOString(),
-            });
-
-          if (error) {
-            throw error;
-          }
+          await upsertBrandSettings(BRAND_LOGO_SUPABASE_ID, {
+            logo_data: dataUrl,
+            logo_mime: file.type || null,
+          });
 
           setLogoMessage({ type: 'success', text: 'Logo 已上传并同步到云端' });
         } else {
@@ -156,11 +146,7 @@ export const ConfigPanel = ({
   const handleResetLogo = async () => {
     try {
       if (supabase) {
-        const { error } = await supabase
-          .from('brand_settings')
-          .delete()
-          .eq('id', 'camarts_brand');
-        if (error) throw error;
+        await deleteBrandSettings('camarts_brand');
       }
       removeBrandLogo();
       setBrandLogo('');
@@ -194,14 +180,7 @@ export const ConfigPanel = ({
     updateEnvOverrides(updates);
     try {
       if (supabase) {
-        const { error } = await supabase
-          .from('app_settings')
-          .upsert({
-            id: 'env_config',
-            data: updates,
-            updated_at: new Date().toISOString(),
-          });
-        if (error) throw error;
+        await upsertAdminSetting('env_config', updates);
       }
       setEnvConfigMessage({
         type: 'success',
@@ -230,14 +209,7 @@ export const ConfigPanel = ({
     });
     try {
       if (supabase) {
-        const { error } = await supabase
-          .from('app_settings')
-          .upsert({
-            id: 'env_config',
-            data: {},
-            updated_at: new Date().toISOString(),
-          });
-        if (error) throw error;
+        await upsertAdminSetting('env_config', {});
       }
       setEnvConfigMessage({ type: 'info', text: supabase ? '配置已重置并同步到数据库，请刷新页面生效' : '环境变量配置已重置为默认值，请刷新页面生效' });
     } catch (e) {
@@ -251,16 +223,12 @@ export const ConfigPanel = ({
     try {
       saveBrandText(brandText);
       if (supabase) {
-        await supabase
-          .from(BRAND_LOGO_SUPABASE_TABLE)
-          .upsert({
-            id: BRAND_LOGO_SUPABASE_ID,
-            site_title: brandText.siteTitle,
-            site_subtitle: brandText.siteSubtitle,
-            admin_title: brandText.adminTitle,
-            admin_subtitle: brandText.adminSubtitle,
-            updated_at: new Date().toISOString(),
-          });
+        await upsertBrandSettings(BRAND_LOGO_SUPABASE_ID, {
+          site_title: brandText.siteTitle,
+          site_subtitle: brandText.siteSubtitle,
+          admin_title: brandText.adminTitle,
+          admin_subtitle: brandText.adminSubtitle,
+        });
       }
       setBrandTextMessage({ type: 'success', text: '标题文案已保存' });
     } catch (error) {

@@ -8,12 +8,18 @@ import { uploadImage, getUploadType, setUploadType, UPLOAD_TYPES } from '../util
 import { getSupabaseClient } from '../utils/supabaseClient';
 import { UploadProgress } from '../components/UploadProgress';
 import { getEnvValue } from '../utils/envConfig';
-import { Storage, StorageString, STORAGE_KEYS } from '../utils/storage';
+import { Storage, STORAGE_KEYS } from '../utils/storage';
 import { handleError, formatErrorMessage, ErrorType } from '../utils/errorHandler';
 import { mapSupabaseRowToPhoto, buildSupabasePayloadFromPhoto, getUploadTypeName, deleteOSSFile, getAmapApiUrl } from '../utils/adminUtils';
 import { ensureHttps } from '../utils/urlUtils';
-import { PHOTO_SELECT_FIELDS } from '../utils/photoFields';
-import { login as loginWithApi } from '../utils/auth';
+import { login as loginWithApi, verifyToken } from '../utils/auth';
+import {
+  createAdminPhoto,
+  deleteAdminPhoto,
+  fetchAdminPhoto,
+  fetchAdminPhotos,
+  updateAdminPhoto,
+} from '../utils/adminApi';
 import { usePhotoManagement } from '../hooks/usePhotoManagement';
 import { useGearOptions } from '../hooks/useGearOptions';
 import { useBrandConfig } from '../hooks/useBrandConfig';
@@ -151,9 +157,8 @@ export function AdminPage() {
     addLensOption,
   } = useGearOptions(supabase);
 
-  const [isAdminAuthed, setIsAdminAuthed] = useState(() => {
-    return StorageString.get(STORAGE_KEYS.ADMIN_AUTHED) === 'true';
-  });
+  const [isAdminAuthed, setIsAdminAuthed] = useState(false);
+  const [isAuthChecking, setIsAuthChecking] = useState(true);
   const [adminUsernameInput, setAdminUsernameInput] = useState('admin');
   const [adminPasswordInput, setAdminPasswordInput] = useState('');
   const [adminAuthError, setAdminAuthError] = useState('');
@@ -233,6 +238,30 @@ export function AdminPage() {
     if (import.meta.env.DEV) {
       console.log('VITE_AMAP_KEY in AdminPage:', getEnvValue('VITE_AMAP_KEY', '(undefined)'));
     }
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const checkAdminSession = async () => {
+      setIsAuthChecking(true);
+      try {
+        const result = await verifyToken();
+        if (!cancelled) {
+          setIsAdminAuthed(Boolean(result?.authenticated));
+        }
+      } finally {
+        if (!cancelled) {
+          setIsAuthChecking(false);
+        }
+      }
+    };
+
+    checkAdminSession();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // loadGearPresets, loadRemoteBrandLogo, loadRemoteBrandText 等已移至对应的 hooks
@@ -854,27 +883,7 @@ export function AdminPage() {
     setIsSupabaseLoading(true);
     setSupabaseError('');
     try {
-      // 统一拉取后在前端按 status 分组，避免某个状态条件查询异常导致整体失败
-      // 同时限制单次拉取量，避免大表查询触发 statement timeout。
-      let { data, error } = await supabase
-        .from('photos')
-        .select(PHOTO_SELECT_FIELDS)
-        .order('created_at', { ascending: false })
-        .limit(1000);
-
-      // 数据库排序超时时，降级为不排序查询，先保证后台可用
-      if (error && /statement timeout/i.test(error.message || '')) {
-        const fallback = await supabase
-          .from('photos')
-          .select(PHOTO_SELECT_FIELDS)
-          .limit(1000);
-        data = fallback.data;
-        error = fallback.error;
-      }
-
-      if (error) {
-        throw error;
-      }
+      const data = await fetchAdminPhotos();
 
       const rows = data || [];
       const pendingMapped = rows
@@ -1407,10 +1416,7 @@ export function AdminPage() {
         console.log('payload 中的相机信息:', payload.camera);
         console.log('payload 中的镜头信息:', payload.lens);
         
-        const { error } = await supabase.from('photos').insert(payload);
-        if (error) {
-          throw error;
-        }
+        await createAdminPhoto(payload);
         await refreshSupabaseData();
       } catch (error) {
         const appError = handleError(error, {
@@ -1543,7 +1549,7 @@ export function AdminPage() {
           hidden: !!editForm.hidden,
         };
 
-        await supabase.from('photos').update(updatePayload).eq('id', editingPhotoId);
+        await updateAdminPhoto(editingPhotoId, updatePayload);
         await refreshSupabaseData();
         setEditingPhotoId(null);
         setSubmitMessage({ type: 'success', text: '编辑成功！' });
@@ -1690,14 +1696,8 @@ export function AdminPage() {
       
       if (supabase) {
         try {
-          // 从Supabase获取照片信息
-          const { data, error: fetchError } = await supabase
-            .from('photos')
-            .select('image_url, thumbnail_url')
-            .eq('id', editingPhotoId)
-            .single();
-          
-          if (!fetchError && data) {
+          const data = await fetchAdminPhoto(editingPhotoId, 'image_url,thumbnail_url');
+          if (data) {
             photoToDelete = data;
           }
         } catch (error) {
@@ -1740,7 +1740,7 @@ export function AdminPage() {
       // 删除数据库记录
       if (supabase) {
         try {
-          await supabase.from('photos').delete().eq('id', editingPhotoId);
+          await deleteAdminPhoto(editingPhotoId);
           await refreshSupabaseData();
           setEditingPhotoId(null);
           setSubmitMessage({ type: 'success', text: '删除成功！' });
@@ -1802,7 +1802,6 @@ export function AdminPage() {
     try {
       await loginWithApi(adminUsernameInput.trim(), adminPasswordInput);
       setIsAdminAuthed(true);
-      StorageString.set(STORAGE_KEYS.ADMIN_AUTHED, 'true');
       setAdminAuthError('');
     } catch (error) {
       const message = formatErrorMessage(error);
@@ -1817,6 +1816,16 @@ export function AdminPage() {
       );
     }
   }, [adminUsernameInput, adminPasswordInput]);
+
+  if (isAuthChecking) {
+    return (
+      <div className="app-root">
+        <main className="admin-page">
+          <div className="loading-container">正在验证管理员身份...</div>
+        </main>
+      </div>
+    );
+  }
 
   if (!isAdminAuthed) {
     return (
@@ -3256,10 +3265,7 @@ export function AdminPage() {
 
                               if (supabase) {
                                 try {
-                                  await supabase
-                                    .from('photos')
-                                    .update({ status: 'pending' })
-                                    .eq('id', item.id);
+                                  await updateAdminPhoto(item.id, { status: 'pending' });
                                   await refreshSupabaseData();
                                 } catch (error) {
                                   handleError(error, {
