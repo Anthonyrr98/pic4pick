@@ -6,13 +6,11 @@
 
 ## 关键结论
 
-- 直传功能在文档中被描述为“已实现”，但仓库内另一份文档存在相反表述；建议以 `src/utils/ossSignature.js` 与 `src/utils/upload.js` 的实现为准。
-- 生产环境仍建议使用后端代理或 STS 临时凭证，避免 AccessKey 暴露。
+- 当前实现是“Supabase Edge Function 签名 + 浏览器直传 OSS”。
+- AccessKey 保存在 Supabase Function Secrets，不暴露给浏览器。
+- 图片文件不经过 Supabase Edge Function，可避免上传图片本体造成 Supabase Egress 增长。
 
 ## 启用方式
 
-```javascript
-localStorage.setItem('aliyun_oss_use_backend', 'false');
-location.reload();
-```
+部署 `supabase/functions/upload-oss`，并在后台配置页填写函数 URL，或配置 `VITE_SUPABASE_URL` 让前端自动推导。
 

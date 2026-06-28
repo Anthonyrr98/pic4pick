@@ -1,53 +1,51 @@
 # Supabase Edge Functions 配置说明
 
-> 原文件位置：`supabase/functions/README.md`  
-> 本文件为整理后的文档副本，旧文件保留原位置。
+> 原文件位置：`supabase/functions/README.md`
 
-## 阿里云 OSS 上传函数
+## 阿里云 OSS 签名直传函数
 
-### 部署步骤
+当前推荐方案是：Supabase Edge Function 只生成短期 OSS `PUT` 签名，浏览器直接上传到阿里云 OSS。图片文件不经过 Supabase，因此不会因为上传图片本体而增加 Supabase Egress。
 
-1. **安装 Supabase CLI**（如果还没有安装）:
-   ```bash
-   npm install -g supabase
-   ```
+### 部署
 
-2. **登录 Supabase**:
-   ```bash
-   supabase login
-   ```
+```bash
+npm install -g supabase
+supabase login
+supabase link --project-ref your-project-ref
 
-3. **链接到您的项目**:
-   ```bash
-   supabase link --project-ref your-project-ref
-   ```
+supabase secrets set ALIYUN_OSS_REGION=oss-cn-beijing
+supabase secrets set ALIYUN_OSS_BUCKET=pic4pick
+supabase secrets set ALIYUN_OSS_ACCESS_KEY_ID=你的AccessKeyId
+supabase secrets set ALIYUN_OSS_ACCESS_KEY_SECRET=你的AccessKeySecret
 
-4. **设置环境变量**（在 Supabase Dashboard）:
-   - `ALIYUN_OSS_REGION`
-   - `ALIYUN_OSS_BUCKET`
-   - `ALIYUN_OSS_ACCESS_KEY_ID`
-   - `ALIYUN_OSS_ACCESS_KEY_SECRET`
-   - `ALIYUN_OSS_ENDPOINT`（可选）
+supabase functions deploy upload-oss
+```
 
-5. **部署函数**:
-   ```bash
-   supabase functions deploy upload-oss
-   ```
+### 前端地址
 
-### 注意事项
+函数地址：
 
-⚠️ **重要**: 当前提供的 `index.ts` 是一个简化版本，需要实现完整的 OSS 签名算法才能正常工作。
+```text
+https://your-project-ref.supabase.co/functions/v1/upload-oss
+```
 
-**推荐方案**:
-1. 使用现有的 Node.js 后端服务器（`server/server-enhanced.js`），它已经完整实现了 OSS 上传功能
-2. 或者使用 Supabase Storage 替代阿里云 OSS
+如果生产环境已经配置 `VITE_SUPABASE_URL`，前端会自动推导该地址；也可以在后台配置页的“阿里云 OSS 上传后端 URL”中显式填写。
 
-### 测试
+### OSS CORS
+
+阿里云 OSS Bucket 需要允许 GitHub Pages 域名直传：
+
+- AllowedOrigin: `https://你的用户名.github.io` 或你的自定义域名
+- AllowedMethod: `PUT`, `GET`, `HEAD`
+- AllowedHeader: `Content-Type`
+- ExposeHeader: `ETag`
+
+### 测试签名
 
 ```bash
 curl -X POST https://your-project-ref.supabase.co/functions/v1/upload-oss \
-  -H "Authorization: Bearer YOUR_ANON_KEY" \
-  -F "file=@test.jpg" \
-  -F "filename=test.jpg"
+  -H "Authorization: Bearer YOUR_SUPABASE_ANON_KEY" \
+  -H "apikey: YOUR_SUPABASE_ANON_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"filename":"test.jpg","contentType":"image/jpeg","thumbnailContentType":"image/jpeg"}'
 ```
-

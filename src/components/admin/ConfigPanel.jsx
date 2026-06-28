@@ -68,6 +68,7 @@ export const ConfigPanel = ({
         const nextForm = {
           supabaseUrl: remote.VITE_SUPABASE_URL || '',
           supabaseAnonKey: remote.VITE_SUPABASE_ANON_KEY || '',
+          apiBaseUrl: remote.VITE_API_BASE_URL || '',
           ossBackendUrl: remote.VITE_ALIYUN_OSS_BACKEND_URL || '',
           amapWebKey: remote.VITE_AMAP_WEB_KEY || legacyAmap,
           amapSecurityJsCode: remote.VITE_AMAP_SECURITY_JS_CODE || '',
@@ -183,6 +184,7 @@ export const ConfigPanel = ({
     const updates = {
       VITE_SUPABASE_URL: envConfigForm.supabaseUrl || '',
       VITE_SUPABASE_ANON_KEY: envConfigForm.supabaseAnonKey || '',
+      VITE_API_BASE_URL: envConfigForm.apiBaseUrl || '',
       VITE_ALIYUN_OSS_BACKEND_URL: envConfigForm.ossBackendUrl || '',
       VITE_AMAP_WEB_KEY: envConfigForm.amapWebKey || '',
       VITE_AMAP_SECURITY_JS_CODE: envConfigForm.amapSecurityJsCode || '',
@@ -219,6 +221,7 @@ export const ConfigPanel = ({
     setEnvConfigForm({
       supabaseUrl: getEnvValue('VITE_SUPABASE_URL', ''),
       supabaseAnonKey: getEnvValue('VITE_SUPABASE_ANON_KEY', ''),
+      apiBaseUrl: getEnvValue('VITE_API_BASE_URL', ''),
       ossBackendUrl: getEnvValue('VITE_ALIYUN_OSS_BACKEND_URL', ''),
       amapWebKey: getEnvValue('VITE_AMAP_WEB_KEY', getEnvValue('VITE_AMAP_KEY', '')),
       amapSecurityJsCode: getEnvValue('VITE_AMAP_SECURITY_JS_CODE', ''),
@@ -325,6 +328,16 @@ export const ConfigPanel = ({
               value={envConfigForm.supabaseAnonKey}
               onChange={handleEnvConfigChange}
               placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+            />
+          </div>
+          <div className="form-group">
+            <label>后端 API Base URL</label>
+            <input
+              type="text"
+              name="apiBaseUrl"
+              value={envConfigForm.apiBaseUrl}
+              onChange={handleEnvConfigChange}
+              placeholder="同源部署可留空；跨域部署填 https://api.example.com"
             />
           </div>
           <div className="form-group">

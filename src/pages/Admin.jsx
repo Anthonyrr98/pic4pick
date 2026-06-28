@@ -102,6 +102,7 @@ export function AdminPage() {
   const [envConfigForm, setEnvConfigForm] = useState(() => ({
     supabaseUrl: getEnvValue('VITE_SUPABASE_URL', ''),
     supabaseAnonKey: getEnvValue('VITE_SUPABASE_ANON_KEY', ''),
+    apiBaseUrl: getEnvValue('VITE_API_BASE_URL', ''),
     ossBackendUrl: getEnvValue('VITE_ALIYUN_OSS_BACKEND_URL', ''),
     amapWebKey: getEnvValue('VITE_AMAP_WEB_KEY', getEnvValue('VITE_AMAP_KEY', '')),
     amapSecurityJsCode: getEnvValue('VITE_AMAP_SECURITY_JS_CODE', ''),

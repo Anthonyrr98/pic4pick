@@ -1,127 +1,164 @@
-// Supabase Edge Function: 阿里云 OSS 上传代理
-// 部署命令: supabase functions deploy upload-oss
+// Supabase Edge Function: generate short-lived Aliyun OSS signed PUT URLs.
+// The browser uploads image bytes directly to OSS, so Supabase does not carry
+// image upload egress.
 
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { corsHeaders } from "../_shared/cors.ts";
 
-serve(async (req) => {
-  // 处理 CORS 预检请求
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+type SignRequest = {
+  filename?: string;
+  contentType?: string;
+  thumbnailContentType?: string | null;
+};
+
+type SignedPut = {
+  objectKey: string;
+  uploadUrl: string;
+  publicUrl: string;
+  headers: Record<string, string>;
+  expiresIn: number;
+};
+
+const ALLOWED_IMAGE_TYPES = new Set([
+  "image/jpeg",
+  "image/jpg",
+  "image/png",
+  "image/gif",
+  "image/webp",
+  "image/heic",
+  "image/heif",
+]);
+
+const jsonResponse = (body: unknown, status = 200) =>
+  new Response(JSON.stringify(body), {
+    status,
+    headers: {
+      ...corsHeaders,
+      "Content-Type": "application/json",
+      "Cache-Control": "no-store",
+    },
+  });
+
+const normalizeRegion = (region: string) => {
+  const trimmed = region.trim();
+  return trimmed.startsWith("oss-") ? trimmed : `oss-${trimmed}`;
+};
+
+const sanitizeFilename = (value?: string) => {
+  const raw = (value || `${crypto.randomUUID()}.jpg`).split(/[\\/]/).pop() || "";
+  const safe = raw.replace(/[^a-zA-Z0-9._-]/g, "_").replace(/^_+/, "");
+  return safe || `${crypto.randomUUID()}.jpg`;
+};
+
+const hmacSha1Base64 = async (secret: string, message: string) => {
+  const encoder = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    "raw",
+    encoder.encode(secret),
+    { name: "HMAC", hash: "SHA-1" },
+    false,
+    ["sign"],
+  );
+  const signature = await crypto.subtle.sign("HMAC", key, encoder.encode(message));
+  return btoa(String.fromCharCode(...new Uint8Array(signature)));
+};
+
+const getOssConfig = () => {
+  const region = Deno.env.get("ALIYUN_OSS_REGION");
+  const bucket = Deno.env.get("ALIYUN_OSS_BUCKET");
+  const accessKeyId = Deno.env.get("ALIYUN_OSS_ACCESS_KEY_ID");
+  const accessKeySecret = Deno.env.get("ALIYUN_OSS_ACCESS_KEY_SECRET");
+
+  if (!region || !bucket || !accessKeyId || !accessKeySecret) {
+    throw new Error("阿里云 OSS 配置不完整，请检查 Supabase Function Secrets");
+  }
+
+  const normalizedRegion = normalizeRegion(region);
+  const endpoint =
+    Deno.env.get("ALIYUN_OSS_ENDPOINT")?.replace(/\/+$/, "") ||
+    `https://${bucket}.${normalizedRegion}.aliyuncs.com`;
+
+  return {
+    region: normalizedRegion,
+    bucket,
+    accessKeyId,
+    accessKeySecret,
+    endpoint,
+  };
+};
+
+const buildPublicUrl = (endpoint: string, objectKey: string) =>
+  `${endpoint}/${objectKey.split("/").map(encodeURIComponent).join("/")}`;
+
+const signPutUrl = async (
+  objectKey: string,
+  contentType: string,
+  config: ReturnType<typeof getOssConfig>,
+): Promise<SignedPut> => {
+  const expiresIn = 5 * 60;
+  const expires = Math.floor(Date.now() / 1000) + expiresIn;
+  const canonicalizedResource = `/${config.bucket}/${objectKey}`;
+  const stringToSign = ["PUT", "", contentType, String(expires), canonicalizedResource].join("\n");
+  const signature = await hmacSha1Base64(config.accessKeySecret, stringToSign);
+  const publicUrl = buildPublicUrl(config.endpoint, objectKey);
+  const uploadUrl =
+    `${publicUrl}?OSSAccessKeyId=${encodeURIComponent(config.accessKeyId)}` +
+    `&Expires=${expires}` +
+    `&Signature=${encodeURIComponent(signature)}`;
+
+  return {
+    objectKey,
+    uploadUrl,
+    publicUrl,
+    headers: {
+      "Content-Type": contentType,
+    },
+    expiresIn,
+  };
+};
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
+
+  if (req.method !== "POST") {
+    return jsonResponse({ success: false, error: "只支持 POST 请求" }, 405);
   }
 
   try {
-    // 验证请求方法
-    if (req.method !== 'POST') {
-      return new Response(
-        JSON.stringify({ error: '只支持 POST 请求' }),
-        { 
-          status: 405, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-        }
-      );
+    const payload = (await req.json().catch(() => ({}))) as SignRequest;
+    const contentType = payload.contentType || "application/octet-stream";
+    const thumbnailContentType = payload.thumbnailContentType || null;
+
+    if (!ALLOWED_IMAGE_TYPES.has(contentType)) {
+      return jsonResponse({ success: false, error: `不支持的图片类型: ${contentType}` }, 400);
+    }
+    if (thumbnailContentType && !ALLOWED_IMAGE_TYPES.has(thumbnailContentType)) {
+      return jsonResponse({ success: false, error: `不支持的缩略图类型: ${thumbnailContentType}` }, 400);
     }
 
-    // 解析 FormData
-    const formData = await req.formData();
-    const file = formData.get('file') as File;
-    const filename = formData.get('filename') as string;
+    const config = getOssConfig();
+    const filename = sanitizeFilename(payload.filename);
+    const origin = await signPutUrl(`origin/${filename}`, contentType, config);
+    const thumbnail = thumbnailContentType
+      ? await signPutUrl(`ore/${filename}`, thumbnailContentType, config)
+      : null;
 
-    if (!file) {
-      return new Response(
-        JSON.stringify({ error: '未提供文件' }),
-        { 
-          status: 400, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-        }
-      );
-    }
-
-    // 从环境变量获取阿里云 OSS 配置
-    const OSS_REGION = Deno.env.get('ALIYUN_OSS_REGION');
-    const OSS_BUCKET = Deno.env.get('ALIYUN_OSS_BUCKET');
-    const OSS_ACCESS_KEY_ID = Deno.env.get('ALIYUN_OSS_ACCESS_KEY_ID');
-    const OSS_ACCESS_KEY_SECRET = Deno.env.get('ALIYUN_OSS_ACCESS_KEY_SECRET');
-    const OSS_ENDPOINT = Deno.env.get('ALIYUN_OSS_ENDPOINT') || `https://${OSS_BUCKET}.${OSS_REGION}.aliyuncs.com`;
-
-    if (!OSS_REGION || !OSS_BUCKET || !OSS_ACCESS_KEY_ID || !OSS_ACCESS_KEY_SECRET) {
-      return new Response(
-        JSON.stringify({ error: '阿里云 OSS 配置不完整，请检查环境变量' }),
-        { 
-          status: 500, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-        }
-      );
-    }
-
-    // 构建 OSS 对象键
-    const objectKey = `pic4pick/${filename || file.name}`;
-    const ossUrl = `${OSS_ENDPOINT}/${objectKey}`;
-
-    // 使用阿里云 OSS SDK 上传文件
-    // 注意：这里需要安装 @alicloud/oss-sdk 或使用原生 HTTP 请求
-    // 为了简化，这里使用 fetch 直接上传到 OSS（需要签名）
-    
-    // 生成 OSS 签名（简化版，实际应该使用 OSS SDK）
-    const date = new Date().toUTCString();
-    const contentType = file.type || 'application/octet-stream';
-    
-    // 构建签名字符串（简化版，实际应该使用 OSS SDK 的签名方法）
-    // 这里仅作示例，实际应该使用 OSS SDK
-    const fileBuffer = await file.arrayBuffer();
-    
-    // 使用 fetch 上传到 OSS（需要正确的签名）
-    // 注意：这里需要实现 OSS 的签名算法，建议使用 OSS SDK
-    const response = await fetch(ossUrl, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': contentType,
-        'x-oss-object-acl': 'public-read',
-        // 这里需要添加正确的 Authorization 头部（OSS 签名）
-        // 实际应该使用 OSS SDK 来生成签名
+    return jsonResponse({
+      success: true,
+      mode: "signed-put",
+      url: origin.publicUrl,
+      thumbnailUrl: thumbnail?.publicUrl || null,
+      uploads: {
+        origin,
+        thumbnail,
       },
-      body: fileBuffer,
     });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      return new Response(
-        JSON.stringify({ 
-          error: `OSS 上传失败: ${response.statusText} (${response.status})`,
-          details: errorText.substring(0, 200)
-        }),
-        { 
-          status: response.status, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-        }
-      );
-    }
-
-    // 返回上传成功的 URL
-    return new Response(
-      JSON.stringify({
-        success: true,
-        url: ossUrl,
-        thumbnailUrl: ossUrl, // 可以根据需要生成缩略图
-      }),
-      { 
-        status: 200, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-      }
-    );
-
   } catch (error) {
-    console.error('上传错误:', error);
-    return new Response(
-      JSON.stringify({ 
-        error: error.message || '上传失败',
-        details: error.stack 
-      }),
-      { 
-        status: 500, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-      }
-    );
+    console.error("OSS signed URL error:", error);
+    return jsonResponse({
+      success: false,
+      error: error instanceof Error ? error.message : "生成 OSS 上传签名失败",
+    }, 500);
   }
 });
-
