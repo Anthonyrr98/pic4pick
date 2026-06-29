@@ -2748,6 +2748,20 @@ main {
   margin: 0 auto;
 }
 
+.lightbox-media-fallback {
+  width: 100%;
+  min-height: 320px;
+  display: grid;
+  place-items: center;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.18);
+  color: rgba(255, 255, 255, 0.86);
+  font-size: 0.95rem;
+  font-weight: 700;
+  line-height: 1.4;
+  text-align: center;
+}
+
 .lightbox-media.portrait-fit img {
   object-fit: cover;
   background: transparent;

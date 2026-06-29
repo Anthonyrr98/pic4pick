@@ -25,6 +25,7 @@ import { useGaodeMapInit, useFocusMapOnCity } from './hooks/useMapInit';
 import { loadMapLibre } from '../../utils/maplibreLoader';
 import { getDefaultMaplibreStyle } from '../../utils/gaodeMapStyle';
 import { escapeHtml } from '../../utils/security';
+import { buildOssImagePreviewUrl, getDirectMediaUrl, resolveMediaUrl } from '../../utils/urlUtils';
 import { TabStrip } from './components/TabStrip';
 import { PhotoGrid } from './components/PhotoGrid';
 import { CurationPanel } from './components/CurationPanel';
@@ -138,6 +139,7 @@ export function GalleryPage() {
   const metaPopoverRef = useRef(null);
   const [showMobileMeta, setShowMobileMeta] = useState(false);
   const [isLightboxPortrait, setIsLightboxPortrait] = useState(false);
+  const [lightboxPreviewFailed, setLightboxPreviewFailed] = useState(false);
 
   // 鈹€鈹€ 鍝佺墝鐘舵€?
   const [brandLogo, setBrandLogo] = useState(() => getStoredBrandLogo());
@@ -251,6 +253,19 @@ export function GalleryPage() {
       sub: '次',
     },
   ] : [];
+  const lightboxOriginalRaw = lightboxPhoto?.image || '';
+  const lightboxOriginalDirect = getDirectMediaUrl(lightboxOriginalRaw);
+  const lightboxThumbnailDirect = getDirectMediaUrl(lightboxPhoto?.thumbnail || '');
+  const lightboxStoredPreviewRaw = lightboxPhoto?.preview || '';
+  const lightboxStoredPreviewDirect = getDirectMediaUrl(lightboxStoredPreviewRaw);
+  const lightboxPreviewRaw =
+    (lightboxThumbnailDirect && lightboxThumbnailDirect !== lightboxOriginalDirect ? lightboxThumbnailDirect : '') ||
+    (lightboxStoredPreviewDirect && lightboxStoredPreviewDirect !== lightboxOriginalDirect
+      ? lightboxStoredPreviewDirect
+      : '') ||
+    buildOssImagePreviewUrl(lightboxOriginalDirect, { width: 1400, quality: 84 });
+  const lightboxVisualRaw = lightboxPreviewRaw || lightboxOriginalRaw;
+  const lightboxVisualSrc = lightboxVisualRaw ? resolveMediaUrl(getDirectMediaUrl(lightboxVisualRaw)) : '';
 
   // 鈹€鈹€ 鍦扮悊淇℃伅锛圠ightbox 鐢級
   const getGeoInfo = useMemo(() => {
@@ -355,14 +370,16 @@ export function GalleryPage() {
 
   const handleDownloadOriginal = useCallback(async () => {
     if (!lightboxPhoto?.image) return;
+    const originalUrl = getDirectMediaUrl(lightboxPhoto.image);
+    if (!originalUrl) return;
     try {
-      const response = await fetch(lightboxPhoto.image);
+      const response = await fetch(originalUrl);
       if (!response.ok) throw new Error(`Download failed: ${response.status}`);
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      const ext = lightboxPhoto.image.split('.').pop()?.split('?')[0] || 'jpg';
+      const ext = originalUrl.split('.').pop()?.split('?')[0] || 'jpg';
       const safeTitle = (lightboxPhoto.title || 'photo').replace(/[\\/:*?"<>|]/g, '_');
       a.download = `${safeTitle}.${ext}`;
       document.body.appendChild(a);
@@ -371,7 +388,7 @@ export function GalleryPage() {
       URL.revokeObjectURL(url);
     } catch (err) {
       handleError(err, { context: 'handleDownloadOriginal', type: ErrorType.NETWORK, silent: true });
-      window.open(lightboxPhoto.image, '_blank', 'noopener,noreferrer');
+      window.open(originalUrl, '_blank', 'noopener,noreferrer');
     }
   }, [lightboxPhoto]);
 
@@ -430,6 +447,7 @@ export function GalleryPage() {
   useEffect(() => { setDisplayedCount(12); }, [activeFilter]);
 
   useEffect(() => {
+    setLightboxPreviewFailed(false);
     if (lightboxPhoto) {
       setShowMobileMeta(false);
       setIsLightboxPortrait(false);
@@ -881,7 +899,7 @@ export function GalleryPage() {
       >
         <div
           className="lightbox-panel"
-          style={{ backgroundImage: lightboxPhoto ? `url(${lightboxPhoto.image})` : 'none' }}
+          style={{ backgroundImage: lightboxVisualSrc ? `url(${lightboxVisualSrc})` : 'none' }}
           onClick={(e) => e.stopPropagation()}
         >
           <div className="lightbox-actions">
@@ -898,15 +916,29 @@ export function GalleryPage() {
           <div className={`lightbox-content-wrapper ${showMobileMeta ? 'meta-visible' : ''}`}>
             <div className={`lightbox-media ${isLightboxPortrait ? 'portrait-fit' : ''}`}
               onClick={() => { if (window.innerWidth <= 768) setShowMobileMeta((p) => !p); }}>
-              {lightboxPhoto && (
+              {lightboxPhoto && lightboxVisualSrc && !lightboxPreviewFailed ? (
                 <img
-                  src={lightboxPhoto.thumbnail || lightboxPhoto.image}
+                  src={lightboxVisualSrc}
                   alt={lightboxPhoto.title}
+                  loading="eager"
+                  fetchPriority="high"
+                  decoding="async"
+                  referrerPolicy="no-referrer"
                   onLoad={(e) => {
                     const img = e.currentTarget;
                     setIsLightboxPortrait(img.naturalHeight > img.naturalWidth);
                   }}
+                  onError={() => {
+                    handleError(new Error(`Lightbox preview unavailable: ${lightboxPhoto.title}`), {
+                      context: 'GalleryPage.lightboxPreview',
+                      type: ErrorType.NETWORK,
+                      silent: true,
+                    });
+                    setLightboxPreviewFailed(true);
+                  }}
                 />
+              ) : (
+                <div className="lightbox-media-fallback">预览图暂不可用</div>
               )}
             </div>
             {lightboxPhoto && (
@@ -956,7 +988,7 @@ export function GalleryPage() {
               ref={metaPopoverRef}
               style={{
                 left: `${metaPopover.x}px`, top: `${metaPopover.y}px`,
-                backgroundImage: lightboxPhoto ? `url(${lightboxPhoto.image})` : 'none',
+                backgroundImage: lightboxVisualSrc ? `url(${lightboxVisualSrc})` : 'none',
                 maxWidth: metaPopover.tab === 'geo' ? '520px' : '320px',
                 maxHeight: metaPopover.tab === 'geo' ? '85vh' : 'auto',
                 overflowY: metaPopover.tab === 'geo' ? 'auto' : 'hidden',

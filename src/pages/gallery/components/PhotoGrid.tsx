@@ -5,7 +5,7 @@
 import React, { useEffect, useState } from 'react';
 import { GalleryPhoto } from '../utils/photoDataUtils';
 import { handleError, ErrorType } from '../../../utils/errorHandler';
-import { getDirectMediaUrl, resolveMediaUrl } from '../../../utils/urlUtils';
+import { buildOssImagePreviewUrl, getDirectMediaUrl, resolveMediaUrl } from '../../../utils/urlUtils';
 
 interface PhotoGridProps {
   photos: GalleryPhoto[];
@@ -120,7 +120,13 @@ export const PhotoGrid: React.FC<PhotoGridProps> = ({
         const imageFailed = !!failedImageIds[item.id];
         const liked = likedPhotoIds.includes(item.id);
         const likeCount = typeof item.likes === 'number' ? item.likes : 0;
-        const rawSrc = item.thumbnail || item.image;
+        const originalDirectSrc = getDirectMediaUrl(item.image);
+        const thumbnailDirectSrc = getDirectMediaUrl(item.thumbnail);
+        const previewDirectSrc = getDirectMediaUrl(item.preview);
+        const rawSrc =
+          (thumbnailDirectSrc && thumbnailDirectSrc !== originalDirectSrc ? thumbnailDirectSrc : '') ||
+          (previewDirectSrc && previewDirectSrc !== originalDirectSrc ? previewDirectSrc : '') ||
+          buildOssImagePreviewUrl(originalDirectSrc, { width: 900, quality: 80 });
         const directSrc = getDirectMediaUrl(rawSrc);
         const imageSrc = resolveMediaUrl(directSrc);
         return (

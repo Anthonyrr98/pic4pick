@@ -12,6 +12,7 @@
  */
 const ALIYUN_OSS_HOST_RE = /\.aliyuncs\.com$/i;
 const MEDIA_PROXY_PATH = '/api/media/proxy';
+const OSS_PREVIEW_IMAGE_EXT_RE = /\.(jpe?g|png|webp)$/i;
 
 /** 从代理 URL 还原为原始 OSS/直链地址（兼容历史 localStorage 中的代理 URL） */
 export const getDirectMediaUrl = (url) => {
@@ -86,11 +87,34 @@ export const resolveMediaUrl = (url) => {
 };
 
 /**
- * 批量确保多个 URL 使用 HTTPS
- * 
- * @param {Object} urls - 包含 URL 字段的对象
- * @param {string[]} urlFields - 需要转换的字段名数组
- * @returns {Object} - 转换后的对象
+ * Build a lightweight OSS image-processing URL when no stored thumbnail is available.
+ */
+export const buildOssImagePreviewUrl = (url, options = {}) => {
+  const directUrl = getDirectMediaUrl(url);
+  if (!directUrl) return '';
+
+  const width = Number.isFinite(options.width) ? Math.max(120, Math.round(options.width)) : 1200;
+  const quality = Number.isFinite(options.quality)
+    ? Math.max(40, Math.min(95, Math.round(options.quality)))
+    : 82;
+
+  try {
+    const parsed = new URL(directUrl);
+    if (!ALIYUN_OSS_HOST_RE.test(parsed.hostname)) return directUrl;
+    if (!OSS_PREVIEW_IMAGE_EXT_RE.test(parsed.pathname)) return directUrl;
+
+    parsed.searchParams.set(
+      'x-oss-process',
+      `image/resize,w_${width},m_lfit/quality,q_${quality}/format,webp`
+    );
+    return parsed.toString();
+  } catch {
+    return directUrl;
+  }
+};
+
+/**
+ * Ensure URL-like fields use HTTPS.
  */
 export const ensureHttpsForFields = (urls, urlFields = ['url', 'image', 'imageUrl', 'image_url', 'thumbnail', 'thumbnailUrl', 'thumbnail_url', 'preview']) => {
   if (!urls || typeof urls !== 'object') {

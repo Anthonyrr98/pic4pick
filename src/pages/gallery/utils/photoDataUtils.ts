@@ -26,6 +26,7 @@ export interface GalleryPhoto {
   tags: string;
   createdAt: string | null;
   thumbnail: string;
+  preview?: string;
   hidden: boolean;
   shotDate: string | null;
   rating: number | null;

@@ -72,6 +72,7 @@ const mapSupabaseRowToGalleryPhoto = (row: any): GalleryPhoto => {
     tags: row.tags || '',
     createdAt: row.created_at || row.createdAt || null,
     thumbnail: ensureHttps(thumbnailUrl),
+    preview: thumbnailUrl ? ensureHttps(thumbnailUrl) : '',
     hidden: row.hidden ?? false,
     shotDate: row.shot_date || null,
     rating: typeof row.rating === 'number' ? row.rating : null,
