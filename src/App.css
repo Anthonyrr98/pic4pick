@@ -2014,6 +2014,28 @@ main {
   border: 1px solid rgba(212, 138, 72, 0.2);
 }
 
+.admin-message.info {
+  background: rgba(59, 130, 246, 0.08);
+  color: #1d4ed8;
+  border: 1px solid rgba(59, 130, 246, 0.18);
+}
+
+.admin-loading-hint,
+.admin-login-hint {
+  margin-top: 12px;
+  color: #64748b;
+  font-size: 0.86rem;
+  font-weight: 500;
+  line-height: 1.55;
+}
+
+.admin-login-hint {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.04);
+  border: 1px solid rgba(148, 163, 184, 0.22);
+}
+
 /* 标签页导航 */
 .admin-tabs {
   display: flex;

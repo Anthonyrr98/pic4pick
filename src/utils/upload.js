@@ -287,7 +287,7 @@ const uploadToAPI = async (file, filename, onProgress) => {
     });
     
     xhr.addEventListener('error', () => {
-      reject(new Error('网络错误'));
+      reject(new Error('网络错误：无法连接上传服务，请稍后重试'));
     });
     
     xhr.addEventListener('abort', () => {
@@ -341,7 +341,7 @@ const uploadToCloudinary = async (file, filename, onProgress) => {
     });
     
     xhr.addEventListener('error', () => {
-      reject(new Error('网络错误'));
+      reject(new Error('网络错误：无法连接上传服务，请稍后重试'));
     });
     
     xhr.addEventListener('abort', () => {
@@ -390,7 +390,7 @@ const uploadToSupabase = async (file, filename, onProgress) => {
     });
     
     xhr.addEventListener('error', () => {
-      reject(new Error('网络错误'));
+      reject(new Error('网络错误：无法连接上传服务，请稍后重试'));
     });
     
     xhr.addEventListener('abort', () => {

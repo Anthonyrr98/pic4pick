@@ -50,6 +50,44 @@ const FILM_STOCK_OPTIONS = [
   'Cinestill 800T',
 ];
 
+const BACKEND_WAKE_HINT = '正在连接后台服务。Render 免费实例冷启动可能需要 30 秒左右，请稍等。';
+
+const isLocalFrontend = () => {
+  if (typeof window === 'undefined') return false;
+  return ['localhost', '127.0.0.1'].includes(window.location.hostname);
+};
+
+const getBackendUnavailableMessage = () => (
+  isLocalFrontend()
+    ? '无法连接登录服务，请先运行后端：npm run server'
+    : '无法连接后台服务。Render 免费实例可能正在唤醒，请稍等 30 秒后重试。'
+);
+
+const isBackendUnavailableError = (error, message = '') => {
+  const text = `${message} ${error?.message || ''}`.toLowerCase();
+  return (
+    message === '网络连接失败，请检查网络设置' ||
+    text.includes('failed to fetch') ||
+    text.includes('load failed') ||
+    text.includes('network') ||
+    text.includes('timeout') ||
+    text.includes('502') ||
+    text.includes('503') ||
+    text.includes('504')
+  );
+};
+
+const getFriendlyAdminErrorMessage = (error, fallback) => {
+  const message = formatErrorMessage(error);
+  if (isBackendUnavailableError(error, message)) {
+    return getBackendUnavailableMessage();
+  }
+  if (/未登录|unauthorized|jwt|token|401/i.test(`${message} ${error?.message || ''}`)) {
+    return '登录状态已过期，请刷新页面后重新登录。';
+  }
+  return message || fallback;
+};
+
 const extractFilmStockFromTags = (tags = '') => {
   if (!tags) return '';
   const parts = String(tags)
@@ -162,6 +200,8 @@ export function AdminPage() {
   const [adminUsernameInput, setAdminUsernameInput] = useState('admin');
   const [adminPasswordInput, setAdminPasswordInput] = useState('');
   const [adminAuthError, setAdminAuthError] = useState('');
+  const [isAdminLoginSubmitting, setIsAdminLoginSubmitting] = useState(false);
+  const [showBackendWakeHint, setShowBackendWakeHint] = useState(false);
   const [showAdminPassword, setShowAdminPassword] = useState(false);
   const [showLocationPicker, setShowLocationPicker] = useState(false);
   const locationMapContainerRef = useRef(null);
@@ -247,12 +287,19 @@ export function AdminPage() {
 
     const checkAdminSession = async () => {
       setIsAuthChecking(true);
+      setShowBackendWakeHint(false);
+      const wakeHintTimer = window.setTimeout(() => {
+        if (!cancelled) {
+          setShowBackendWakeHint(true);
+        }
+      }, 2500);
       try {
         const result = await verifyToken();
         if (!cancelled) {
           setIsAdminAuthed(Boolean(result?.authenticated));
         }
       } finally {
+        window.clearTimeout(wakeHintTimer);
         if (!cancelled) {
           setIsAuthChecking(false);
         }
@@ -1355,7 +1402,10 @@ export function AdminPage() {
             type: ErrorType.NETWORK,
           });
           if (uploadType !== UPLOAD_TYPES.BASE64) {
-            setSubmitMessage({ type: 'error', text: `上传失败: ${formatErrorMessage(appError)}` });
+            setSubmitMessage({
+              type: 'error',
+              text: getFriendlyAdminErrorMessage(appError, '上传失败，请稍后重试'),
+            });
             throw appError;
           }
           // 继续使用 base64 预览
@@ -1437,11 +1487,11 @@ export function AdminPage() {
           context: 'handleSubmit.supabase',
           type: ErrorType.NETWORK,
         });
-        const msg = formatErrorMessage(appError);
+        const msg = getFriendlyAdminErrorMessage(appError, '无法保存作品信息，请稍后重试');
         const isUniqueViolation = (error?.code || '').includes('23505') || (error?.message || msg || '').toLowerCase().includes('unique') || (error?.message || '').includes('duplicate');
         setAdminUploads((prev) => prev.filter((item) => item.id !== newUpload.id));
         const hint = isUniqueViolation ? ' 可能是图片 URL 重复或数据库唯一约束冲突，请检查是否重复上传。' : '';
-        setSubmitMessage({ type: 'error', text: `上传到云端失败：${msg}${hint}` });
+        setSubmitMessage({ type: 'error', text: `${msg}${hint}` });
         throw appError;
       }
     }
@@ -1485,7 +1535,10 @@ export function AdminPage() {
         setSubmitMessage({ type: '', text: '' });
       }, 3000);
     } catch (error) {
-      setSubmitMessage({ type: 'error', text: `上传失败: ${error.message}` });
+      setSubmitMessage({
+        type: 'error',
+        text: getFriendlyAdminErrorMessage(error, '上传失败，请稍后重试'),
+      });
     } finally {
       setIsUploading(false);
       // 延迟隐藏进度条，让用户看到100%完成
@@ -1816,6 +1869,15 @@ export function AdminPage() {
 
   const handleAdminLogin = useCallback(async () => {
     if (!adminUsernameInput.trim() || !adminPasswordInput) return;
+    if (isAdminLoginSubmitting) return;
+
+    setIsAdminLoginSubmitting(true);
+    setShowBackendWakeHint(false);
+    setAdminAuthError('');
+    const wakeHintTimer = window.setTimeout(() => {
+      setShowBackendWakeHint(true);
+    }, 2500);
+
     try {
       await loginWithApi(adminUsernameInput.trim(), adminPasswordInput);
       setIsAdminAuthed(true);
@@ -1823,24 +1885,22 @@ export function AdminPage() {
       setSubmitMessage({ type: '', text: '' });
       setSupabaseError('');
     } catch (error) {
-      const message = formatErrorMessage(error);
-      const isNetworkFailure =
-        message === '网络连接失败，请检查网络设置' ||
-        (error instanceof Error &&
-          (error.message?.includes('Failed to fetch') || error.message?.includes('fetch')));
-      setAdminAuthError(
-        isNetworkFailure
-          ? '无法连接登录服务，请先运行后端：npm run server'
-          : message || '用户名或密码不正确',
-      );
+      setAdminAuthError(getFriendlyAdminErrorMessage(error, '用户名或密码不正确'));
     }
-  }, [adminUsernameInput, adminPasswordInput]);
+    window.clearTimeout(wakeHintTimer);
+    setIsAdminLoginSubmitting(false);
+  }, [adminUsernameInput, adminPasswordInput, isAdminLoginSubmitting]);
 
   if (isAuthChecking) {
     return (
       <div className="app-root">
         <main className="admin-page">
-          <div className="loading-container">正在验证管理员身份...</div>
+          <div className="loading-container">
+            <div>正在验证管理员身份...</div>
+            {showBackendWakeHint && (
+              <div className="admin-loading-hint">{BACKEND_WAKE_HINT}</div>
+            )}
+          </div>
         </main>
       </div>
     );
@@ -1894,6 +1954,7 @@ export function AdminPage() {
                 <input
                   type="text"
                   value={adminUsernameInput}
+                  disabled={isAdminLoginSubmitting}
                   onChange={(e) => {
                     setAdminUsernameInput(e.target.value);
                     setAdminAuthError('');
@@ -1922,6 +1983,7 @@ export function AdminPage() {
                   <input
                     type={showAdminPassword ? 'text' : 'password'}
                     value={adminPasswordInput}
+                    disabled={isAdminLoginSubmitting}
                     onChange={(e) => {
                       setAdminPasswordInput(e.target.value);
                       setAdminAuthError('');
@@ -1976,6 +2038,7 @@ export function AdminPage() {
               <button
                 type="button"
                 onClick={handleAdminLogin}
+                disabled={isAdminLoginSubmitting}
                 style={{
                   width: '100%',
                   padding: '10px 14px',
@@ -1985,11 +2048,15 @@ export function AdminPage() {
                   color: 'var(--bg)',
                   fontSize: '0.95rem',
                   fontWeight: 600,
-                  cursor: 'pointer',
+                  cursor: isAdminLoginSubmitting ? 'wait' : 'pointer',
+                  opacity: isAdminLoginSubmitting ? 0.75 : 1,
                 }}
               >
-                进入后台
+                {isAdminLoginSubmitting ? '正在连接...' : '进入后台'}
               </button>
+              {showBackendWakeHint && isAdminLoginSubmitting && (
+                <div className="admin-login-hint">{BACKEND_WAKE_HINT}</div>
+              )}
             </div>
           </div>
         </main>
