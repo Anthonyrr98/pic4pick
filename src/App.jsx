@@ -22,7 +22,14 @@ function AppLoading({ exiting = false } = {}) {
       aria-label="胶片正在装入时光"
     >
       <div className="app-loading-mark" aria-hidden="true">
-        <img src="/loa-cropped.png" alt="" />
+        <img
+          src="/loa-loading.webp"
+          width="900"
+          height="313"
+          alt=""
+          fetchPriority="high"
+          decoding="sync"
+        />
         <span className="app-loading-sheen" />
       </div>
       <div className="app-loading-progress" aria-hidden="true">
