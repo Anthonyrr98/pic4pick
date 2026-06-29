@@ -50,7 +50,7 @@ const FILM_STOCK_OPTIONS = [
   'Cinestill 800T',
 ];
 
-const MAX_UPLOAD_FILE_SIZE = 20 * 1024 * 1024;
+const MAX_UPLOAD_FILE_SIZE = 50 * 1024 * 1024;
 const OPTIMIZE_UPLOAD_THRESHOLD = 6 * 1024 * 1024;
 const UPLOAD_OPTIMIZE_OPTIONS = { maxWidth: 2560, maxHeight: 2560, quality: 0.88 };
 const SUPPORTED_UPLOAD_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
@@ -2437,7 +2437,7 @@ export function AdminPage() {
                             </svg>
                         </div>
                           <p className="dropzone-text">点击或拖拽上传照片</p>
-                          <p className="dropzone-hint">支持 JPG、PNG、WEBP，单张不超过 20MB</p>
+                          <p className="dropzone-hint">支持 JPG、PNG、WEBP，单张不超过 50MB</p>
                           </div>
                         )}
                     </label>
