@@ -4,7 +4,7 @@ import 'react-datepicker/dist/react-datepicker.css';
 import { zhCN } from 'date-fns/locale';
 import exifr from 'exifr';
 import '../App.css';
-import { uploadImage, getUploadType, setUploadType, UPLOAD_TYPES } from '../utils/upload';
+import { uploadImage, getUploadType, setUploadType, UPLOAD_TYPES, compressImage } from '../utils/upload';
 import { getSupabaseClient } from '../utils/supabaseClient';
 import { UploadProgress } from '../components/UploadProgress';
 import { getEnvValue } from '../utils/envConfig';
@@ -50,7 +50,66 @@ const FILM_STOCK_OPTIONS = [
   'Cinestill 800T',
 ];
 
+const MAX_UPLOAD_FILE_SIZE = 20 * 1024 * 1024;
+const OPTIMIZE_UPLOAD_THRESHOLD = 6 * 1024 * 1024;
+const UPLOAD_OPTIMIZE_OPTIONS = { maxWidth: 2560, maxHeight: 2560, quality: 0.88 };
+const SUPPORTED_UPLOAD_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
+const SUPPORTED_UPLOAD_EXTENSIONS = new Set(['jpg', 'jpeg', 'png', 'webp']);
+
 const BACKEND_WAKE_HINT = '正在连接后台服务。Render 免费实例冷启动可能需要 30 秒左右，请稍等。';
+
+const formatFileSize = (bytes = 0) => {
+  if (!bytes) return '0 B';
+  const units = ['B', 'KB', 'MB', 'GB'];
+  const exponent = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+  const value = bytes / (1024 ** exponent);
+  return `${value >= 10 || exponent === 0 ? value.toFixed(0) : value.toFixed(1)} ${units[exponent]}`;
+};
+
+const getFileExtension = (filename = '') => filename.split('.').pop()?.toLowerCase() || '';
+
+const isSupportedUploadFile = (file) => {
+  const mimeType = file.type?.toLowerCase();
+  const extension = getFileExtension(file.name);
+  return SUPPORTED_UPLOAD_MIME_TYPES.has(mimeType) || SUPPORTED_UPLOAD_EXTENSIONS.has(extension);
+};
+
+const getUploadFileValidationError = (file) => {
+  if (!isSupportedUploadFile(file)) {
+    return '请上传 JPG、PNG 或 WEBP 图片。';
+  }
+  if (file.size > MAX_UPLOAD_FILE_SIZE) {
+    return `图片不能超过 ${formatFileSize(MAX_UPLOAD_FILE_SIZE)}，请先压缩后再上传。`;
+  }
+  return '';
+};
+
+const maybeOptimizeUploadFile = async (file) => {
+  if (file.size < OPTIMIZE_UPLOAD_THRESHOLD || !SUPPORTED_UPLOAD_MIME_TYPES.has(file.type)) {
+    return { file, optimized: false };
+  }
+
+  try {
+    const optimizedFile = await compressImage(file, UPLOAD_OPTIMIZE_OPTIONS);
+    if (optimizedFile.size > 0 && optimizedFile.size < file.size * 0.92) {
+      return {
+        file: new File([optimizedFile], file.name, {
+          type: optimizedFile.type || file.type,
+          lastModified: file.lastModified,
+        }),
+        optimized: true,
+      };
+    }
+  } catch (error) {
+    handleError(error, {
+      context: 'maybeOptimizeUploadFile',
+      type: ErrorType.PARSE,
+      silent: true,
+    });
+  }
+
+  return { file, optimized: false };
+};
 
 const isLocalFrontend = () => {
   if (typeof window === 'undefined') return false;
@@ -164,6 +223,7 @@ export function AdminPage() {
     tags: '',
     preview: '',
     file: null,
+    fileMeta: null,
     latitude: null,
     longitude: null,
     altitude: null,
@@ -338,6 +398,9 @@ export function AdminPage() {
   
   // 编辑状态
   const [editingPhotoId, setEditingPhotoId] = useState(null);
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+  const [deleteConfirmInput, setDeleteConfirmInput] = useState('');
+  const [isDeletingPhoto, setIsDeletingPhoto] = useState(false);
   const [editForm, setEditForm] = useState({
     title: '',
     location: '',
@@ -358,6 +421,12 @@ export function AdminPage() {
     rating: 7,
     hidden: false,
   });
+  const editingPhoto = useMemo(
+    () => [...adminUploads, ...approvedPhotos, ...rejectedPhotos].find((photo) => photo.id === editingPhotoId) || null,
+    [adminUploads, approvedPhotos, rejectedPhotos, editingPhotoId]
+  );
+  const deleteConfirmExpectedText = editingPhoto?.title?.trim() || editingPhotoId || '';
+  const isDeleteConfirmMatched = deleteConfirmInput.trim() === deleteConfirmExpectedText;
   
   // 编辑表单的地图选择器
   const [showEditLocationPicker, setShowEditLocationPicker] = useState(false);
@@ -1010,22 +1079,32 @@ export function AdminPage() {
   const handleFileChange = async (event) => {
     const file = event.target.files?.[0];
     if (!file) {
-      setUploadForm((prev) => ({ ...prev, file: null, preview: '', latitude: null, longitude: null, altitude: null }));
+      setUploadForm((prev) => ({ ...prev, file: null, fileMeta: null, preview: '', latitude: null, longitude: null, altitude: null }));
       return;
     }
 
-    // 验证文件类型
-    if (!file.type.startsWith('image/')) {
-      setSubmitMessage({ type: 'error', text: '请上传图片文件（JPG/PNG）' });
+    const validationError = getUploadFileValidationError(file);
+    if (validationError) {
+      setUploadForm((prev) => ({ ...prev, file: null, fileMeta: null, preview: '' }));
+      event.target.value = '';
+      setSubmitMessage({ type: 'error', text: validationError });
       return;
     }
 
-    // 不限制文件大小（仅依靠后端和 OSS 的限制）
+    setSubmitMessage({ type: 'info', text: '正在检查照片...' });
+    const { file: uploadFile, optimized } = await maybeOptimizeUploadFile(file);
+    const fileMeta = {
+      name: file.name,
+      originalSize: file.size,
+      uploadSize: uploadFile.size,
+      optimized,
+      type: (file.type || getFileExtension(file.name) || 'image').replace('image/', '').toUpperCase(),
+    };
 
     const reader = new FileReader();
     reader.onload = async () => {
       const preview = reader.result?.toString() || '';
-      setUploadForm((prev) => ({ ...prev, file, preview }));
+      setUploadForm((prev) => ({ ...prev, file: uploadFile, fileMeta, preview }));
       
       // 读取EXIF数据获取地理位置和相机参数
       try {
@@ -1320,6 +1399,10 @@ export function AdminPage() {
         setSubmitMessage({ type: '', text: '' });
       }
     };
+    reader.onerror = () => {
+      setUploadForm((prev) => ({ ...prev, file: null, fileMeta: null, preview: '' }));
+      setSubmitMessage({ type: 'error', text: '无法读取图片，请换一张照片重试。' });
+    };
     reader.readAsDataURL(file);
   };
 
@@ -1509,6 +1592,7 @@ export function AdminPage() {
       tags: '',
       preview: '',
       file: null,
+      fileMeta: null,
       latitude: null,
       longitude: null,
       altitude: null,
@@ -1565,6 +1649,9 @@ export function AdminPage() {
   // 打开编辑表单
   const handleEdit = (photo) => {
     setEditingPhotoId(photo.id);
+    setIsDeleteConfirmOpen(false);
+    setDeleteConfirmInput('');
+    setIsDeletingPhoto(false);
     setEditForm({
       title: photo.title || '',
       location: photo.location || '',
@@ -1591,6 +1678,19 @@ export function AdminPage() {
   // 保存编辑
   const handleSaveEdit = async () => {
     if (!editingPhotoId) return;
+
+    if (!editForm.title?.trim()) {
+      setSubmitMessage({ type: 'error', text: '请填写标题' });
+      return;
+    }
+    if (!editForm.location?.trim()) {
+      setSubmitMessage({ type: 'error', text: '请填写拍摄地点' });
+      return;
+    }
+    if (!editForm.country?.trim()) {
+      setSubmitMessage({ type: 'error', text: '请填写国家/地区' });
+      return;
+    }
 
     if (supabase) {
       try {
@@ -1732,6 +1832,9 @@ export function AdminPage() {
   // 取消编辑
   const handleCancelEdit = () => {
     setEditingPhotoId(null);
+    setIsDeleteConfirmOpen(false);
+    setDeleteConfirmInput('');
+    setIsDeletingPhoto(false);
     setEditForm({
       title: '',
       location: '',
@@ -1758,12 +1861,13 @@ export function AdminPage() {
 
   // 删除作品（从编辑表单）
   const handleDeleteFromEdit = async () => {
-    if (!editingPhotoId) return;
-    
-    if (window.confirm('确定要删除这个作品吗？此操作不可恢复。')) {
-      // 先获取照片信息，以便删除OSS文件
-      let photoToDelete = null;
-      
+    if (!editingPhotoId || !isDeleteConfirmMatched || isDeletingPhoto) return;
+
+    setIsDeletingPhoto(true);
+
+    try {
+      let photoToDelete = editingPhoto;
+
       if (supabase) {
         try {
           const data = await fetchAdminPhoto(editingPhotoId, 'image_url,thumbnail_url');
@@ -1777,82 +1881,72 @@ export function AdminPage() {
             silent: true,
           });
         }
-      } else {
-        // 从本地存储中查找照片
-        const allPhotos = [
-          ...adminUploads,
-          ...approvedPhotos,
-          ...rejectedPhotos,
-        ];
-        photoToDelete = allPhotos.find((p) => p.id === editingPhotoId);
       }
-      
-      // 删除OSS中的文件
+
       if (photoToDelete) {
         const imageUrl = photoToDelete.image_url || photoToDelete.image || photoToDelete.preview;
         const thumbnailUrl = photoToDelete.thumbnail_url || photoToDelete.thumbnail;
-        
-        console.log('准备删除OSS文件:', { imageUrl, thumbnailUrl, photoToDelete });
-        
-        // 删除原图
+
         if (imageUrl) {
           await deleteOSSFile(imageUrl);
         }
-        
-        // 删除缩略图（如果存在且与原图不同）
+
         if (thumbnailUrl && thumbnailUrl !== imageUrl) {
           await deleteOSSFile(thumbnailUrl);
         }
-      } else {
-        // 未找到要删除的照片信息（静默处理）
       }
-      
-      // 删除数据库记录
+
       if (supabase) {
         try {
           await deleteAdminPhoto(editingPhotoId);
           await refreshSupabaseData();
           setEditingPhotoId(null);
-          setSubmitMessage({ type: 'success', text: '删除成功！' });
+          setIsDeleteConfirmOpen(false);
+          setDeleteConfirmInput('');
+          setSubmitMessage({ type: 'success', text: '删除成功，作品记录和云端图片已清理。' });
           setTimeout(() => {
             setSubmitMessage({ type: '', text: '' });
-          }, 2000);
+          }, 2500);
           return;
         } catch (error) {
           handleError(error, {
             context: 'handleDelete.supabase',
             type: ErrorType.NETWORK,
           });
-          setSubmitMessage({ type: 'error', text: `删除失败：${error.message}` });
+          setSubmitMessage({ type: 'error', text: getFriendlyAdminErrorMessage(error, '删除失败，请重试') });
           return;
         }
       }
-      
-      // 从本地存储删除
+
       try {
-        // 从已审核列表删除
+        const pending = Storage.get(STORAGE_KEY, []);
+        const pendingFiltered = pending.filter((p) => p.id !== editingPhotoId);
+        if (pendingFiltered.length !== pending.length) {
+          Storage.set(STORAGE_KEY, pendingFiltered);
+          setAdminUploads([...pendingFiltered]);
+        }
+
         const approved = loadApprovedPhotos();
         const approvedFiltered = approved.filter((p) => p.id !== editingPhotoId);
-        
         if (approvedFiltered.length !== approved.length) {
           Storage.set(APPROVED_STORAGE_KEY, approvedFiltered);
           setApprovedPhotos([...approvedFiltered]);
         }
 
-        // 从已拒绝列表删除
         const rejected = loadRejectedPhotos();
         const rejectedFiltered = rejected.filter((p) => p.id !== editingPhotoId);
-        
         if (rejectedFiltered.length !== rejected.length) {
           Storage.set(REJECTED_STORAGE_KEY, rejectedFiltered);
           setRejectedPhotos([...rejectedFiltered]);
         }
 
         setEditingPhotoId(null);
-        setSubmitMessage({ type: 'success', text: '删除成功！' });
+        setIsDeleteConfirmOpen(false);
+        setDeleteConfirmInput('');
+        setSubmitMessage({ type: 'success', text: '删除成功，作品记录和云端图片已清理。' });
         setTimeout(() => {
           setSubmitMessage({ type: '', text: '' });
-        }, 2000);
+        }, 2500);
       } catch (error) {
         handleError(error, {
           context: 'handleDelete.localStorage',
@@ -1861,6 +1955,8 @@ export function AdminPage() {
         });
         setSubmitMessage({ type: 'error', text: '删除失败，请重试' });
       }
+    } finally {
+      setIsDeletingPhoto(false);
     }
   };
 
@@ -2310,7 +2406,7 @@ export function AdminPage() {
               </div>
 
                 <div className="upload-dropzone-new">
-                    <input type="file" accept="image/*" onChange={handleFileChange} id="file-upload" />
+                    <input type="file" accept="image/jpeg,image/png,image/webp" onChange={handleFileChange} id="file-upload" />
                     <label htmlFor="file-upload" className="dropzone-label">
                       {uploadForm.preview ? (
                         <div className="preview-container">
@@ -2320,7 +2416,7 @@ export function AdminPage() {
                             className="remove-preview"
                             onClick={(e) => {
                               e.preventDefault();
-                              setUploadForm((prev) => ({ ...prev, file: null, preview: '' }));
+                              setUploadForm((prev) => ({ ...prev, file: null, fileMeta: null, preview: '' }));
                               const fileInput = document.getElementById('file-upload');
                               if (fileInput) fileInput.value = '';
                             }}
@@ -2341,10 +2437,26 @@ export function AdminPage() {
                             </svg>
                         </div>
                           <p className="dropzone-text">点击或拖拽上传照片</p>
-                          <p className="dropzone-hint">支持 JPG、PNG 格式，推荐不超过 20MB</p>
+                          <p className="dropzone-hint">支持 JPG、PNG、WEBP，单张不超过 20MB</p>
                           </div>
                         )}
                     </label>
+                    {uploadForm.fileMeta && (
+                      <div className="upload-file-summary">
+                        <div>
+                          <strong>{uploadForm.fileMeta.name}</strong>
+                          <span>{uploadForm.fileMeta.type}</span>
+                        </div>
+                        <div>
+                          <span>
+                            {uploadForm.fileMeta.optimized
+                              ? `${formatFileSize(uploadForm.fileMeta.originalSize)} → ${formatFileSize(uploadForm.fileMeta.uploadSize)}`
+                              : formatFileSize(uploadForm.fileMeta.originalSize)}
+                          </span>
+                          {uploadForm.fileMeta.optimized && <span>已优化上传文件</span>}
+                        </div>
+                      </div>
+                    )}
                 </div>
               </div>
 
@@ -2799,6 +2911,7 @@ export function AdminPage() {
                       tags: '',
                       preview: '',
                       file: null,
+                      fileMeta: null,
                       latitude: null,
                       longitude: null,
                       altitude: null,
@@ -4260,7 +4373,47 @@ export function AdminPage() {
                     </div>
                   </div>
                 </div>
-                
+
+                {isDeleteConfirmOpen && (
+                  <div className="edit-delete-confirm" role="alertdialog" aria-live="polite">
+                    <div className="edit-delete-confirm-header">
+                      <strong>确认永久删除</strong>
+                      <span>会同步删除作品记录，并尝试清理 OSS 原图和缩略图。</span>
+                    </div>
+                    <label>
+                      输入作品标题确认删除
+                      <input
+                        type="text"
+                        value={deleteConfirmInput}
+                        onChange={(e) => setDeleteConfirmInput(e.target.value)}
+                        placeholder={deleteConfirmExpectedText}
+                        disabled={isDeletingPhoto}
+                      />
+                    </label>
+                    <div className="edit-delete-confirm-actions">
+                      <button
+                        type="button"
+                        className="btn-secondary"
+                        onClick={() => {
+                          setIsDeleteConfirmOpen(false);
+                          setDeleteConfirmInput('');
+                        }}
+                        disabled={isDeletingPhoto}
+                      >
+                        取消删除
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-danger"
+                        onClick={handleDeleteFromEdit}
+                        disabled={!isDeleteConfirmMatched || isDeletingPhoto}
+                      >
+                        {isDeletingPhoto ? '正在删除...' : '永久删除'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 <div style={{ 
                   display: 'flex', 
                   gap: '12px', 
@@ -4271,14 +4424,19 @@ export function AdminPage() {
                 }}>
                   <button
                     type="button"
-                    onClick={handleDeleteFromEdit}
+                    className="btn-delete-trigger"
+                    onClick={() => {
+                      setIsDeleteConfirmOpen(true);
+                      setDeleteConfirmInput('');
+                    }}
+                    disabled={isDeletingPhoto}
                     style={{ 
                       padding: '10px 20px',
                       background: 'rgba(231, 76, 60, 0.1)',
                       border: '1px solid rgba(231, 76, 60, 0.3)',
                       borderRadius: '8px',
                       color: '#e74c3c',
-                      cursor: 'pointer',
+                      cursor: isDeletingPhoto ? 'wait' : 'pointer',
                       fontSize: '0.95rem',
                       transition: 'all 0.2s ease'
                     }}
