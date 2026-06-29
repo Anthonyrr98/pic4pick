@@ -674,7 +674,7 @@ main {
 
 #gallery-view {
   flex-direction: column;
-  gap: 32px;
+  gap: 24px;
 }
 
 #admin-view {
@@ -696,6 +696,88 @@ main {
   box-shadow: 0 12px 30px rgba(15, 17, 26, 0.12);
   position: relative;
   overflow: hidden;
+}
+
+.gallery-status-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 28px;
+  color: var(--muted);
+  font-size: 0.86rem;
+  letter-spacing: 0;
+}
+
+.gallery-status-row span,
+.gallery-status-row time {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.gallery-status-row span {
+  font-weight: 600;
+  color: rgba(17, 18, 24, 0.68);
+}
+
+.gallery-status-row time {
+  flex-shrink: 0;
+  color: rgba(17, 18, 24, 0.46);
+}
+
+.gallery-loading-state {
+  display: grid;
+  gap: 22px;
+}
+
+.gallery-loading-copy {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px 16px;
+  border: 1px solid rgba(17, 18, 24, 0.08);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.62);
+}
+
+.gallery-loading-copy span {
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
+.gallery-loading-copy strong {
+  color: var(--text);
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.gallery-loading-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 24px;
+}
+
+.gallery-loading-card {
+  position: relative;
+  overflow: hidden;
+  aspect-ratio: 3 / 4;
+  border-radius: 24px;
+  background:
+    linear-gradient(180deg, rgba(244, 245, 247, 0.96), rgba(225, 228, 235, 0.9)),
+    #ece8de;
+  box-shadow: 0 14px 28px rgba(20, 23, 32, 0.1);
+}
+
+.gallery-loading-shimmer {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(110deg, transparent 8%, rgba(255, 255, 255, 0.62) 18%, transparent 34%),
+    linear-gradient(180deg, transparent 58%, rgba(18, 19, 24, 0.12));
+  background-size: 220% 100%, 100% 100%;
+  animation: photo-skeleton-shimmer 1.25s linear infinite;
 }
 
 /* 滑动背景指示器 */
@@ -758,6 +840,23 @@ main {
 
   .tab.active {
     box-shadow: none;
+  }
+
+  .gallery-status-row {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
+    padding: 0 2px;
+  }
+
+  .gallery-loading-copy {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .gallery-loading-grid {
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
   }
 }
 
@@ -2574,6 +2673,56 @@ main {
   font-size: 0.98rem;
   font-weight: 500;
   letter-spacing: 0.02em;
+}
+
+.lightbox-story-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.lightbox-story-chip {
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.32);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.24);
+  backdrop-filter: blur(14px) saturate(150%);
+  -webkit-backdrop-filter: blur(14px) saturate(150%);
+  box-shadow: 0 8px 18px rgba(10, 12, 18, 0.12);
+}
+
+.lightbox-story-chip span,
+.lightbox-story-chip strong,
+.lightbox-story-chip em {
+  display: block;
+  min-width: 0;
+}
+
+.lightbox-story-chip span {
+  margin-bottom: 5px;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.lightbox-story-chip strong {
+  color: #fff;
+  font-size: 0.9rem;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.42);
+}
+
+.lightbox-story-chip em {
+  margin-top: 3px;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 0.72rem;
+  font-style: normal;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
 }
 
 .lightbox-params-grid {
@@ -5249,6 +5398,29 @@ main {
   .lightbox-params-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 10px !important;
+  }
+
+  .lightbox-story-grid {
+    gap: 8px;
+  }
+
+  .lightbox-story-chip {
+    padding: 9px 10px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.16);
+  }
+
+  .lightbox-story-chip span {
+    font-size: 0.64rem;
+    letter-spacing: 0.05em;
+  }
+
+  .lightbox-story-chip strong {
+    font-size: 0.84rem;
+  }
+
+  .lightbox-story-chip em {
+    font-size: 0.68rem;
   }
 
   .lightbox-param-card {

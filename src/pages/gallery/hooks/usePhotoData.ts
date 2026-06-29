@@ -82,6 +82,8 @@ const mapSupabaseRowToGalleryPhoto = (row: any): GalleryPhoto => {
 // 加载照片数据
 export const usePhotoData = (supabase: any) => {
   const [approvedPhotos, setApprovedPhotos] = useState<GalleryPhoto[]>(() => loadApprovedPhotos());
+  const [isPhotoDataLoading, setIsPhotoDataLoading] = useState(Boolean(supabase));
+  const [lastPhotoDataLoadedAt, setLastPhotoDataLoadedAt] = useState<number | null>(null);
   const [supabaseError, setSupabaseError] = useState('');
   const localApprovedPhotosSnapshotRef = useRef<string | null>(null);
   const lastSupabaseFetchAtRef = useRef(0);
@@ -97,6 +99,8 @@ export const usePhotoData = (supabase: any) => {
       localApprovedPhotosSnapshotRef.current = snapshot;
       const loaded = loadApprovedPhotos();
       setApprovedPhotos(loaded);
+      setLastPhotoDataLoadedAt(Date.now());
+      setIsPhotoDataLoading(false);
     };
 
     handleStorageChange();
@@ -127,6 +131,9 @@ export const usePhotoData = (supabase: any) => {
         return;
       }
       lastSupabaseFetchAtRef.current = now;
+      if (force) {
+        setIsPhotoDataLoading(true);
+      }
 
       try {
         let { data, error } = await supabase
@@ -156,6 +163,7 @@ export const usePhotoData = (supabase: any) => {
           setApprovedPhotos(mapped);
           Storage.remove(STORAGE_KEYS.APPROVED_PHOTOS);
           setSupabaseError('');
+          setLastPhotoDataLoadedAt(Date.now());
         }
       } catch (error) {
         const appError = handleError(error, {
@@ -164,6 +172,10 @@ export const usePhotoData = (supabase: any) => {
         });
         if (isMounted) {
           setSupabaseError(`加载云端作品失败: ${appError.message}`);
+        }
+      } finally {
+        if (isMounted && force) {
+          setIsPhotoDataLoading(false);
         }
       }
     };
@@ -186,7 +198,7 @@ export const usePhotoData = (supabase: any) => {
     };
   }, [supabase]);
 
-  return { approvedPhotos, setApprovedPhotos, supabaseError };
+  return { approvedPhotos, setApprovedPhotos, isPhotoDataLoading, lastPhotoDataLoadedAt, supabaseError };
 };
 
 // 点赞功能

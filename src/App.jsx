@@ -14,7 +14,7 @@ function App() {
   return (
     <ErrorBoundary>
       <HashRouter>
-        <Suspense fallback={<div className="loading-container">Loading...</div>}>
+        <Suspense fallback={<div className="loading-container">正在装片...</div>}>
           <Routes>
             <Route path="/" element={<GalleryPage />} />
             <Route path="/admin" element={<AdminPage />} />

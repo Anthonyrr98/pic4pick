@@ -70,6 +70,58 @@ function IsoIcon(props) {
   );
 }
 
+const CATEGORY_LABELS = {
+  featured: '精选',
+  latest: '最新',
+  random: '随览',
+  nearby: '附近',
+  far: '远方',
+  film: '胶片',
+};
+
+const formatSyncTime = (timestamp) => {
+  if (!timestamp) return '';
+  return new Intl.DateTimeFormat('zh-CN', {
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(timestamp));
+};
+
+const getFilmStockFromPhoto = (photo) => {
+  const direct = String(photo?.filmStock || '').trim();
+  if (direct) return direct;
+
+  const tag = String(photo?.tags || '')
+    .split(',')
+    .map((item) => item.trim())
+    .find((item) => item.toLowerCase().startsWith('film_stock:'));
+
+  return tag ? tag.slice('film_stock:'.length).trim() : '';
+};
+
+const setMetaAttribute = (selector, attr, value) => {
+  const node = document.head.querySelector(selector);
+  if (node && value) node.setAttribute(attr, value);
+};
+
+function GalleryLoadingState() {
+  return (
+    <div className="gallery-loading-state" aria-live="polite" aria-busy="true">
+      <div className="gallery-loading-copy">
+        <span>正在整理最新作品</span>
+        <strong>Light of Anthony</strong>
+      </div>
+      <div className="gallery-loading-grid" aria-hidden="true">
+        {Array.from({ length: 8 }, (_, index) => (
+          <div key={index} className="gallery-loading-card">
+            <div className="gallery-loading-shimmer" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function GalleryPage() {
   const supabase = getSupabaseClient();
 
@@ -113,7 +165,13 @@ export function GalleryPage() {
   const loadMoreRef = useRef(null);
 
   // 鈹€鈹€ 鏁版嵁 Hooks
-  const { approvedPhotos, setApprovedPhotos, supabaseError } = usePhotoData(supabase);
+  const {
+    approvedPhotos,
+    setApprovedPhotos,
+    isPhotoDataLoading,
+    lastPhotoDataLoadedAt,
+    supabaseError,
+  } = usePhotoData(supabase);
   const { likedPhotoIds, handleToggleLike } = useLikePhoto(supabase, setApprovedPhotos);
   const browserLocation = useBrowserLocation();
   const exifData = useExifData(lightboxPhoto);
@@ -162,6 +220,37 @@ export function GalleryPage() {
   );
 
   const hasMore = displayedCount < filteredPhotos.length;
+  const shouldShowGalleryLoading = isPhotoDataLoading && approvedPhotos.length === 0;
+  const galleryStatusText = isPhotoDataLoading
+    ? '正在加载作品'
+    : `${filteredPhotos.length} / ${allPhotos.length} 张作品`;
+  const gallerySyncText = lastPhotoDataLoadedAt ? `更新于 ${formatSyncTime(lastPhotoDataLoadedAt)}` : '';
+  const lightboxFilmStock = lightboxPhoto ? getFilmStockFromPhoto(lightboxPhoto) : '';
+  const lightboxShotInfo = lightboxPhoto
+    ? getShotTimeInfo(lightboxPhoto.shotDate || lightboxPhoto.shot_date)
+    : null;
+  const lightboxStoryItems = lightboxPhoto ? [
+    {
+      label: '拍摄',
+      value: lightboxShotInfo?.dateText || '未设置',
+      sub: lightboxShotInfo?.yearsAgoText,
+    },
+    {
+      label: '评分',
+      value: `${Math.max(1, Math.min(10, Number(lightboxPhoto.rating) || 7))}/10`,
+      sub: '作品评级',
+    },
+    {
+      label: '分类',
+      value: CATEGORY_LABELS[lightboxPhoto.category] || '未分类',
+      sub: lightboxFilmStock || String(lightboxPhoto.mood || '').trim() || '',
+    },
+    {
+      label: '喜欢',
+      value: `${typeof lightboxPhoto.likes === 'number' ? lightboxPhoto.likes : 0}`,
+      sub: '次',
+    },
+  ] : [];
 
   // 鈹€鈹€ 鍦扮悊淇℃伅锛圠ightbox 鐢級
   const getGeoInfo = useMemo(() => {
@@ -346,6 +435,29 @@ export function GalleryPage() {
       setIsLightboxPortrait(false);
     }
   }, [lightboxPhoto]);
+
+  useEffect(() => {
+    const baseTitle = brandText.siteTitle || 'light of anthony';
+    const title = lightboxPhoto
+      ? `${lightboxPhoto.title} | ${baseTitle}`
+      : activeView === 'explore-view'
+        ? `发现地图 | ${baseTitle}`
+        : baseTitle;
+    const description = lightboxPhoto
+      ? `${lightboxPhoto.country || ''}${lightboxPhoto.location ? ` · ${lightboxPhoto.location}` : ''}，${lightboxPhoto.focal || ''} ${lightboxPhoto.aperture || ''} ${lightboxPhoto.shutter || ''}`.trim()
+      : `${baseTitle} 收录 ${allPhotos.length} 张摄影作品，按时间、地点和分类浏览。`;
+    const image = lightboxPhoto?.thumbnail || lightboxPhoto?.image || 'https://pic.rlzhao.com/loa-cropped.png';
+
+    document.title = title;
+    setMetaAttribute('meta[name="description"]', 'content', description);
+    setMetaAttribute('meta[property="og:title"]', 'content', title);
+    setMetaAttribute('meta[property="og:description"]', 'content', description);
+    setMetaAttribute('meta[property="og:image"]', 'content', image);
+    setMetaAttribute('meta[property="og:image:secure_url"]', 'content', image);
+    setMetaAttribute('meta[name="twitter:title"]', 'content', title);
+    setMetaAttribute('meta[name="twitter:description"]', 'content', description);
+    setMetaAttribute('meta[name="twitter:image"]', 'content', image);
+  }, [activeView, allPhotos.length, brandText.siteTitle, lightboxPhoto]);
 
   useEffect(() => {
     const handleKey = (e) => {
@@ -709,7 +821,13 @@ export function GalleryPage() {
 
         <section id="gallery-view" className={`screen ${activeView === 'gallery-view' ? 'active' : ''}`}>
           <TabStrip activeFilter={activeFilter} onFilterChange={setActiveFilter} />
-          {filteredPhotos.length > 0 ? (
+          <div className="gallery-status-row">
+            <span>{galleryStatusText}</span>
+            {gallerySyncText && <time dateTime={new Date(lastPhotoDataLoadedAt).toISOString()}>{gallerySyncText}</time>}
+          </div>
+          {shouldShowGalleryLoading ? (
+            <GalleryLoadingState />
+          ) : filteredPhotos.length > 0 ? (
             <PhotoGrid
               photos={displayedPhotos}
               likedPhotoIds={likedPhotoIds}
@@ -796,6 +914,15 @@ export function GalleryPage() {
                 <div className="lightbox-title-section">
                   <h3>{lightboxPhoto.title}</h3>
                   <p className="subtitle">{lightboxPhoto.country} · {lightboxPhoto.location}</p>
+                </div>
+                <div className="lightbox-story-grid">
+                  {lightboxStoryItems.map((item) => (
+                    <div key={item.label} className="lightbox-story-chip">
+                      <span>{item.label}</span>
+                      <strong>{item.value}</strong>
+                      {item.sub && <em>{item.sub}</em>}
+                    </div>
+                  ))}
                 </div>
                 <div className="lightbox-params-grid"
                   onClick={(e) => { if (window.innerWidth <= 768) e.stopPropagation(); }}>
