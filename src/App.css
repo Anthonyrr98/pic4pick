@@ -79,6 +79,178 @@ main {
   color: var(--text);
 }
 
+.app-loading-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 2147482000;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 22px;
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding: 32px;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 50% 38%, rgba(255, 255, 255, 0.82), rgba(245, 242, 236, 0.56) 24%, transparent 46%),
+    linear-gradient(135deg, #eef0f4 0%, #f6f0e7 42%, #d9dde6 100%);
+  color: var(--text);
+  opacity: 1;
+  transition: opacity 260ms ease, transform 260ms ease;
+}
+
+.app-loading-screen.is-exiting {
+  opacity: 0;
+  transform: scale(1.01);
+  pointer-events: none;
+}
+
+.app-loading-screen::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(rgba(17, 18, 24, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(17, 18, 24, 0.026) 1px, transparent 1px);
+  background-size: 42px 42px;
+  mask-image: radial-gradient(circle at center, rgba(0, 0, 0, 0.8), transparent 72%);
+  pointer-events: none;
+}
+
+.app-loading-mark {
+  position: relative;
+  width: min(420px, 76vw);
+  padding: clamp(18px, 4vw, 32px);
+  border: 1px solid rgba(255, 255, 255, 0.54);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.42);
+  box-shadow:
+    0 28px 70px rgba(17, 18, 24, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.68);
+  overflow: hidden;
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  animation: app-loading-breathe 2.8s ease-in-out infinite;
+}
+
+.app-loading-mark img {
+  position: relative;
+  z-index: 1;
+  display: block;
+  width: 100%;
+  height: auto;
+  object-fit: contain;
+  filter: drop-shadow(0 10px 22px rgba(17, 18, 24, 0.16));
+}
+
+.app-loading-sheen {
+  position: absolute;
+  inset: -40% auto -40% -55%;
+  z-index: 2;
+  width: 42%;
+  transform: skewX(-16deg);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.38),
+    rgba(255, 255, 255, 0.72),
+    transparent
+  );
+  mix-blend-mode: screen;
+  animation: app-loading-sheen 2.4s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+  pointer-events: none;
+}
+
+.app-loading-progress {
+  position: relative;
+  width: min(260px, 58vw);
+  height: 4px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(17, 18, 24, 0.12);
+  box-shadow: inset 0 1px 2px rgba(17, 18, 24, 0.08);
+}
+
+.app-loading-progress span {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 46%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, rgba(17, 18, 24, 0.82), rgba(207, 165, 106, 0.92));
+  animation: app-loading-progress 1.35s ease-in-out infinite;
+}
+
+.app-loading-screen p {
+  margin: 0;
+  color: rgba(17, 18, 24, 0.58);
+  font-size: 0.9rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+}
+
+@keyframes app-loading-breathe {
+  0%, 100% {
+    transform: translateY(0) scale(1);
+  }
+  50% {
+    transform: translateY(-3px) scale(1.012);
+  }
+}
+
+@keyframes app-loading-sheen {
+  0% {
+    left: -55%;
+    opacity: 0;
+  }
+  18% {
+    opacity: 1;
+  }
+  58%, 100% {
+    left: 118%;
+    opacity: 0;
+  }
+}
+
+@keyframes app-loading-progress {
+  0% {
+    transform: translateX(-105%);
+  }
+  55% {
+    transform: translateX(85%);
+  }
+  100% {
+    transform: translateX(220%);
+  }
+}
+
+@media (max-width: 520px) {
+  .app-loading-screen {
+    gap: 18px;
+    padding: 24px;
+  }
+
+  .app-loading-mark {
+    width: min(320px, 82vw);
+    padding: 18px;
+  }
+
+  .app-loading-screen p {
+    font-size: 0.78rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-loading-mark,
+  .app-loading-sheen,
+  .app-loading-progress span {
+    animation: none;
+  }
+
+  .app-loading-sheen {
+    display: none;
+  }
+}
+
 /* 统一 hover/active “按压手感” */
 :root {
   --press-raise: -1px;
