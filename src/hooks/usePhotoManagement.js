@@ -53,7 +53,7 @@ export const usePhotoManagement = (supabase, refreshSupabaseData, setSubmitMessa
    */
   const handleApprove = useCallback(async (id) => {
     const itemToApprove = adminUploads.find((item) => item.id === id);
-    if (!itemToApprove) return;
+    if (!itemToApprove) return false;
 
     const approvedItem = { ...itemToApprove, status: 'approved' };
 
@@ -112,11 +112,12 @@ export const usePhotoManagement = (supabase, refreshSupabaseData, setSubmitMessa
         setApprovedPhotos((prev) => prev.filter((item) => item.id !== id));
         setAdminUploads((prev) => [itemToApprove, ...prev]);
 
-        return;
+        return false;
       }
     }
     
     setSubmitMessage({ type: 'success', text: '作品已通过审核，已添加到前端图库' });
+    return true;
   }, [adminUploads, supabase, setSubmitMessage]);
 
   /**
@@ -124,7 +125,7 @@ export const usePhotoManagement = (supabase, refreshSupabaseData, setSubmitMessa
    */
   const handleReject = useCallback(async (id) => {
     const itemToReject = adminUploads.find((item) => item.id === id);
-    if (!itemToReject) return;
+    if (!itemToReject) return false;
 
     // 从待审核列表移除
     setAdminUploads((prev) => prev.filter((item) => item.id !== id));
@@ -188,8 +189,11 @@ export const usePhotoManagement = (supabase, refreshSupabaseData, setSubmitMessa
         // 回滚本地状态更改
         setRejectedPhotos((prev) => prev.filter((item) => item.id !== id));
         setAdminUploads((prev) => [...prev, itemToReject]);
+        return false;
       }
     }
+
+    return true;
   }, [adminUploads, supabase, refreshSupabaseData, setSubmitMessage]);
 
   /**
@@ -206,7 +210,7 @@ export const usePhotoManagement = (supabase, refreshSupabaseData, setSubmitMessa
       itemToDelete = rejectedPhotos.find((item) => item.id === id);
     }
 
-    if (!itemToDelete) return;
+    if (!itemToDelete) return false;
 
     try {
       // 删除 OSS 文件
@@ -275,12 +279,14 @@ export const usePhotoManagement = (supabase, refreshSupabaseData, setSubmitMessa
       }
 
       setSubmitMessage({ type: 'success', text: '删除成功！' });
+      return true;
     } catch (error) {
       handleError(error, {
         context: 'handleDelete',
         type: ErrorType.NETWORK,
       });
       setSubmitMessage({ type: 'error', text: '删除失败，请重试' });
+      return false;
     }
   }, [adminUploads, approvedPhotos, rejectedPhotos, supabase, refreshSupabaseData, setSubmitMessage]);
 
@@ -289,7 +295,7 @@ export const usePhotoManagement = (supabase, refreshSupabaseData, setSubmitMessa
    */
   const handleResubmit = useCallback(async (id) => {
     const itemToResubmit = rejectedPhotos.find((item) => item.id === id);
-    if (!itemToResubmit) return;
+    if (!itemToResubmit) return false;
 
     // 从已拒绝列表移除
     setRejectedPhotos((prev) => {
@@ -323,11 +329,12 @@ export const usePhotoManagement = (supabase, refreshSupabaseData, setSubmitMessa
           type: ErrorType.NETWORK,
         });
         setSubmitMessage({ type: 'error', text: `重新提交失败：${formatErrorMessage(error)}` });
-        return;
+        return false;
       }
     }
 
     setSubmitMessage({ type: 'success', text: '作品已重新提交审核' });
+    return true;
   }, [rejectedPhotos, supabase, refreshSupabaseData, setSubmitMessage]);
 
   return {

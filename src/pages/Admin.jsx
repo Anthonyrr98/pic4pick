@@ -57,6 +57,7 @@ const SUPPORTED_UPLOAD_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/w
 const SUPPORTED_UPLOAD_EXTENSIONS = new Set(['jpg', 'jpeg', 'png', 'webp']);
 
 const BACKEND_WAKE_HINT = '正在连接后台服务。Render 免费实例冷启动可能需要 30 秒左右，请稍等。';
+const BATCH_DELETE_CONFIRM_TEXT = 'DELETE';
 
 const formatFileSize = (bytes = 0) => {
   if (!bytes) return '0 B';
@@ -273,6 +274,11 @@ export function AdminPage() {
   const [searchResults, setSearchResults] = useState([]);
   const [submitMessage, setSubmitMessage] = useState({ type: '', text: '' });
   const [activeTab, setActiveTab] = useState('upload'); // 'upload' | 'pending' | 'approved' | 'rejected' | 'config'
+  const [selectedPhotoIds, setSelectedPhotoIds] = useState(() => new Set());
+  const [isBatchWorking, setIsBatchWorking] = useState(false);
+  const [batchDeleteConfirmOpen, setBatchDeleteConfirmOpen] = useState(false);
+  const [batchDeleteConfirmInput, setBatchDeleteConfirmInput] = useState('');
+  const [batchDeleteScope, setBatchDeleteScope] = useState(null);
   // 使用文件上传管理 hook
   const {
     isUploading,
@@ -323,6 +329,8 @@ export function AdminPage() {
     setRejectedPhotos,
     handleApprove,
     handleReject,
+    handleDelete,
+    handleResubmit,
   } = usePhotoManagement(
     supabase, 
     async () => {
@@ -479,11 +487,34 @@ export function AdminPage() {
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
   const paginatedPhotos = filteredPhotos.slice(startIndex, endIndex);
+  const visiblePhotoIdsByTab = useMemo(() => ({
+    pending: adminUploads.map((item) => item.id),
+    approved: paginatedPhotos.map((item) => item.id),
+    rejected: rejectedPhotos.map((item) => item.id),
+  }), [adminUploads, paginatedPhotos, rejectedPhotos]);
+  const activeVisiblePhotoIds = useMemo(
+    () => visiblePhotoIdsByTab[activeTab] || [],
+    [visiblePhotoIdsByTab, activeTab]
+  );
+  const selectedActivePhotoIds = useMemo(
+    () => activeVisiblePhotoIds.filter((id) => selectedPhotoIds.has(id)),
+    [activeVisiblePhotoIds, selectedPhotoIds]
+  );
+  const selectedActiveCount = selectedActivePhotoIds.length;
+  const isAllActiveVisibleSelected = activeVisiblePhotoIds.length > 0 && selectedActiveCount === activeVisiblePhotoIds.length;
+  const isBatchDeleteConfirmMatched = batchDeleteConfirmInput.trim().toUpperCase() === BATCH_DELETE_CONFIRM_TEXT;
 
   // 当筛选条件改变时，重置到第一页
   useEffect(() => {
     setCurrentPage(1);
   }, [searchQuery, filterCategory]);
+
+  useEffect(() => {
+    setSelectedPhotoIds(new Set());
+    setBatchDeleteConfirmOpen(false);
+    setBatchDeleteConfirmInput('');
+    setBatchDeleteScope(null);
+  }, [activeTab, currentPage, searchQuery, filterCategory]);
 
   // （登录功能已移除）
 
@@ -1635,15 +1666,252 @@ export function AdminPage() {
     }
   };
 
+  const clearSelectedPhotoIds = (ids) => {
+    setSelectedPhotoIds((prev) => {
+      const next = new Set(prev);
+      ids.forEach((id) => next.delete(id));
+      return next;
+    });
+  };
+
   // 包装函数：添加切换标签页的功能
   const handleApproveWithTabSwitch = async (id) => {
-    await handleApprove(id);
-      setActiveTab('approved'); // 切换到已审核标签
+    const didApprove = await handleApprove(id);
+    if (!didApprove) return;
+    clearSelectedPhotoIds([id]);
+    setActiveTab('approved'); // 切换到已审核标签
   };
 
   const handleRejectWithTabSwitch = async (id) => {
-    await handleReject(id);
+    const didReject = await handleReject(id);
+    if (!didReject) return;
+    clearSelectedPhotoIds([id]);
     setActiveTab('rejected'); // 切换到已拒绝标签
+  };
+
+  const togglePhotoSelection = (id) => {
+    setBatchDeleteConfirmOpen(false);
+    setBatchDeleteConfirmInput('');
+    setBatchDeleteScope(null);
+    setSelectedPhotoIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const toggleActiveVisibleSelection = () => {
+    setBatchDeleteConfirmOpen(false);
+    setBatchDeleteConfirmInput('');
+    setBatchDeleteScope(null);
+    setSelectedPhotoIds((prev) => {
+      const next = new Set(prev);
+      if (isAllActiveVisibleSelected) {
+        activeVisiblePhotoIds.forEach((id) => next.delete(id));
+      } else {
+        activeVisiblePhotoIds.forEach((id) => next.add(id));
+      }
+      return next;
+    });
+  };
+
+  const handleResubmitWithTabSwitch = async (id) => {
+    const didResubmit = await handleResubmit(id);
+    if (!didResubmit) return;
+    clearSelectedPhotoIds([id]);
+    setActiveTab('pending');
+  };
+
+  const runBatchAction = async (action) => {
+    const ids = [...selectedActivePhotoIds];
+    if (!ids.length || isBatchWorking) return;
+
+    setIsBatchWorking(true);
+    setBatchDeleteConfirmOpen(false);
+    setBatchDeleteConfirmInput('');
+    setBatchDeleteScope(null);
+
+    try {
+      const completedIds = [];
+
+      for (const id of ids) {
+        let didComplete = false;
+
+        if (action === 'approve') {
+          didComplete = await handleApprove(id);
+        } else if (action === 'reject') {
+          didComplete = await handleReject(id);
+        } else if (action === 'resubmit') {
+          didComplete = await handleResubmit(id);
+        } else if (action === 'delete') {
+          didComplete = await handleDelete(id, activeTab);
+        }
+
+        if (didComplete) {
+          completedIds.push(id);
+        }
+      }
+
+      clearSelectedPhotoIds(completedIds);
+      const failedCount = ids.length - completedIds.length;
+      const completedCount = completedIds.length;
+
+      if (failedCount > 0) {
+        setSubmitMessage({
+          type: 'error',
+          text: completedCount > 0
+            ? `已完成 ${completedCount} 个，${failedCount} 个失败，请刷新后重试`
+            : '批量操作未完成，请检查错误提示后重试',
+        });
+        return;
+      }
+
+      if (action === 'approve') {
+        setActiveTab('approved');
+        setSubmitMessage({ type: 'success', text: `已通过 ${completedCount} 个作品` });
+      } else if (action === 'reject') {
+        setActiveTab('rejected');
+        setSubmitMessage({ type: 'success', text: `已拒绝 ${completedCount} 个作品` });
+      } else if (action === 'resubmit') {
+        setActiveTab('pending');
+        setSubmitMessage({ type: 'success', text: `已重新提交 ${completedCount} 个作品` });
+      } else {
+        setSubmitMessage({ type: 'success', text: `已删除 ${completedCount} 个作品` });
+      }
+
+      setTimeout(() => {
+        setSubmitMessage({ type: '', text: '' });
+      }, 3000);
+    } catch (error) {
+      handleError(error, {
+        context: `runBatchAction.${action}`,
+        type: ErrorType.NETWORK,
+      });
+      setSubmitMessage({ type: 'error', text: `批量操作失败：${formatErrorMessage(error)}` });
+    } finally {
+      setIsBatchWorking(false);
+    }
+  };
+
+  const openBatchDeleteConfirm = () => {
+    if (!selectedActiveCount || isBatchWorking) return;
+    setBatchDeleteConfirmOpen(true);
+    setBatchDeleteConfirmInput('');
+    setBatchDeleteScope(activeTab);
+  };
+
+  const handleBatchDeleteConfirmed = async () => {
+    if (!isBatchDeleteConfirmMatched) return;
+    await runBatchAction('delete');
+  };
+
+  const renderBatchToolbar = (items, source) => {
+    if (!items.length) return null;
+
+    const isDeleteConfirmVisible = batchDeleteConfirmOpen && batchDeleteScope === source;
+
+    return (
+      <div className="batch-toolbar">
+        <div className="batch-toolbar-main">
+          <button
+            type="button"
+            className="btn-secondary batch-select-btn"
+            onClick={toggleActiveVisibleSelection}
+            disabled={isBatchWorking}
+          >
+            {isAllActiveVisibleSelected ? '取消全选' : '全选当前列表'}
+          </button>
+          <span className="batch-selected-count">
+            已选 {selectedActiveCount} / {items.length}
+          </span>
+        </div>
+
+        <div className="batch-toolbar-actions">
+          {source === 'pending' && (
+            <>
+              <button
+                type="button"
+                className="btn-approve"
+                onClick={() => runBatchAction('approve')}
+                disabled={!selectedActiveCount || isBatchWorking}
+              >
+                批量通过
+              </button>
+              <button
+                type="button"
+                className="btn-reject"
+                onClick={() => runBatchAction('reject')}
+                disabled={!selectedActiveCount || isBatchWorking}
+              >
+                批量拒绝
+              </button>
+            </>
+          )}
+
+          {source === 'rejected' && (
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={() => runBatchAction('resubmit')}
+              disabled={!selectedActiveCount || isBatchWorking}
+            >
+              批量重新提交
+            </button>
+          )}
+
+          <button
+            type="button"
+            className="btn-reject"
+            onClick={openBatchDeleteConfirm}
+            disabled={!selectedActiveCount || isBatchWorking}
+          >
+            批量删除
+          </button>
+        </div>
+
+        {isDeleteConfirmVisible && (
+          <div className="batch-delete-confirm">
+            <div>
+              <strong>确认批量删除</strong>
+              <span>将删除当前选中的 {selectedActiveCount} 个作品记录，并清理对应云端图片。请输入 DELETE 继续。</span>
+            </div>
+            <input
+              type="text"
+              value={batchDeleteConfirmInput}
+              onChange={(event) => setBatchDeleteConfirmInput(event.target.value)}
+              placeholder={BATCH_DELETE_CONFIRM_TEXT}
+              disabled={isBatchWorking}
+            />
+            <div className="batch-delete-actions">
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => {
+                  setBatchDeleteConfirmOpen(false);
+                  setBatchDeleteConfirmInput('');
+                  setBatchDeleteScope(null);
+                }}
+                disabled={isBatchWorking}
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                className="btn-danger"
+                onClick={handleBatchDeleteConfirmed}
+                disabled={!isBatchDeleteConfirmMatched || isBatchWorking}
+              >
+                {isBatchWorking ? '删除中...' : '确认删除'}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    );
   };
 
   // 打开编辑表单
@@ -1729,7 +1997,7 @@ export function AdminPage() {
         return;
       } catch (error) {
         handleError(error, {
-          context: 'handleResubmit',
+          context: 'handleSaveEdit',
           type: ErrorType.NETWORK,
         });
         setSubmitMessage({ type: 'error', text: `保存失败：${error.message}` });
@@ -1738,36 +2006,53 @@ export function AdminPage() {
     }
 
     try {
+      const buildEditedLocalPhoto = (photo) => ({
+        ...photo,
+        title: editForm.title.trim(),
+        location: editForm.location.trim(),
+        country: editForm.country.trim(),
+        category: editForm.category,
+        latitude: editForm.latitude,
+        longitude: editForm.longitude,
+        altitude: editForm.altitude,
+        focal: editForm.focal.trim(),
+        aperture: editForm.aperture.trim(),
+        shutter: editForm.shutter.trim(),
+        iso: editForm.iso.trim(),
+        camera: editForm.camera.trim(),
+        lens: editForm.lens.trim(),
+        filmStock: editForm.category === 'film' ? (editForm.filmStock || '').trim() : '',
+        tags: mergeTagsWithFilmStock(
+          editForm.tags || '',
+          editForm.category,
+          editForm.filmStock || ''
+        ),
+        rating: typeof editForm.rating === 'number' ? editForm.rating : Number(editForm.rating) || 7,
+        shotDate: editForm.shotDate || null,
+        hidden: !!editForm.hidden,
+      });
+
+      const pending = Storage.get(STORAGE_KEY, []);
+      const pendingIndex = pending.findIndex((p) => p.id === editingPhotoId);
+
+      if (pendingIndex !== -1) {
+        pending[pendingIndex] = buildEditedLocalPhoto(pending[pendingIndex]);
+        Storage.set(STORAGE_KEY, pending);
+        setAdminUploads([...pending]);
+        setEditingPhotoId(null);
+        setSubmitMessage({ type: 'success', text: '编辑成功！' });
+        setTimeout(() => {
+          setSubmitMessage({ type: '', text: '' });
+        }, 2000);
+        return;
+      }
+
       // 检查是否在已审核列表中
       const approved = loadApprovedPhotos();
       const approvedIndex = approved.findIndex((p) => p.id === editingPhotoId);
       
       if (approvedIndex !== -1) {
-        approved[approvedIndex] = {
-          ...approved[approvedIndex],
-          title: editForm.title.trim(),
-          location: editForm.location.trim(),
-          country: editForm.country.trim(),
-          category: editForm.category,
-          latitude: editForm.latitude,
-          longitude: editForm.longitude,
-          altitude: editForm.altitude,
-          focal: editForm.focal.trim(),
-          aperture: editForm.aperture.trim(),
-          shutter: editForm.shutter.trim(),
-          iso: editForm.iso.trim(),
-          camera: editForm.camera.trim(),
-          lens: editForm.lens.trim(),
-          filmStock: editForm.category === 'film' ? (editForm.filmStock || '').trim() : '',
-          tags: mergeTagsWithFilmStock(
-            approved[approvedIndex].tags || '',
-            editForm.category,
-            editForm.filmStock || ''
-          ),
-          rating: typeof editForm.rating === 'number' ? editForm.rating : Number(editForm.rating) || 7,
-          shotDate: editForm.shotDate || null,
-          hidden: !!editForm.hidden,
-        };
+        approved[approvedIndex] = buildEditedLocalPhoto(approved[approvedIndex]);
         
         Storage.set(APPROVED_STORAGE_KEY, approved);
         setApprovedPhotos([...approved]);
@@ -1784,31 +2069,7 @@ export function AdminPage() {
       const rejectedIndex = rejected.findIndex((p) => p.id === editingPhotoId);
       
       if (rejectedIndex !== -1) {
-        rejected[rejectedIndex] = {
-          ...rejected[rejectedIndex],
-          title: editForm.title.trim(),
-          location: editForm.location.trim(),
-          country: editForm.country.trim(),
-          category: editForm.category,
-          latitude: editForm.latitude,
-          longitude: editForm.longitude,
-          altitude: editForm.altitude,
-          focal: editForm.focal.trim(),
-          aperture: editForm.aperture.trim(),
-          shutter: editForm.shutter.trim(),
-          iso: editForm.iso.trim(),
-          camera: editForm.camera.trim(),
-          lens: editForm.lens.trim(),
-          filmStock: editForm.category === 'film' ? (editForm.filmStock || '').trim() : '',
-          tags: mergeTagsWithFilmStock(
-            rejected[rejectedIndex].tags || '',
-            editForm.category,
-            editForm.filmStock || ''
-          ),
-          rating: typeof editForm.rating === 'number' ? editForm.rating : Number(editForm.rating) || 7,
-          shotDate: editForm.shotDate || null,
-          hidden: !!editForm.hidden,
-        };
+        rejected[rejectedIndex] = buildEditedLocalPhoto(rejected[rejectedIndex]);
         
         Storage.set(REJECTED_STORAGE_KEY, rejected);
         setRejectedPhotos([...rejected]);
@@ -3167,6 +3428,7 @@ export function AdminPage() {
                 <h2>待审核作品</h2>
                 <span className="list-count">{pendingReviewCount} 条</span>
               </div>
+              {renderBatchToolbar(adminUploads, 'pending')}
               <div className="admin-list">
                 {adminUploads.length === 0 ? (
                   <div className="empty-state">
@@ -3182,7 +3444,15 @@ export function AdminPage() {
                   </div>
                 ) : (
                   adminUploads.map((item) => (
-                    <article key={item.id} className="admin-list-item pending compact">
+                    <article key={item.id} className={`admin-list-item pending compact ${selectedPhotoIds.has(item.id) ? 'is-selected' : ''}`}>
+                      <label className="admin-item-select" aria-label={`选择 ${item.title || '作品'}`}>
+                        <input
+                          type="checkbox"
+                          checked={selectedPhotoIds.has(item.id)}
+                          onChange={() => togglePhotoSelection(item.id)}
+                        />
+                        <span>选择</span>
+                      </label>
                       <div className="item-image compact">
                         {item.preview ? (
                           <img src={item.preview} alt={item.title} />
@@ -3282,6 +3552,18 @@ export function AdminPage() {
                         alignItems: 'stretch'
                       }}>
                         <button
+                          className="btn-secondary"
+                          onClick={() => handleEdit(item)}
+                          style={{
+                            width: '100%',
+                            fontSize: '0.85rem',
+                            padding: '10px 16px',
+                            whiteSpace: 'nowrap'
+                          }}
+                        >
+                          ✎ 编辑
+                        </button>
+                        <button
                           className="btn-approve"
                           onClick={() => handleApproveWithTabSwitch(item.id)}
                           style={{ 
@@ -3319,6 +3601,7 @@ export function AdminPage() {
                 <h2>已拒绝作品</h2>
                 <span className="list-count">{rejectedCount} 条</span>
               </div>
+              {renderBatchToolbar(rejectedPhotos, 'rejected')}
 
               <div className="admin-list">
                 {rejectedPhotos.length === 0 ? (
@@ -3335,7 +3618,15 @@ export function AdminPage() {
                   </div>
                 ) : (
                   rejectedPhotos.map((item) => (
-                    <article key={item.id} className="admin-list-item rejected compact">
+                    <article key={item.id} className={`admin-list-item rejected compact ${selectedPhotoIds.has(item.id) ? 'is-selected' : ''}`}>
+                      <label className="admin-item-select" aria-label={`选择 ${item.title || '作品'}`}>
+                        <input
+                          type="checkbox"
+                          checked={selectedPhotoIds.has(item.id)}
+                          onChange={() => togglePhotoSelection(item.id)}
+                        />
+                        <span>选择</span>
+                      </label>
                       <div className="item-image compact">
                         {item.preview ? (
                           <img src={item.preview} alt={item.title} />
@@ -3439,50 +3730,7 @@ export function AdminPage() {
                           </button>
                           <button
                             className="btn-primary"
-                            onClick={async () => {
-                              // 重新提交审核
-                              const itemToResubmit = { ...item, status: 'pending' };
-                              
-                              // 从已拒绝列表移除
-                              setRejectedPhotos((prev) => {
-                                const updated = prev.filter((p) => p.id !== item.id);
-                                if (!supabase) {
-                                  try {
-                                    Storage.set(REJECTED_STORAGE_KEY, updated);
-                                  } catch (error) {
-                                    handleError(error, {
-                                      context: 'handleReject.updateList',
-                                      type: ErrorType.STORAGE,
-                                      silent: true,
-                                    });
-                                  }
-                                }
-                                return updated;
-                              });
-
-                              // 添加到待审核列表
-                              setAdminUploads((prev) => [itemToResubmit, ...prev]);
-
-                              if (supabase) {
-                                try {
-                                  await updateAdminPhoto(item.id, { status: 'pending' });
-                                  await refreshSupabaseData();
-                                } catch (error) {
-                                  handleError(error, {
-                                    context: 'handleResubmit',
-                                    type: ErrorType.NETWORK,
-                                  });
-                                  setSubmitMessage({ type: 'error', text: `重新提交失败：${error.message}` });
-                                  return;
-                                }
-                              }
-
-                              setSubmitMessage({ type: 'success', text: '作品已重新提交审核' });
-                              setActiveTab('pending');
-                              setTimeout(() => {
-                                setSubmitMessage({ type: '', text: '' });
-                              }, 3000);
-                            }}
+                            onClick={() => handleResubmitWithTabSwitch(item.id)}
                             style={{ 
                               flex: 1,
                               fontSize: '0.85rem', 
@@ -3643,6 +3891,8 @@ export function AdminPage() {
                 )}
               </div>
 
+              {renderBatchToolbar(paginatedPhotos, 'approved')}
+
               <div className="admin-list grid">
                 {paginatedPhotos.length === 0 ? (
                   <div className="empty-state" style={{ gridColumn: '1 / -1' }}>
@@ -3660,7 +3910,15 @@ export function AdminPage() {
                   </div>
                 ) : (
                   paginatedPhotos.map((item) => (
-                    <article key={item.id} className="admin-list-item approved grid-item">
+                    <article key={item.id} className={`admin-list-item approved grid-item ${selectedPhotoIds.has(item.id) ? 'is-selected' : ''}`}>
+                      <label className="admin-item-select" aria-label={`选择 ${item.title || '作品'}`}>
+                        <input
+                          type="checkbox"
+                          checked={selectedPhotoIds.has(item.id)}
+                          onChange={() => togglePhotoSelection(item.id)}
+                        />
+                        <span>选择</span>
+                      </label>
                       <div className="item-image grid-item-image">
                         {(item.thumbnail || item.preview || item.image) ? (
                           <img src={item.thumbnail || item.preview || item.image} alt={item.title} />
