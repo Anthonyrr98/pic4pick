@@ -14,6 +14,38 @@ const ALIYUN_OSS_HOST_RE = /\.aliyuncs\.com$/i;
 const MEDIA_PROXY_PATH = '/api/media/proxy';
 const OSS_PREVIEW_IMAGE_EXT_RE = /\.(jpe?g|png|webp)$/i;
 
+const parseMediaUrl = (url) => {
+  try {
+    const base = typeof window !== 'undefined' ? window.location.origin : 'http://localhost';
+    return new URL(url, base);
+  } catch {
+    return null;
+  }
+};
+
+const hasOssImageTransform = (url) => {
+  const parsed = parseMediaUrl(getDirectMediaUrl(url));
+  return Boolean(parsed?.searchParams.get('x-oss-process')?.startsWith('image/'));
+};
+
+const isLikelyOriginalOssImageUrl = (candidate, original) => {
+  const parsedCandidate = parseMediaUrl(candidate);
+  if (!parsedCandidate || !ALIYUN_OSS_HOST_RE.test(parsedCandidate.hostname)) return false;
+  if (!OSS_PREVIEW_IMAGE_EXT_RE.test(parsedCandidate.pathname)) return false;
+  if (hasOssImageTransform(candidate)) return false;
+
+  const parsedOriginal = parseMediaUrl(original);
+  if (
+    parsedOriginal &&
+    parsedCandidate.origin === parsedOriginal.origin &&
+    parsedCandidate.pathname === parsedOriginal.pathname
+  ) {
+    return true;
+  }
+
+  return /\/(?:ore|origin)\//i.test(parsedCandidate.pathname);
+};
+
 /** 从代理 URL 还原为原始 OSS/直链地址（兼容历史 localStorage 中的代理 URL） */
 export const getDirectMediaUrl = (url) => {
   const httpsUrl = ensureHttps(url);
@@ -111,6 +143,32 @@ export const buildOssImagePreviewUrl = (url, options = {}) => {
   } catch {
     return directUrl;
   }
+};
+
+export const getPreviewMediaUrl = (media, options = {}) => {
+  const source = typeof media === 'string' ? { image: media } : media || {};
+  const originalDirectUrl = getDirectMediaUrl(source.image || source.image_url || source.url || '');
+  const thumbnailDirectUrl = getDirectMediaUrl(source.thumbnail || source.thumbnail_url || '');
+  const previewDirectUrl = getDirectMediaUrl(source.preview || source.preview_url || '');
+  const storedPreviewUrl = [thumbnailDirectUrl, previewDirectUrl]
+    .map((candidate) => {
+      if (!candidate || candidate === originalDirectUrl) return '';
+      if (isLikelyOriginalOssImageUrl(candidate, originalDirectUrl)) {
+        const previewUrl = buildOssImagePreviewUrl(candidate, options);
+        return previewUrl && previewUrl !== candidate ? previewUrl : '';
+      }
+      return candidate;
+    })
+    .find(Boolean);
+  const generatedPreviewUrl = buildOssImagePreviewUrl(originalDirectUrl, options);
+  const previewUrl =
+    storedPreviewUrl ||
+    (generatedPreviewUrl && generatedPreviewUrl !== originalDirectUrl ? generatedPreviewUrl : '') ||
+    originalDirectUrl ||
+    thumbnailDirectUrl ||
+    previewDirectUrl;
+
+  return previewUrl ? resolveMediaUrl(previewUrl) : '';
 };
 
 /**

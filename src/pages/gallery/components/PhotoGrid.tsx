@@ -5,7 +5,7 @@
 import React, { useEffect, useState } from 'react';
 import { GalleryPhoto } from '../utils/photoDataUtils';
 import { handleError, ErrorType } from '../../../utils/errorHandler';
-import { buildOssImagePreviewUrl, getDirectMediaUrl, resolveMediaUrl } from '../../../utils/urlUtils';
+import { getPreviewMediaUrl } from '../../../utils/urlUtils';
 
 interface PhotoGridProps {
   photos: GalleryPhoto[];
@@ -120,15 +120,7 @@ export const PhotoGrid: React.FC<PhotoGridProps> = ({
         const imageFailed = !!failedImageIds[item.id];
         const liked = likedPhotoIds.includes(item.id);
         const likeCount = typeof item.likes === 'number' ? item.likes : 0;
-        const originalDirectSrc = getDirectMediaUrl(item.image);
-        const thumbnailDirectSrc = getDirectMediaUrl(item.thumbnail);
-        const previewDirectSrc = getDirectMediaUrl(item.preview);
-        const rawSrc =
-          (thumbnailDirectSrc && thumbnailDirectSrc !== originalDirectSrc ? thumbnailDirectSrc : '') ||
-          (previewDirectSrc && previewDirectSrc !== originalDirectSrc ? previewDirectSrc : '') ||
-          buildOssImagePreviewUrl(originalDirectSrc, { width: 900, quality: 80 });
-        const directSrc = getDirectMediaUrl(rawSrc);
-        const imageSrc = resolveMediaUrl(directSrc);
+        const imageSrc = getPreviewMediaUrl(item, { width: 900, quality: 80 });
         return (
           <article
             key={item.id}
@@ -160,13 +152,7 @@ export const PhotoGrid: React.FC<PhotoGridProps> = ({
                     onLoad={() => {
                       setLoadedImageIds((prev) => (prev[item.id] ? prev : { ...prev, [item.id]: true }));
                     }}
-                    onError={(e) => {
-                      const img = e.currentTarget;
-                      if (img.dataset.fallback !== '1' && imageSrc !== directSrc) {
-                        img.dataset.fallback = '1';
-                        img.src = directSrc;
-                        return;
-                      }
+                    onError={() => {
                       handleError(new Error(`图片加载失败: ${item.title}`), {
                         context: 'PhotoGrid.imageLoad',
                         type: ErrorType.NETWORK,

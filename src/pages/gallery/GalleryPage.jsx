@@ -25,7 +25,7 @@ import { useGaodeMapInit, useFocusMapOnCity } from './hooks/useMapInit';
 import { loadMapLibre } from '../../utils/maplibreLoader';
 import { getDefaultMaplibreStyle } from '../../utils/gaodeMapStyle';
 import { escapeHtml } from '../../utils/security';
-import { buildOssImagePreviewUrl, getDirectMediaUrl, resolveMediaUrl } from '../../utils/urlUtils';
+import { getDirectMediaUrl, getPreviewMediaUrl } from '../../utils/urlUtils';
 import { TabStrip } from './components/TabStrip';
 import { PhotoGrid } from './components/PhotoGrid';
 import { CurationPanel } from './components/CurationPanel';
@@ -140,6 +140,7 @@ export function GalleryPage() {
   const [showMobileMeta, setShowMobileMeta] = useState(false);
   const [isLightboxPortrait, setIsLightboxPortrait] = useState(false);
   const [lightboxPreviewFailed, setLightboxPreviewFailed] = useState(false);
+  const lightboxPointerRef = useRef(null);
 
   // 鈹€鈹€ 鍝佺墝鐘舵€?
   const [brandLogo, setBrandLogo] = useState(() => getStoredBrandLogo());
@@ -221,6 +222,26 @@ export function GalleryPage() {
     [filteredPhotos, displayedCount]
   );
 
+  const lightboxSequence = useMemo(() => {
+    const visiblePhotos = activeView === 'gallery-view' ? filteredPhotos : allPhotos;
+    if (!lightboxPhoto || visiblePhotos.some((photo) => photo.id === lightboxPhoto.id)) {
+      return visiblePhotos;
+    }
+    return allPhotos;
+  }, [activeView, allPhotos, filteredPhotos, lightboxPhoto]);
+
+  const lightboxIndex = useMemo(
+    () => lightboxPhoto ? lightboxSequence.findIndex((photo) => photo.id === lightboxPhoto.id) : -1,
+    [lightboxPhoto, lightboxSequence]
+  );
+  const canNavigateLightbox = lightboxSequence.length > 1 && lightboxIndex >= 0;
+  const previousLightboxPhoto = canNavigateLightbox
+    ? lightboxSequence[(lightboxIndex - 1 + lightboxSequence.length) % lightboxSequence.length]
+    : null;
+  const nextLightboxPhoto = canNavigateLightbox
+    ? lightboxSequence[(lightboxIndex + 1) % lightboxSequence.length]
+    : null;
+
   const hasMore = displayedCount < filteredPhotos.length;
   const shouldShowGalleryLoading = isPhotoDataLoading && approvedPhotos.length === 0;
   const galleryStatusText = isPhotoDataLoading
@@ -253,19 +274,9 @@ export function GalleryPage() {
       sub: '次',
     },
   ] : [];
-  const lightboxOriginalRaw = lightboxPhoto?.image || '';
-  const lightboxOriginalDirect = getDirectMediaUrl(lightboxOriginalRaw);
-  const lightboxThumbnailDirect = getDirectMediaUrl(lightboxPhoto?.thumbnail || '');
-  const lightboxStoredPreviewRaw = lightboxPhoto?.preview || '';
-  const lightboxStoredPreviewDirect = getDirectMediaUrl(lightboxStoredPreviewRaw);
-  const lightboxPreviewRaw =
-    (lightboxThumbnailDirect && lightboxThumbnailDirect !== lightboxOriginalDirect ? lightboxThumbnailDirect : '') ||
-    (lightboxStoredPreviewDirect && lightboxStoredPreviewDirect !== lightboxOriginalDirect
-      ? lightboxStoredPreviewDirect
-      : '') ||
-    buildOssImagePreviewUrl(lightboxOriginalDirect, { width: 1400, quality: 84 });
-  const lightboxVisualRaw = lightboxPreviewRaw || lightboxOriginalRaw;
-  const lightboxVisualSrc = lightboxVisualRaw ? resolveMediaUrl(getDirectMediaUrl(lightboxVisualRaw)) : '';
+  const lightboxVisualSrc = lightboxPhoto
+    ? getPreviewMediaUrl(lightboxPhoto, { width: 1400, quality: 84 })
+    : '';
 
   // 鈹€鈹€ 鍦扮悊淇℃伅锛圠ightbox 鐢級
   const getGeoInfo = useMemo(() => {
@@ -338,6 +349,63 @@ export function GalleryPage() {
       setIsLoadingMore(false);
     }, 300);
   }, [isLoadingMore, displayedCount, filteredPhotos.length]);
+
+  const openLightboxPhoto = useCallback((photo) => {
+    setMetaPopover(null);
+    setShowMobileMeta(false);
+    setLightboxPhoto(photo);
+  }, []);
+
+  const closeLightbox = useCallback(() => {
+    setMetaPopover(null);
+    setShowMobileMeta(false);
+    setLightboxPhoto(null);
+  }, []);
+
+  const goToAdjacentLightboxPhoto = useCallback((direction) => {
+    if (!canNavigateLightbox) return;
+    const nextIndex = (lightboxIndex + direction + lightboxSequence.length) % lightboxSequence.length;
+    const nextPhoto = lightboxSequence[nextIndex];
+    if (!nextPhoto) return;
+    setMetaPopover(null);
+    setShowMobileMeta(false);
+    setLightboxPhoto(nextPhoto);
+  }, [canNavigateLightbox, lightboxIndex, lightboxSequence]);
+
+  const handleLightboxPointerDown = useCallback((event) => {
+    if (event.pointerType === 'mouse') return;
+    lightboxPointerRef.current = {
+      x: event.clientX,
+      y: event.clientY,
+      at: Date.now(),
+    };
+  }, []);
+
+  const handleLightboxPointerUp = useCallback((event) => {
+    const start = lightboxPointerRef.current;
+    lightboxPointerRef.current = null;
+    if (!start) return;
+
+    const dx = event.clientX - start.x;
+    const dy = event.clientY - start.y;
+    const absX = Math.abs(dx);
+    const absY = Math.abs(dy);
+    const elapsed = Date.now() - start.at;
+
+    if (absX > 56 && absX > absY * 1.2 && elapsed < 800) {
+      event.preventDefault();
+      goToAdjacentLightboxPhoto(dx < 0 ? 1 : -1);
+      return;
+    }
+
+    if (window.innerWidth <= 768 && absX < 14 && absY < 14 && elapsed < 500) {
+      setShowMobileMeta((prev) => !prev);
+    }
+  }, [goToAdjacentLightboxPhoto]);
+
+  const handleLightboxPointerCancel = useCallback(() => {
+    lightboxPointerRef.current = null;
+  }, []);
 
   const openMetaPopover = useCallback((tab, event) => {
     const { clientX, clientY } = event;
@@ -481,12 +549,33 @@ export function GalleryPage() {
     const handleKey = (e) => {
       if (e.key === 'Escape') {
         if (metaPopover) setMetaPopover(null);
-        else setLightboxPhoto(null);
+        else closeLightbox();
+        return;
+      }
+
+      if (!metaPopover && lightboxPhoto && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+        e.preventDefault();
+        goToAdjacentLightboxPhoto(e.key === 'ArrowRight' ? 1 : -1);
       }
     };
     if (lightboxPhoto || metaPopover) window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
-  }, [lightboxPhoto, metaPopover]);
+  }, [closeLightbox, goToAdjacentLightboxPhoto, lightboxPhoto, metaPopover]);
+
+  useEffect(() => {
+    if (!lightboxPhoto || !canNavigateLightbox) return;
+
+    [previousLightboxPhoto, nextLightboxPhoto]
+      .filter(Boolean)
+      .map((photo) => getPreviewMediaUrl(photo, { width: 1400, quality: 84 }))
+      .filter(Boolean)
+      .forEach((src) => {
+        const img = new Image();
+        img.decoding = 'async';
+        img.referrerPolicy = 'no-referrer';
+        img.src = src;
+      });
+  }, [canNavigateLightbox, lightboxPhoto, nextLightboxPhoto, previousLightboxPhoto]);
 
   useEffect(() => {
     const loadMoreNode = loadMoreRef.current;
@@ -849,7 +938,7 @@ export function GalleryPage() {
             <PhotoGrid
               photos={displayedPhotos}
               likedPhotoIds={likedPhotoIds}
-              onPhotoClick={setLightboxPhoto}
+              onPhotoClick={openLightboxPhoto}
               onToggleLike={handleToggleLike}
               hasMore={hasMore}
               isLoadingMore={isLoadingMore}
@@ -886,7 +975,7 @@ export function GalleryPage() {
       <LocationPanel
         data={locationPanel}
         onClose={() => setLocationPanel(null)}
-        onPhotoClick={(p) => { setLightboxPhoto(p); setLocationPanel(null); }}
+        onPhotoClick={(p) => { openLightboxPhoto(p); setLocationPanel(null); }}
       />
 
       {/* Lightbox */}
@@ -894,7 +983,7 @@ export function GalleryPage() {
         className={`lightbox ${lightboxPhoto ? 'active' : ''}`}
         aria-hidden={lightboxPhoto ? 'false' : 'true'}
         onClick={(e) => {
-          if (e.target === e.currentTarget) { setLightboxPhoto(null); setShowMobileMeta(false); }
+          if (e.target === e.currentTarget) closeLightbox();
         }}
       >
         <div
@@ -908,14 +997,41 @@ export function GalleryPage() {
                 下载原图
               </button>
             )}
-            <button className="lightbox-close" aria-label="关闭"
-              onClick={() => { setLightboxPhoto(null); setShowMobileMeta(false); }}>
+            <button className="lightbox-close" aria-label="关闭" onClick={closeLightbox}>
               &times;
             </button>
           </div>
+          {canNavigateLightbox && (
+            <>
+              <button
+                type="button"
+                className="lightbox-nav lightbox-nav-prev"
+                aria-label="上一张照片"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  goToAdjacentLightboxPhoto(-1);
+                }}
+              >
+                &lsaquo;
+              </button>
+              <button
+                type="button"
+                className="lightbox-nav lightbox-nav-next"
+                aria-label="下一张照片"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  goToAdjacentLightboxPhoto(1);
+                }}
+              >
+                &rsaquo;
+              </button>
+            </>
+          )}
           <div className={`lightbox-content-wrapper ${showMobileMeta ? 'meta-visible' : ''}`}>
             <div className={`lightbox-media ${isLightboxPortrait ? 'portrait-fit' : ''}`}
-              onClick={() => { if (window.innerWidth <= 768) setShowMobileMeta((p) => !p); }}>
+              onPointerDown={handleLightboxPointerDown}
+              onPointerUp={handleLightboxPointerUp}
+              onPointerCancel={handleLightboxPointerCancel}>
               {lightboxPhoto && lightboxVisualSrc && !lightboxPreviewFailed ? (
                 <img
                   src={lightboxVisualSrc}
