@@ -119,17 +119,15 @@ main {
 
 .app-loading-mark {
   position: relative;
-  width: min(420px, 76vw);
-  padding: clamp(18px, 4vw, 32px);
-  border: 1px solid rgba(255, 255, 255, 0.54);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.42);
-  box-shadow:
-    0 28px 70px rgba(17, 18, 24, 0.18),
-    inset 0 1px 0 rgba(255, 255, 255, 0.68);
-  overflow: hidden;
-  backdrop-filter: blur(18px) saturate(140%);
-  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  width: min(380px, 72vw);
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  overflow: visible;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   animation: app-loading-breathe 2.8s ease-in-out infinite;
 }
 
@@ -140,20 +138,21 @@ main {
   width: 100%;
   height: auto;
   object-fit: contain;
-  filter: drop-shadow(0 10px 22px rgba(17, 18, 24, 0.16));
+  opacity: 0.92;
+  filter: drop-shadow(0 14px 26px rgba(17, 18, 24, 0.18));
 }
 
 .app-loading-sheen {
   position: absolute;
-  inset: -40% auto -40% -55%;
+  inset: -32% auto -32% -44%;
   z-index: 2;
-  width: 42%;
+  width: 34%;
   transform: skewX(-16deg);
   background: linear-gradient(
     90deg,
     transparent,
-    rgba(255, 255, 255, 0.38),
-    rgba(255, 255, 255, 0.72),
+    rgba(255, 255, 255, 0.28),
+    rgba(255, 255, 255, 0.62),
     transparent
   );
   mix-blend-mode: screen;
@@ -230,8 +229,7 @@ main {
   }
 
   .app-loading-mark {
-    width: min(320px, 82vw);
-    padding: 18px;
+    width: min(310px, 82vw);
   }
 
   .app-loading-screen p {

@@ -19,7 +19,7 @@ function AppLoading({ exiting = false } = {}) {
       className={`app-loading-screen ${exiting ? 'is-exiting' : ''}`}
       role="status"
       aria-live="polite"
-      aria-label="正在加载 Light of Anthony"
+      aria-label="胶片正在装入时光"
     >
       <div className="app-loading-mark" aria-hidden="true">
         <img src="/loa-cropped.png" alt="" />
@@ -28,7 +28,7 @@ function AppLoading({ exiting = false } = {}) {
       <div className="app-loading-progress" aria-hidden="true">
         <span />
       </div>
-      <p>正在装片...</p>
+      <p>胶片正在装入时光…</p>
     </div>
   );
 }
