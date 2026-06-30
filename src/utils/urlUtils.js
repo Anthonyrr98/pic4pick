@@ -46,6 +46,14 @@ const isLikelyOriginalOssImageUrl = (candidate, original) => {
   return /\/(?:ore|origin)\//i.test(parsedCandidate.pathname);
 };
 
+const shouldPreferOriginalPreview = (url) => {
+  const parsed = parseMediaUrl(url);
+  if (!parsed || !ALIYUN_OSS_HOST_RE.test(parsed.hostname)) return false;
+  if (!OSS_PREVIEW_IMAGE_EXT_RE.test(parsed.pathname)) return false;
+
+  return /^\/origin\/\d{4}\/\d{2}\/\d{2}\//i.test(parsed.pathname);
+};
+
 const normalizeSrcSetWidths = (widths) => (
   [...new Set(
     (Array.isArray(widths) ? widths : [])
@@ -171,6 +179,7 @@ export const getPreviewMediaUrl = (media, options = {}) => {
     .map((candidate) => {
       if (!candidate || candidate === originalDirectUrl) return '';
       if (isLikelyOriginalOssImageUrl(candidate, originalDirectUrl)) {
+        if (shouldPreferOriginalPreview(originalDirectUrl)) return '';
         const previewUrl = buildOssImagePreviewUrl(candidate, options);
         return previewUrl && previewUrl !== candidate ? previewUrl : '';
       }

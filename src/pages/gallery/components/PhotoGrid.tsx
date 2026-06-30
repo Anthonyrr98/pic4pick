@@ -9,10 +9,16 @@ import { getPreviewMediaFallbackUrls, getPreviewMediaSrcSet, getPreviewMediaUrl 
 
 const GRID_IMAGE_WIDTHS = [360, 540, 720, 900, 1200];
 const GRID_IMAGE_SIZES =
-  '(max-width: 768px) calc((100vw - 40px) / 2), (max-width: 1180px) calc((100vw - 96px) / 3), 320px';
+  [
+    '(max-width: 768px) calc((100vw - 40px) / 2)',
+    '(max-width: 920px) calc((100vw - 10vw - 24px) / 2)',
+    '(max-width: 1236px) calc((100vw - 10vw - 48px) / 3)',
+    '(max-width: 1584px) calc((100vw - 216px) / 4)',
+    'calc((100vw - 240px) / 5)',
+  ].join(', ');
 const GRID_IMAGE_FALLBACKS = [
-  { width: 540, quality: 72 },
-  { width: 360, quality: 68, format: false },
+  { width: 600, quality: 82 },
+  { width: 540, quality: 80, format: false },
 ];
 
 interface PhotoGridProps {
@@ -128,8 +134,8 @@ export const PhotoGrid: React.FC<PhotoGridProps> = ({
         const imageFailed = !!failedImageIds[item.id];
         const liked = likedPhotoIds.includes(item.id);
         const likeCount = typeof item.likes === 'number' ? item.likes : 0;
-        const imageSrc = getPreviewMediaUrl(item, { width: 900, quality: 80 });
-        const imageSrcSet = getPreviewMediaSrcSet(item, GRID_IMAGE_WIDTHS, { quality: 80 });
+        const imageSrc = getPreviewMediaUrl(item, { width: 900, quality: 82 });
+        const imageSrcSet = getPreviewMediaSrcSet(item, GRID_IMAGE_WIDTHS, { quality: 82 });
         const imageFallbackUrls = getPreviewMediaFallbackUrls(item, GRID_IMAGE_FALLBACKS);
         return (
           <article
