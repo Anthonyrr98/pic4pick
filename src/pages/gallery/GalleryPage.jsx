@@ -11,7 +11,6 @@ import {
   getStoredBrandText,
   saveBrandText,
 } from '../../utils/branding';
-import { StorageString, STORAGE_KEYS } from '../../utils/storage';
 import { handleError, safeSync, ErrorType } from '../../utils/errorHandler';
 
 // 鈹€鈹€ 妯″潡鍖栧瓙妯″潡
@@ -22,7 +21,7 @@ import { filterAndSortPhotos } from './utils/photoFilterUtils';
 import { usePhotoData, useLikePhoto } from './hooks/usePhotoData';
 import { useExifData, useBrowserLocation, useAltitudeFromCoords } from './hooks/useExifAndLocation';
 import { useGaodeMapInit, useFocusMapOnCity } from './hooks/useMapInit';
-import { loadMapLibre } from '../../utils/maplibreLoader';
+import { loadMapLibre, preloadMapLibre } from '../../utils/maplibreLoader';
 import { getDefaultMaplibreStyle } from '../../utils/gaodeMapStyle';
 import { escapeHtml } from '../../utils/security';
 import {
@@ -148,10 +147,7 @@ export function GalleryPage() {
 
   // 鈹€鈹€ 瑙嗗浘 & 绛涢€夌姸鎬?
   const [activeFilter, setActiveFilter] = useState('latest');
-  const [activeView, setActiveView] = useState(() => {
-    const stored = StorageString.get(STORAGE_KEYS.ACTIVE_VIEW, 'gallery-view');
-    return stored === 'explore-view' ? 'explore-view' : 'gallery-view';
-  });
+  const [activeView, setActiveView] = useState('gallery-view');
 
   // 鈹€鈹€ Lightbox 鐘舵€?
   const [lightboxPhoto, setLightboxPhoto] = useState(null);
@@ -333,8 +329,11 @@ export function GalleryPage() {
   // 鈹€鈹€ 浜嬩欢澶勭悊
   const handleViewChange = useCallback((view) => {
     setActiveView(view);
-    StorageString.set(STORAGE_KEYS.ACTIVE_VIEW, view);
   }, []);
+
+  const handleExploreIntent = useCallback(() => {
+    if (activeView !== 'explore-view') preloadMapLibre();
+  }, [activeView]);
 
   const showLocationPanel = useCallback(
     (panelData, options = {}) => {
@@ -937,6 +936,11 @@ export function GalleryPage() {
           </button>
           <button
             className={`toggle-btn ${activeView === 'explore-view' ? 'active' : ''}`}
+            onMouseEnter={handleExploreIntent}
+            onPointerEnter={handleExploreIntent}
+            onPointerDown={handleExploreIntent}
+            onFocus={handleExploreIntent}
+            onTouchStart={handleExploreIntent}
             onClick={() => handleViewChange('explore-view')}
           >
             <span className="toggle-label">发现</span>
