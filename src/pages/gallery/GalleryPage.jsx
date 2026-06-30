@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import '../../App.css';
 import { getSupabaseClient } from '../../utils/supabaseClient';
 import {
@@ -16,11 +16,9 @@ import { handleError, safeSync, ErrorType } from '../../utils/errorHandler';
 // 鈹€鈹€ 妯″潡鍖栧瓙妯″潡
 import { calculateDistance, decimalToDMS } from './utils/geoUtils';
 import { getShotTimeInfo } from './utils/timeUtils';
-import { buildCityPhotoMap, buildCurationGroups, buildPhotosByLocation } from './utils/photoDataUtils';
 import { filterAndSortPhotos } from './utils/photoFilterUtils';
 import { usePhotoData, useLikePhoto } from './hooks/usePhotoData';
 import { useExifData, useBrowserLocation, useAltitudeFromCoords } from './hooks/useExifAndLocation';
-import { useGaodeMapInit, useFocusMapOnCity } from './hooks/useMapInit';
 import { loadMapLibre, preloadMapLibre } from '../../utils/maplibreLoader';
 import { getDefaultMaplibreStyle } from '../../utils/gaodeMapStyle';
 import { escapeHtml } from '../../utils/security';
@@ -32,8 +30,27 @@ import {
 } from '../../utils/urlUtils';
 import { TabStrip } from './components/TabStrip';
 import { PhotoGrid } from './components/PhotoGrid';
-import { CurationPanel } from './components/CurationPanel';
 import { LocationPanel } from './components/LocationPanel';
+
+let exploreViewModulePromise = null;
+
+const loadExploreView = () => {
+  if (!exploreViewModulePromise) {
+    exploreViewModulePromise = import('./components/ExploreView.jsx').catch((error) => {
+      exploreViewModulePromise = null;
+      throw error;
+    });
+  }
+  return exploreViewModulePromise;
+};
+
+const preloadExploreView = () => {
+  void loadExploreView();
+};
+
+const ExploreView = lazy(() =>
+  loadExploreView().then((module) => ({ default: module.ExploreView }))
+);
 
 const LIGHTBOX_IMAGE_WIDTHS = [720, 1080, 1400];
 const LIGHTBOX_IMAGE_SIZES = '(max-width: 768px) 100vw, (max-width: 1200px) 72vw, 980px';
@@ -142,6 +159,21 @@ function GalleryLoadingState() {
   );
 }
 
+function ExploreViewPending() {
+  return (
+    <section id="explore-view" className="screen active">
+      <div className="map-wrapper">
+        <div className="explore-map-loading" role="status" aria-live="polite">
+          <div className="explore-map-loading-inner">
+            <span className="explore-map-loading-dial" aria-hidden="true" />
+            <span>地图正在显影…</span>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export function GalleryPage() {
   const supabase = getSupabaseClient();
 
@@ -163,20 +195,12 @@ export function GalleryPage() {
   const [brandText, setBrandText] = useState(() => getStoredBrandText());
 
   // 鈹€鈹€ 鍦板浘 ref
-  const mapContainerRef = useRef(null);
   const geoMapContainerRef = useRef(null);
   const geoMapInstance = useRef(null);
   const maplibreRef = useRef(null);
-  const exploreMarkersRef = useRef([]);
-  const exploreMaplibreMarkersRef = useRef([]);
-  const currentLocationMarkerRef = useRef(null);
-  const currentLocationMaplibreMarkerRef = useRef(null);
 
   // 鈹€鈹€ 鍙戠幇瑙嗗浘闈㈡澘鐘舵€?
   const [locationPanel, setLocationPanel] = useState(null);
-  const [expandedCategories, setExpandedCategories] = useState({});
-  const [isPanelCollapsed, setIsPanelCollapsed] = useState(false);
-  const [activeCitySelection, setActiveCitySelection] = useState(null);
 
   // 鈹€鈹€ 鍒嗛〉
   const [displayedCount, setDisplayedCount] = useState(12);
@@ -198,35 +222,8 @@ export function GalleryPage() {
   const geoLon = exifData?.longitude ?? lightboxPhoto?.longitude ?? null;
   const altitudeFromApi = useAltitudeFromCoords(geoLat, geoLon);
 
-  // 鈹€鈹€ 鍦板浘 Hooks
-  const {
-    mapInstance,
-    maplibreInstance: maplibreExploreInstance,
-    isMapReady,
-    mapProvider: exploreMapProvider,
-    resizeMap,
-  } = useGaodeMapInit(mapContainerRef, activeView);
-  const focusMapOnCity = useFocusMapOnCity(
-    mapInstance,
-    maplibreExploreInstance,
-    exploreMapProvider,
-    isMapReady
-  );
-
   // 鈹€鈹€ 娲剧敓鏁版嵁
   const allPhotos = useMemo(() => approvedPhotos.filter((p) => !p.hidden), [approvedPhotos]);
-
-  const photosByLocation = useMemo(
-    () => buildPhotosByLocation(approvedPhotos),
-    [approvedPhotos]
-  );
-
-  const cityPhotoMap = useMemo(() => buildCityPhotoMap(allPhotos), [allPhotos]);
-
-  const curationGroups = useMemo(
-    () => buildCurationGroups(cityPhotoMap),
-    [cityPhotoMap]
-  );
 
   const filteredPhotos = useMemo(
     () => filterAndSortPhotos(allPhotos, activeFilter, browserLocation, calculateDistance),
@@ -332,39 +329,11 @@ export function GalleryPage() {
   }, []);
 
   const handleExploreIntent = useCallback(() => {
-    if (activeView !== 'explore-view') preloadMapLibre();
+    if (activeView !== 'explore-view') {
+      preloadExploreView();
+      preloadMapLibre();
+    }
   }, [activeView]);
-
-  const showLocationPanel = useCallback(
-    (panelData, options = {}) => {
-      const { ensureExplore = false } = options;
-      const reveal = () => setLocationPanel(panelData);
-      if (ensureExplore && activeView !== 'explore-view') {
-        handleViewChange('explore-view');
-        (window.requestAnimationFrame || ((cb) => setTimeout(cb, 0)))(reveal);
-      } else {
-        reveal();
-      }
-    },
-    [activeView, handleViewChange]
-  );
-
-  const handleCityCardClick = useCallback(
-    (province, city) => {
-      setActiveCitySelection({ provinceId: province.id, cityId: city.id });
-      setLocationPanel(null);
-      const focus = () => {
-        if (city.lng != null && city.lat != null) focusMapOnCity(city.lng, city.lat);
-      };
-      if (activeView !== 'explore-view') {
-        handleViewChange('explore-view');
-        (window.requestAnimationFrame || ((cb) => setTimeout(cb, 0)))(focus);
-      } else {
-        focus();
-      }
-    },
-    [activeView, focusMapOnCity, handleViewChange]
-  );
 
   const loadMore = useCallback(() => {
     if (isLoadingMore || displayedCount >= filteredPhotos.length) return;
@@ -527,16 +496,6 @@ export function GalleryPage() {
     });
   }, [metaPopover]);
 
-  useEffect(() => {
-    setExpandedCategories((prev) => {
-      const next = {};
-      curationGroups.forEach((g) => {
-        next[g.id] = typeof prev[g.id] === 'boolean' ? prev[g.id] : false;
-      });
-      return next;
-    });
-  }, [curationGroups]);
-
   useEffect(() => { setDisplayedCount(12); }, [activeFilter]);
 
   useEffect(() => {
@@ -671,146 +630,6 @@ export function GalleryPage() {
     fetchBranding();
     return () => { isMounted = false; };
   }, [supabase]);
-
-  // 鍙戠幇瑙嗗浘锛氬湴鍥惧叏灞忓昂瀵镐慨姝?
-  useEffect(() => {
-    if (activeView !== 'explore-view') return;
-    const adjust = () => {
-      const mw = document.querySelector('.explore-fullscreen .map-wrapper');
-      if (mw) { mw.style.top = '0'; mw.style.height = '100vh'; }
-      resizeMap();
-    };
-    // 初次进入：两档延迟覆盖布局完成时序
-    const t1 = setTimeout(adjust, 100);
-    const t2 = setTimeout(resizeMap, 300);
-    window.addEventListener('resize', adjust);
-    return () => {
-      clearTimeout(t1);
-      clearTimeout(t2);
-      window.removeEventListener('resize', adjust);
-    };
-  }, [activeView, resizeMap]);
-
-  // 在地图上绘制照片位置标记
-  useEffect(() => {
-    if (activeView !== 'explore-view' || !isMapReady) return;
-    let cancelled = false;
-    exploreMarkersRef.current.forEach((m) => m?.setMap?.(null));
-    exploreMarkersRef.current = [];
-    exploreMaplibreMarkersRef.current.forEach((m) => m.remove());
-    exploreMaplibreMarkersRef.current = [];
-    if (!photosByLocation || photosByLocation.length === 0) return;
-    const drawMarkers = async () => {
-      const maplibregl = exploreMapProvider === 'maplibre' ? await ensureMapLibre() : null;
-      if (cancelled) return;
-      const palette = ['#cfa56a', '#111218', '#9b9dad', '#d48a48'];
-      const markerDots = [];
-      photosByLocation.forEach((group, index) => {
-      const color = palette[index % palette.length];
-      const anchor = document.createElement('div');
-      anchor.style.cssText = 'display:block;line-height:0;';
-      const dot = document.createElement('div');
-      dot.className = 'explore-marker';
-      dot.style.cssText = [
-        'width:9px', 'height:9px', 'border-radius:999px',
-        `background:${color}`, 'border:2px solid #ffffff',
-        'box-shadow:0 0 0 1px rgba(0,0,0,0.35),0 6px 12px rgba(0,0,0,0.25)',
-        'cursor:pointer', 'transition:transform 0.2s ease,opacity 0.2s ease',
-        'opacity:0', 'transform:scale(0)',
-      ].join(';');
-      anchor.appendChild(dot);
-      anchor.addEventListener('click', () => {
-        showLocationPanel({
-          title: group.location || group.country || '未命名地点',
-          subtitle: group.country
-            ? group.location ? `${group.country} · ${group.location}` : group.country
-            : '',
-          photos: group.photos,
-          emptyMessage: group.photos.length === 0 ? '当前地点暂时没有图库照片' : '',
-        });
-      });
-      if (exploreMapProvider === 'amap') {
-        if (!mapInstance.current || !window.AMap) return;
-        const marker = new window.AMap.Marker({
-          position: [group.lng, group.lat], content: anchor,
-          offset: new window.AMap.Pixel(-6, -6), map: mapInstance.current,
-        });
-        exploreMarkersRef.current.push(marker);
-      } else if (exploreMapProvider === 'maplibre') {
-        if (!maplibreExploreInstance.current || !maplibregl) return;
-        const marker = new maplibregl.Marker({ element: anchor, anchor: 'center' })
-          .setLngLat([group.lng, group.lat])
-          .addTo(maplibreExploreInstance.current);
-        exploreMaplibreMarkersRef.current.push(marker);
-      } else { return; }
-      markerDots.push(dot);
-      });
-      markerDots.forEach((dot, i) => {
-        const reveal = () => { dot.style.opacity = '1'; dot.style.transform = 'scale(1)'; };
-        if (i === 0) requestAnimationFrame(reveal);
-        else setTimeout(reveal, i * 10);
-      });
-    };
-    drawMarkers();
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    photosByLocation,
-    activeView,
-    isMapReady,
-    showLocationPanel,
-    exploreMapProvider,
-    ensureMapLibre,
-    mapInstance,
-    maplibreExploreInstance,
-  ]);
-
-  // 当前位置标记
-  useEffect(() => {
-    if (activeView !== 'explore-view') {
-      currentLocationMarkerRef.current?.setMap?.(null); currentLocationMarkerRef.current = null;
-      currentLocationMaplibreMarkerRef.current?.remove(); currentLocationMaplibreMarkerRef.current = null;
-      return;
-    }
-    if (!isMapReady || !browserLocation) return;
-    let cancelled = false;
-    currentLocationMarkerRef.current?.setMap?.(null); currentLocationMarkerRef.current = null;
-    currentLocationMaplibreMarkerRef.current?.remove(); currentLocationMaplibreMarkerRef.current = null;
-    const addCurrentMarker = async () => {
-      const maplibregl = exploreMapProvider === 'maplibre' ? await ensureMapLibre() : null;
-      if (cancelled) return;
-      const locAnchor = document.createElement('div');
-      locAnchor.style.cssText = 'display:block;line-height:0;';
-      const locDot = document.createElement('div');
-      locDot.style.cssText = 'width:12px;height:12px;border-radius:999px;background:rgba(80,155,255,0.9);border:2px solid #ffffff;box-shadow:0 0 0 1px rgba(0,0,0,0.3),0 4px 10px rgba(0,0,0,0.25);position:relative;z-index:1000;display:block;';
-      locAnchor.appendChild(locDot);
-      if (exploreMapProvider === 'amap' && mapInstance.current && window.AMap) {
-        currentLocationMarkerRef.current = new window.AMap.Marker({
-          position: [browserLocation.lon, browserLocation.lat], content: locAnchor,
-          offset: new window.AMap.Pixel(-6, -6), map: mapInstance.current, zIndex: 1000,
-        });
-      } else if (exploreMapProvider === 'maplibre' && maplibreExploreInstance.current && maplibregl) {
-        currentLocationMaplibreMarkerRef.current = new maplibregl.Marker({ element: locAnchor, anchor: 'center' })
-          .setLngLat([browserLocation.lon, browserLocation.lat])
-          .addTo(maplibreExploreInstance.current);
-      }
-    };
-    addCurrentMarker();
-    return () => {
-      cancelled = true;
-      currentLocationMarkerRef.current?.setMap?.(null); currentLocationMarkerRef.current = null;
-      currentLocationMaplibreMarkerRef.current?.remove(); currentLocationMaplibreMarkerRef.current = null;
-    };
-  }, [
-    browserLocation,
-    isMapReady,
-    activeView,
-    exploreMapProvider,
-    ensureMapLibre,
-    mapInstance,
-    maplibreExploreInstance,
-  ]);
 
   // 地理位置弹窗内的小地图
   useEffect(() => {
@@ -986,20 +805,14 @@ export function GalleryPage() {
         </section>
 
         {activeView === 'explore-view' && (
-          <section id="explore-view" className="screen active">
-            <CurationPanel
-              groups={curationGroups}
-              expandedCategories={expandedCategories}
-              onToggleCategory={(id) => setExpandedCategories((prev) => ({ ...prev, [id]: !prev[id] }))}
-              onCityClick={handleCityCardClick}
-              activeCitySelection={activeCitySelection}
-              isPanelCollapsed={isPanelCollapsed}
-              onTogglePanelCollapse={() => setIsPanelCollapsed((p) => !p)}
+          <Suspense fallback={<ExploreViewPending />}>
+            <ExploreView
+              approvedPhotos={approvedPhotos}
+              allPhotos={allPhotos}
+              browserLocation={browserLocation}
+              onShowLocationPanel={setLocationPanel}
             />
-            <div className="map-wrapper">
-              <div id="mapCanvas" ref={mapContainerRef} />
-            </div>
-          </section>
+          </Suspense>
         )}
       </main>
 
