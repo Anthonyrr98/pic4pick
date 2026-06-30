@@ -5,7 +5,11 @@
 import React, { useEffect, useState } from 'react';
 import { GalleryPhoto } from '../utils/photoDataUtils';
 import { handleError, ErrorType } from '../../../utils/errorHandler';
-import { getPreviewMediaUrl } from '../../../utils/urlUtils';
+import { getPreviewMediaSrcSet, getPreviewMediaUrl } from '../../../utils/urlUtils';
+
+const GRID_IMAGE_WIDTHS = [360, 540, 720, 900, 1200];
+const GRID_IMAGE_SIZES =
+  '(max-width: 768px) calc((100vw - 40px) / 2), (max-width: 1180px) calc((100vw - 96px) / 3), 320px';
 
 interface PhotoGridProps {
   photos: GalleryPhoto[];
@@ -121,6 +125,7 @@ export const PhotoGrid: React.FC<PhotoGridProps> = ({
         const liked = likedPhotoIds.includes(item.id);
         const likeCount = typeof item.likes === 'number' ? item.likes : 0;
         const imageSrc = getPreviewMediaUrl(item, { width: 900, quality: 80 });
+        const imageSrcSet = getPreviewMediaSrcSet(item, GRID_IMAGE_WIDTHS, { quality: 80 });
         return (
           <article
             key={item.id}
@@ -144,6 +149,8 @@ export const PhotoGrid: React.FC<PhotoGridProps> = ({
                   <img
                     className={isImageLoaded ? 'loaded' : ''}
                     src={imageSrc}
+                    srcSet={imageSrcSet || undefined}
+                    sizes={imageSrcSet ? GRID_IMAGE_SIZES : undefined}
                     alt={item.title}
                     loading={index < 6 ? 'eager' : 'lazy'}
                     fetchPriority={index < 6 ? 'high' : 'auto'}

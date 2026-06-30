@@ -25,11 +25,21 @@ import { useGaodeMapInit, useFocusMapOnCity } from './hooks/useMapInit';
 import { loadMapLibre } from '../../utils/maplibreLoader';
 import { getDefaultMaplibreStyle } from '../../utils/gaodeMapStyle';
 import { escapeHtml } from '../../utils/security';
-import { getDirectMediaUrl, getPreviewMediaUrl } from '../../utils/urlUtils';
+import { getDirectMediaUrl, getPreviewMediaSrcSet, getPreviewMediaUrl } from '../../utils/urlUtils';
 import { TabStrip } from './components/TabStrip';
 import { PhotoGrid } from './components/PhotoGrid';
 import { CurationPanel } from './components/CurationPanel';
 import { LocationPanel } from './components/LocationPanel';
+
+const LIGHTBOX_IMAGE_WIDTHS = [720, 1080, 1400];
+const LIGHTBOX_IMAGE_SIZES = '(max-width: 768px) 100vw, (max-width: 1200px) 72vw, 980px';
+
+const getLightboxPreloadWidth = () => {
+  if (typeof window === 'undefined') return 1400;
+  if (window.innerWidth <= 768) return 720;
+  if (window.innerWidth <= 1200) return 1080;
+  return 1400;
+};
 
 function ApertureIcon(props) {
   return (
@@ -276,6 +286,9 @@ export function GalleryPage() {
   ] : [];
   const lightboxVisualSrc = lightboxPhoto
     ? getPreviewMediaUrl(lightboxPhoto, { width: 1400, quality: 84 })
+    : '';
+  const lightboxVisualSrcSet = lightboxPhoto
+    ? getPreviewMediaSrcSet(lightboxPhoto, LIGHTBOX_IMAGE_WIDTHS, { quality: 84 })
     : '';
 
   // 鈹€鈹€ 鍦扮悊淇℃伅锛圠ightbox 鐢級
@@ -565,9 +578,10 @@ export function GalleryPage() {
   useEffect(() => {
     if (!lightboxPhoto || !canNavigateLightbox) return;
 
+    const preloadWidth = getLightboxPreloadWidth();
     [previousLightboxPhoto, nextLightboxPhoto]
       .filter(Boolean)
-      .map((photo) => getPreviewMediaUrl(photo, { width: 1400, quality: 84 }))
+      .map((photo) => getPreviewMediaUrl(photo, { width: preloadWidth, quality: 84 }))
       .filter(Boolean)
       .forEach((src) => {
         const img = new Image();
@@ -1035,6 +1049,8 @@ export function GalleryPage() {
               {lightboxPhoto && lightboxVisualSrc && !lightboxPreviewFailed ? (
                 <img
                   src={lightboxVisualSrc}
+                  srcSet={lightboxVisualSrcSet || undefined}
+                  sizes={lightboxVisualSrcSet ? LIGHTBOX_IMAGE_SIZES : undefined}
                   alt={lightboxPhoto.title}
                   loading="eager"
                   fetchPriority="high"

@@ -46,6 +46,15 @@ const isLikelyOriginalOssImageUrl = (candidate, original) => {
   return /\/(?:ore|origin)\//i.test(parsedCandidate.pathname);
 };
 
+const normalizeSrcSetWidths = (widths) => (
+  [...new Set(
+    (Array.isArray(widths) ? widths : [])
+      .map((width) => Number(width))
+      .filter((width) => Number.isFinite(width) && width >= 120)
+      .map((width) => Math.round(width))
+  )].sort((a, b) => a - b)
+);
+
 /** 从代理 URL 还原为原始 OSS/直链地址（兼容历史 localStorage 中的代理 URL） */
 export const getDirectMediaUrl = (url) => {
   const httpsUrl = ensureHttps(url);
@@ -169,6 +178,23 @@ export const getPreviewMediaUrl = (media, options = {}) => {
     previewDirectUrl;
 
   return previewUrl ? resolveMediaUrl(previewUrl) : '';
+};
+
+export const getPreviewMediaSrcSet = (media, widths = [], options = {}) => {
+  const candidates = normalizeSrcSetWidths(widths)
+    .map((width) => ({
+      width,
+      url: getPreviewMediaUrl(media, { ...options, width }),
+    }))
+    .filter(({ url }) => Boolean(url));
+
+  if (new Set(candidates.map(({ url }) => url)).size <= 1) {
+    return '';
+  }
+
+  return candidates
+    .map(({ url, width }) => `${url} ${width}w`)
+    .join(', ');
 };
 
 /**
