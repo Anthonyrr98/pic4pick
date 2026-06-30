@@ -778,9 +778,13 @@ export function GalleryPage() {
 
         <section id="gallery-view" className={`screen ${activeView === 'gallery-view' ? 'active' : ''}`}>
           <TabStrip activeFilter={activeFilter} onFilterChange={setActiveFilter} />
-          <div className="gallery-status-row">
-            <span>{galleryStatusText}</span>
-            {gallerySyncText && <time dateTime={new Date(lastPhotoDataLoadedAt).toISOString()}>{gallerySyncText}</time>}
+          <div className="gallery-status-row" aria-live="polite">
+            <span className="gallery-count">{galleryStatusText}</span>
+            {gallerySyncText && (
+              <time className="gallery-sync" dateTime={new Date(lastPhotoDataLoadedAt).toISOString()}>
+                {gallerySyncText}
+              </time>
+            )}
           </div>
           {shouldShowGalleryLoading ? (
             <GalleryLoadingState />

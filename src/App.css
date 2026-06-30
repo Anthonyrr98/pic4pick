@@ -5801,3 +5801,282 @@ main {
     padding: 10px !important;
   }
 }
+
+/* Gallery polish: refine the existing photographic archive direction without changing layout. */
+.app-shell:not(.explore-mode) .app-header {
+  position: sticky;
+  top: 0;
+  background:
+    linear-gradient(180deg, rgba(245, 245, 244, 0.96), rgba(245, 245, 244, 0.88) 72%, rgba(245, 245, 244, 0));
+  backdrop-filter: blur(18px) saturate(120%);
+  -webkit-backdrop-filter: blur(18px) saturate(120%);
+}
+
+.app-shell:not(.explore-mode) .brand {
+  filter: drop-shadow(0 10px 18px rgba(18, 19, 24, 0.08));
+}
+
+.app-shell:not(.explore-mode) .view-toggle,
+.tab-strip {
+  border: 1px solid rgba(17, 18, 24, 0.06);
+}
+
+.gallery-status-row {
+  margin-top: -4px;
+  padding: 0 2px 6px;
+  font-size: 0.88rem;
+}
+
+.gallery-status-row .gallery-count {
+  color: rgba(17, 18, 24, 0.72);
+  font-weight: 700;
+}
+
+.gallery-status-row .gallery-sync {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  color: rgba(17, 18, 24, 0.4);
+  font-size: 0.84rem;
+}
+
+.gallery-status-row .gallery-sync::before {
+  content: '';
+  width: 1px;
+  height: 12px;
+  background: rgba(17, 18, 24, 0.12);
+}
+
+.gallery-loading-card,
+.photo-card {
+  isolation: isolate;
+}
+
+.gallery-loading-card {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.18), rgba(11, 12, 16, 0.14)),
+    radial-gradient(ellipse at 38% 26%, rgba(207, 165, 106, 0.18), transparent 42%),
+    linear-gradient(135deg, #edf0f4 0%, #e2ddd4 52%, #cfd5df 100%);
+}
+
+.gallery-loading-card::after,
+.photo-skeleton::after {
+  content: '';
+  position: absolute;
+  left: 18px;
+  right: 18px;
+  bottom: 18px;
+  height: 54px;
+  border-radius: 12px;
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.58) 0 38%, transparent 38% 100%) 0 0 / 100% 14px no-repeat,
+    linear-gradient(90deg, rgba(255, 255, 255, 0.38) 0 56%, transparent 56% 100%) 0 28px / 100% 10px no-repeat;
+  opacity: 0.56;
+}
+
+.photo-card {
+  box-shadow:
+    calc(var(--shadow-shift-x, 0px) * 0.35)
+    calc(10px + (var(--shadow-shift-y, 0px) * 0.35))
+    30px
+    rgba(20, 23, 32, 0.16);
+}
+
+.photo-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.2);
+  pointer-events: none;
+}
+
+.photo-card img {
+  position: relative;
+  z-index: 1;
+}
+
+.photo-skeleton {
+  z-index: 0;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0) 42%, rgba(9, 10, 14, 0.16) 100%),
+    radial-gradient(ellipse at 38% 28%, rgba(207, 165, 106, 0.18), transparent 45%),
+    linear-gradient(110deg, #e7e1d8 8%, #f4f0e8 18%, #dfe5ec 33%, #e7e1d8 52%);
+  background-size: 100% 100%, 100% 100%, 220% 100%;
+}
+
+.photo-card .badge,
+.photo-card .caption,
+.photo-card .like-badge {
+  z-index: 3;
+}
+
+.photo-card .caption {
+  padding-top: 48px;
+  background:
+    linear-gradient(180deg, rgba(9, 10, 14, 0) 0%, rgba(9, 10, 14, 0.58) 46%, rgba(9, 10, 14, 0.9) 100%);
+}
+
+.photo-card .caption h4 {
+  letter-spacing: 0;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.28);
+}
+
+.photo-card .caption span {
+  color: rgba(255, 255, 255, 0.78);
+}
+
+@media (max-width: 640px) {
+  main {
+    padding: 0 24px 44px;
+  }
+
+  .app-shell:not(.explore-mode) .app-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    justify-content: space-between;
+    padding: 16px 18px 10px;
+  }
+
+  .app-shell:not(.explore-mode) .app-header .brand {
+    max-width: calc(100% - 134px);
+    gap: 10px;
+    margin: 0;
+  }
+
+  .app-shell:not(.explore-mode) .brand-logo-img,
+  .app-shell:not(.explore-mode) .logo-mark {
+    width: 38px;
+    height: 38px;
+  }
+
+  .app-shell:not(.explore-mode) .brand-wordmark-img {
+    width: clamp(120px, 34vw, 150px);
+    min-width: 118px;
+  }
+
+  .app-shell:not(.explore-mode) .app-header .view-toggle {
+    position: absolute;
+    top: 16px;
+    right: 18px;
+    padding: 4px;
+    margin: 0;
+  }
+
+  .app-shell:not(.explore-mode) .toggle-btn {
+    padding: 7px 13px;
+    font-size: 0.84rem;
+    line-height: 1;
+  }
+
+  .tab-strip {
+    margin-top: 8px;
+    padding: 5px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.82);
+    box-shadow: 0 12px 28px rgba(15, 17, 26, 0.1);
+  }
+
+  .tab-strip::before {
+    top: 5px;
+    height: calc(100% - 10px);
+  }
+
+  .tab {
+    padding: 9px 16px;
+    font-size: 0.84rem;
+  }
+
+  .gallery-status-row {
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+    gap: 8px;
+    min-height: auto;
+    padding: 0 2px 2px;
+  }
+
+  .gallery-status-row .gallery-count,
+  .gallery-status-row .gallery-sync {
+    line-height: 1.2;
+  }
+
+  .gallery-status-row .gallery-sync {
+    gap: 8px;
+    font-size: 0.82rem;
+  }
+
+  .gallery-grid {
+    gap: 14px;
+  }
+
+  .photo-card {
+    border-radius: 17px;
+    box-shadow: 0 12px 26px rgba(20, 23, 32, 0.14);
+  }
+
+  .photo-card .badge {
+    top: 10px;
+    left: 10px;
+    max-width: calc(100% - 20px);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .photo-card .caption {
+    padding: 44px 12px 12px;
+  }
+
+  .photo-card .caption h4 {
+    font-size: 0.92rem;
+    line-height: 1.2;
+  }
+
+  .photo-card .caption span {
+    display: block;
+    margin-top: 3px;
+    font-size: 0.74rem;
+    line-height: 1.2;
+  }
+
+  .like-badge {
+    min-width: 34px;
+    min-height: 28px;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 360px) {
+  main {
+    padding-inline: 18px;
+  }
+
+  .app-shell:not(.explore-mode) .brand-wordmark-img {
+    display: none;
+  }
+
+  .app-shell:not(.explore-mode) .toggle-btn {
+    padding-inline: 11px;
+  }
+
+  .tab {
+    padding-inline: 14px;
+  }
+
+  .gallery-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .photo-card {
+    border-radius: 15px;
+  }
+
+  .photo-card .caption {
+    padding: 38px 10px 10px;
+  }
+}
