@@ -1111,14 +1111,13 @@ main {
   background: linear-gradient(180deg, #f4f5f7 0%, #e5e7ec 55%, #cfd2da 100%);
   /* 统一卡片尺寸：固定纵横比，保证高度一致 */
   aspect-ratio: 3 / 4;
-  transform: translateY(0);
+  transform: translateY(var(--card-lift, 0));
   transition: transform 0.2s ease, box-shadow 0.3s ease;
-  transform-style: preserve-3d;
-  will-change: transform;
+  will-change: box-shadow;
 }
 
 .photo-card:hover {
-  transform: translateY(-6px);
+  --card-lift: -6px;
   box-shadow:
     calc(var(--shadow-shift-x, 0px) * 0.8)
     calc(18px + (var(--shadow-shift-y, 0px) * 0.8))
@@ -1152,12 +1151,12 @@ main {
   height: 100%;
   display: block;
   object-fit: cover;
-  transform: translate3d(var(--img-shift-x, 0px), var(--img-shift-y, 0px), 22px) scale(1);
+  transform: none;
   transition:
-    transform 520ms cubic-bezier(0.16, 1, 0.3, 1),
     filter 520ms cubic-bezier(0.16, 1, 0.3, 1),
     opacity 360ms ease;
-  will-change: transform, filter, opacity;
+  image-rendering: auto;
+  will-change: opacity;
   opacity: 0;
 }
 
@@ -1166,8 +1165,7 @@ main {
 }
 
 .photo-card:hover img {
-  transform: translate3d(var(--img-shift-x, 0px), var(--img-shift-y, 0px), 28px) scale(1.05);
-  filter: saturate(1.06) contrast(1.02);
+  filter: saturate(1.03) contrast(1.01);
 }
 
 .photo-skeleton {
@@ -1217,7 +1215,6 @@ main {
   color: #fff;
   font-size: 0.75rem;
   border-radius: 999px;
-  transform: translateZ(56px);
 }
 
 .photo-card .caption {
@@ -1228,7 +1225,6 @@ main {
   padding: 20px;
   background: linear-gradient(180deg, rgba(9, 10, 14, 0) 0%, rgba(9, 10, 14, 0.85) 100%);
   color: #fff;
-  transform: translateZ(42px);
 }
 
 .photo-card .caption h4 {

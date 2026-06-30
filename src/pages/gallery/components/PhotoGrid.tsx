@@ -17,8 +17,8 @@ const GRID_IMAGE_SIZES =
     'calc((100vw - 240px) / 5)',
   ].join(', ');
 const GRID_IMAGE_FALLBACKS = [
-  { width: 600, quality: 82 },
-  { width: 540, quality: 80, format: false },
+  { width: 600, quality: 86 },
+  { width: 540, quality: 84, format: false },
 ];
 
 interface PhotoGridProps {
@@ -84,19 +84,13 @@ export const PhotoGrid: React.FC<PhotoGridProps> = ({
     card.style.setProperty('--shadow-shift-x', `${(-relativeX * 18).toFixed(2)}px`);
     card.style.setProperty('--shadow-shift-y', `${(-relativeY * 18).toFixed(2)}px`);
 
-    // Stronger 3D feel for large gallery cards.
-    const maxTilt = 9;
-    const rotateY = relativeX * maxTilt * 2;
-    const rotateX = -relativeY * maxTilt * 2;
-
-    card.style.transform = `translateY(-6px) rotateX(${rotateX.toFixed(2)}deg) rotateY(${rotateY.toFixed(
-      2,
-    )}deg) translateZ(16px)`;
+    card.style.setProperty('--card-lift', '-6px');
   };
 
   const handlePhotoCardMouseLeave = (event: React.MouseEvent<HTMLElement>) => {
     const card = event.currentTarget;
     card.style.transform = '';
+    card.style.setProperty('--card-lift', '0px');
     card.style.setProperty('--cursor-x', '50%');
     card.style.setProperty('--cursor-y', '50%');
     card.style.setProperty('--img-shift-x', '0px');
@@ -134,8 +128,8 @@ export const PhotoGrid: React.FC<PhotoGridProps> = ({
         const imageFailed = !!failedImageIds[item.id];
         const liked = likedPhotoIds.includes(item.id);
         const likeCount = typeof item.likes === 'number' ? item.likes : 0;
-        const imageSrc = getPreviewMediaUrl(item, { width: 900, quality: 82 });
-        const imageSrcSet = getPreviewMediaSrcSet(item, GRID_IMAGE_WIDTHS, { quality: 82 });
+        const imageSrc = getPreviewMediaUrl(item, { width: 900, quality: 86 });
+        const imageSrcSet = getPreviewMediaSrcSet(item, GRID_IMAGE_WIDTHS, { quality: 86 });
         const imageFallbackUrls = getPreviewMediaFallbackUrls(item, GRID_IMAGE_FALLBACKS);
         return (
           <article
