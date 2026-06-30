@@ -138,6 +138,14 @@ export const buildOssImagePreviewUrl = (url, options = {}) => {
   const quality = Number.isFinite(options.quality)
     ? Math.max(40, Math.min(95, Math.round(options.quality)))
     : 82;
+  const requestedFormat =
+    typeof options.format === 'string' ? options.format.trim().toLowerCase() : options.format;
+  const format =
+    requestedFormat === false || requestedFormat === ''
+      ? ''
+      : /^[a-z0-9]+$/.test(requestedFormat || '')
+        ? requestedFormat
+        : 'webp';
 
   try {
     const parsed = new URL(directUrl);
@@ -146,7 +154,7 @@ export const buildOssImagePreviewUrl = (url, options = {}) => {
 
     parsed.searchParams.set(
       'x-oss-process',
-      `image/resize,w_${width},m_lfit/quality,q_${quality}/format,webp`
+      `image/resize,w_${width},m_lfit/quality,q_${quality}${format ? `/format,${format}` : ''}`
     );
     return parsed.toString();
   } catch {
@@ -195,6 +203,25 @@ export const getPreviewMediaSrcSet = (media, widths = [], options = {}) => {
   return candidates
     .map(({ url, width }) => `${url} ${width}w`)
     .join(', ');
+};
+
+export const getPreviewMediaFallbackUrls = (media, fallbackOptions = []) => {
+  const source = typeof media === 'string' ? { image: media } : media || {};
+  const originalDirectUrl = getDirectMediaUrl(source.image || source.image_url || source.url || '');
+  const thumbnailDirectUrl = getDirectMediaUrl(source.thumbnail || source.thumbnail_url || '');
+  const previewDirectUrl = getDirectMediaUrl(source.preview || source.preview_url || '');
+  const sourceUrls = [...new Set([thumbnailDirectUrl, previewDirectUrl, originalDirectUrl].filter(Boolean))];
+  if (!sourceUrls.length) return [];
+
+  const urls = (Array.isArray(fallbackOptions) ? fallbackOptions : [])
+    .flatMap((options) => sourceUrls.map((sourceUrl) => {
+      const generatedPreviewUrl = buildOssImagePreviewUrl(sourceUrl, options || {});
+      if (!generatedPreviewUrl || generatedPreviewUrl === sourceUrl) return '';
+      return resolveMediaUrl(generatedPreviewUrl);
+    }))
+    .filter(Boolean);
+
+  return [...new Set(urls)];
 };
 
 /**

@@ -25,7 +25,12 @@ import { useGaodeMapInit, useFocusMapOnCity } from './hooks/useMapInit';
 import { loadMapLibre } from '../../utils/maplibreLoader';
 import { getDefaultMaplibreStyle } from '../../utils/gaodeMapStyle';
 import { escapeHtml } from '../../utils/security';
-import { getDirectMediaUrl, getPreviewMediaSrcSet, getPreviewMediaUrl } from '../../utils/urlUtils';
+import {
+  getDirectMediaUrl,
+  getPreviewMediaFallbackUrls,
+  getPreviewMediaSrcSet,
+  getPreviewMediaUrl,
+} from '../../utils/urlUtils';
 import { TabStrip } from './components/TabStrip';
 import { PhotoGrid } from './components/PhotoGrid';
 import { CurationPanel } from './components/CurationPanel';
@@ -33,6 +38,11 @@ import { LocationPanel } from './components/LocationPanel';
 
 const LIGHTBOX_IMAGE_WIDTHS = [720, 1080, 1400];
 const LIGHTBOX_IMAGE_SIZES = '(max-width: 768px) 100vw, (max-width: 1200px) 72vw, 980px';
+const LIGHTBOX_IMAGE_FALLBACKS = [
+  { width: 1080, quality: 80 },
+  { width: 720, quality: 76 },
+  { width: 720, quality: 72, format: false },
+];
 
 const getLightboxPreloadWidth = () => {
   if (typeof window === 'undefined') return 1400;
@@ -290,6 +300,9 @@ export function GalleryPage() {
   const lightboxVisualSrcSet = lightboxPhoto
     ? getPreviewMediaSrcSet(lightboxPhoto, LIGHTBOX_IMAGE_WIDTHS, { quality: 84 })
     : '';
+  const lightboxFallbackUrls = lightboxPhoto
+    ? getPreviewMediaFallbackUrls(lightboxPhoto, LIGHTBOX_IMAGE_FALLBACKS)
+    : [];
 
   // 鈹€鈹€ 鍦扮悊淇℃伅锛圠ightbox 鐢級
   const getGeoInfo = useMemo(() => {
@@ -1048,6 +1061,7 @@ export function GalleryPage() {
               onPointerCancel={handleLightboxPointerCancel}>
               {lightboxPhoto && lightboxVisualSrc && !lightboxPreviewFailed ? (
                 <img
+                  key={lightboxPhoto.id}
                   src={lightboxVisualSrc}
                   srcSet={lightboxVisualSrcSet || undefined}
                   sizes={lightboxVisualSrcSet ? LIGHTBOX_IMAGE_SIZES : undefined}
@@ -1058,9 +1072,26 @@ export function GalleryPage() {
                   referrerPolicy="no-referrer"
                   onLoad={(e) => {
                     const img = e.currentTarget;
+                    delete img.dataset.previewFallbackIndex;
                     setIsLightboxPortrait(img.naturalHeight > img.naturalWidth);
                   }}
-                  onError={() => {
+                  onError={(e) => {
+                    const img = e.currentTarget;
+                    let fallbackIndex = Number(img.dataset.previewFallbackIndex || '0');
+                    const currentSrc = img.currentSrc || img.src;
+                    while (lightboxFallbackUrls[fallbackIndex] === currentSrc) {
+                      fallbackIndex += 1;
+                    }
+
+                    const fallbackSrc = lightboxFallbackUrls[fallbackIndex];
+                    if (fallbackSrc) {
+                      img.dataset.previewFallbackIndex = `${fallbackIndex + 1}`;
+                      img.srcset = '';
+                      img.sizes = '';
+                      img.src = fallbackSrc;
+                      return;
+                    }
+
                     handleError(new Error(`Lightbox preview unavailable: ${lightboxPhoto.title}`), {
                       context: 'GalleryPage.lightboxPreview',
                       type: ErrorType.NETWORK,

@@ -5,11 +5,15 @@
 import React, { useEffect, useState } from 'react';
 import { GalleryPhoto } from '../utils/photoDataUtils';
 import { handleError, ErrorType } from '../../../utils/errorHandler';
-import { getPreviewMediaSrcSet, getPreviewMediaUrl } from '../../../utils/urlUtils';
+import { getPreviewMediaFallbackUrls, getPreviewMediaSrcSet, getPreviewMediaUrl } from '../../../utils/urlUtils';
 
 const GRID_IMAGE_WIDTHS = [360, 540, 720, 900, 1200];
 const GRID_IMAGE_SIZES =
   '(max-width: 768px) calc((100vw - 40px) / 2), (max-width: 1180px) calc((100vw - 96px) / 3), 320px';
+const GRID_IMAGE_FALLBACKS = [
+  { width: 540, quality: 72 },
+  { width: 360, quality: 68, format: false },
+];
 
 interface PhotoGridProps {
   photos: GalleryPhoto[];
@@ -126,6 +130,7 @@ export const PhotoGrid: React.FC<PhotoGridProps> = ({
         const likeCount = typeof item.likes === 'number' ? item.likes : 0;
         const imageSrc = getPreviewMediaUrl(item, { width: 900, quality: 80 });
         const imageSrcSet = getPreviewMediaSrcSet(item, GRID_IMAGE_WIDTHS, { quality: 80 });
+        const imageFallbackUrls = getPreviewMediaFallbackUrls(item, GRID_IMAGE_FALLBACKS);
         return (
           <article
             key={item.id}
@@ -156,10 +161,27 @@ export const PhotoGrid: React.FC<PhotoGridProps> = ({
                     fetchPriority={index < 6 ? 'high' : 'auto'}
                     referrerPolicy="no-referrer"
                     decoding="async"
-                    onLoad={() => {
+                    onLoad={(e) => {
+                      delete e.currentTarget.dataset.previewFallbackIndex;
                       setLoadedImageIds((prev) => (prev[item.id] ? prev : { ...prev, [item.id]: true }));
                     }}
-                    onError={() => {
+                    onError={(e) => {
+                      const img = e.currentTarget;
+                      let fallbackIndex = Number(img.dataset.previewFallbackIndex || '0');
+                      const currentSrc = img.currentSrc || img.src;
+                      while (imageFallbackUrls[fallbackIndex] === currentSrc) {
+                        fallbackIndex += 1;
+                      }
+
+                      const fallbackSrc = imageFallbackUrls[fallbackIndex];
+                      if (fallbackSrc) {
+                        img.dataset.previewFallbackIndex = `${fallbackIndex + 1}`;
+                        img.srcset = '';
+                        img.sizes = '';
+                        img.src = fallbackSrc;
+                        return;
+                      }
+
                       handleError(new Error(`图片加载失败: ${item.title}`), {
                         context: 'PhotoGrid.imageLoad',
                         type: ErrorType.NETWORK,
