@@ -29,6 +29,7 @@ jobs:
             --header "apikey: ${SUPABASE_ANON_KEY}" \
             --header "Authorization: Bearer ${SUPABASE_ANON_KEY}" \
             --header "Accept: application/json" \
+            --header "Accept-Profile: public" \
             --output /tmp/supabase-keepalive.json
 
           echo "Supabase keepalive succeeded."
