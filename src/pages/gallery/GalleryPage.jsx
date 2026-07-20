@@ -813,6 +813,7 @@ export function GalleryPage() {
             <ExploreView
               approvedPhotos={approvedPhotos}
               allPhotos={allPhotos}
+              isLoading={isPhotoDataLoading}
               browserLocation={browserLocation}
               onShowLocationPanel={setLocationPanel}
             />

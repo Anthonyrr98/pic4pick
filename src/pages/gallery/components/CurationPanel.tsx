@@ -7,6 +7,7 @@ import { CurationGroup, CityEntry } from '../utils/photoDataUtils';
 
 interface CurationPanelProps {
   groups: CurationGroup[];
+  isLoading: boolean;
   expandedCategories: Record<string, boolean>;
   onToggleCategory: (categoryId: string) => void;
   onCityClick: (province: CurationGroup, city: CityEntry) => void;
@@ -17,6 +18,7 @@ interface CurationPanelProps {
 
 export const CurationPanel: React.FC<CurationPanelProps> = ({
   groups,
+  isLoading,
   expandedCategories,
   onToggleCategory,
   onCityClick,
@@ -65,7 +67,11 @@ export const CurationPanel: React.FC<CurationPanelProps> = ({
   };
 
   return (
-    <aside className={`curation-panel ${isPanelCollapsed ? 'collapsed' : ''}`}>
+    <aside
+      className={`curation-panel ${isPanelCollapsed ? 'collapsed' : ''} ${
+        isLoading ? 'loading' : groups.length === 0 ? 'empty' : ''
+      }`}
+    >
       <button
         className="curation-panel-toggle"
         onClick={onTogglePanelCollapse}
@@ -74,7 +80,28 @@ export const CurationPanel: React.FC<CurationPanelProps> = ({
       >
         <span className={`curation-panel-toggle-icon ${isPanelCollapsed ? 'collapsed' : ''}`}></span>
       </button>
-      {groups.map((group) => (
+      {!isPanelCollapsed && isLoading && (
+        <div className="curation-panel-status" role="status" aria-live="polite">
+          <div className="curation-panel-status-copy">
+            <span>正在整理地点</span>
+            <small>照片与城市信息加载中</small>
+          </div>
+          <div className="curation-panel-skeleton" aria-hidden="true">
+            <span />
+            <span />
+            <span />
+          </div>
+        </div>
+      )}
+      {!isPanelCollapsed && !isLoading && groups.length === 0 && (
+        <div className="curation-panel-status empty" role="status">
+          <div className="curation-panel-status-copy">
+            <span>暂无可探索地点</span>
+            <small>带有地点信息的照片会显示在这里</small>
+          </div>
+        </div>
+      )}
+      {!isLoading && groups.map((group) => (
         <div key={group.id} className="curation-category">
           <button
             className="curation-category-header"

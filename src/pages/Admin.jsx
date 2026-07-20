@@ -2268,6 +2268,7 @@ export function AdminPage() {
       <div className="app-root">
         <main className="admin-page">
           <div
+            className="admin-login-stage"
             style={{
               minHeight: '100vh',
               display: 'flex',
@@ -2279,6 +2280,7 @@ export function AdminPage() {
             }}
           >
             <div
+              className="admin-login-card"
               style={{
                 maxWidth: 420,
                 width: '100%',

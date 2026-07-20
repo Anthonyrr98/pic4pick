@@ -7,6 +7,7 @@ import { CurationPanel } from './CurationPanel';
 export function ExploreView({
   approvedPhotos,
   allPhotos,
+  isLoading,
   browserLocation,
   onShowLocationPanel,
 }) {
@@ -231,6 +232,7 @@ export function ExploreView({
     <section id="explore-view" className="screen active">
       <CurationPanel
         groups={curationGroups}
+        isLoading={isLoading}
         expandedCategories={expandedCategories}
         onToggleCategory={(id) =>
           setCategoryExpansionOverrides((prev) => ({ ...prev, [id]: !(prev[id] ?? false) }))
