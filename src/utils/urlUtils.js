@@ -152,6 +152,13 @@ export const resolveMediaUrl = (url) => {
   }
 };
 
+export const getOriginalMediaUrl = (media) => {
+  const source = typeof media === 'string' ? { image: media } : media || {};
+  const candidate = source.image || source.image_url || source.url || source.thumbnail || source.thumbnail_url || '';
+  const originalUrl = getLikelyOriginalMediaUrl(candidate);
+  return originalUrl ? resolveMediaUrl(originalUrl) : '';
+};
+
 /**
  * Build a lightweight OSS image-processing URL when no stored thumbnail is available.
  */

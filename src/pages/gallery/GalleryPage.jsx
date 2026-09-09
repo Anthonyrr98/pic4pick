@@ -24,6 +24,7 @@ import { getDefaultMaplibreStyle } from '../../utils/gaodeMapStyle';
 import { escapeHtml } from '../../utils/security';
 import {
   getDirectMediaUrl,
+  getOriginalMediaUrl,
   getPreviewMediaFallbackUrls,
   getPreviewMediaSrcSet,
   getPreviewMediaUrl,
@@ -296,7 +297,10 @@ export function GalleryPage() {
     ? getPreviewMediaSrcSet(lightboxPhoto, LIGHTBOX_IMAGE_WIDTHS, { quality: 94, preferOriginal: true })
     : '';
   const lightboxFallbackUrls = lightboxPhoto
-    ? getPreviewMediaFallbackUrls(lightboxPhoto, LIGHTBOX_IMAGE_FALLBACKS)
+    ? [
+        getOriginalMediaUrl(lightboxPhoto),
+        ...getPreviewMediaFallbackUrls(lightboxPhoto, LIGHTBOX_IMAGE_FALLBACKS),
+      ].filter(Boolean)
     : [];
 
   // 鈹€鈹€ 鍦扮悊淇℃伅锛圠ightbox 鐢級
