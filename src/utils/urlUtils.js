@@ -175,6 +175,14 @@ export const getPreviewMediaUrl = (media, options = {}) => {
   const originalDirectUrl = getDirectMediaUrl(source.image || source.image_url || source.url || '');
   const thumbnailDirectUrl = getDirectMediaUrl(source.thumbnail || source.thumbnail_url || '');
   const previewDirectUrl = getDirectMediaUrl(source.preview || source.preview_url || '');
+
+  // Large presentation surfaces must never upscale a stored thumbnail. Generate an
+  // OSS derivative from the original when possible, or use the original URL as-is.
+  if (options.preferOriginal && originalDirectUrl) {
+    const generatedOriginalPreviewUrl = buildOssImagePreviewUrl(originalDirectUrl, options);
+    return resolveMediaUrl(generatedOriginalPreviewUrl || originalDirectUrl);
+  }
+
   const storedPreviewUrl = [thumbnailDirectUrl, previewDirectUrl]
     .map((candidate) => {
       if (!candidate || candidate === originalDirectUrl) return '';

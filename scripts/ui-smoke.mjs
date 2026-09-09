@@ -26,6 +26,10 @@ try {
   const dialog = page.getByRole('dialog');
   await dialog.waitFor({ state: 'visible' });
   if (await dialog.getAttribute('aria-modal') !== 'true') throw new Error('Lightbox is not modal');
+  const lightboxCurrentSrc = await dialog.locator('.lightbox-media img').evaluate((image) => image.currentSrc);
+  if (/\/ore\//i.test(lightboxCurrentSrc)) {
+    throw new Error('Lightbox is upscaling the stored thumbnail instead of using the original image');
+  }
   await page.keyboard.press('Escape');
   await dialog.waitFor({ state: 'hidden' });
 

@@ -290,10 +290,10 @@ export function GalleryPage() {
     },
   ] : [];
   const lightboxVisualSrc = lightboxPhoto
-    ? getPreviewMediaUrl(lightboxPhoto, { width: 2000, quality: 94 })
+    ? getPreviewMediaUrl(lightboxPhoto, { width: 2000, quality: 94, preferOriginal: true })
     : '';
   const lightboxVisualSrcSet = lightboxPhoto
-    ? getPreviewMediaSrcSet(lightboxPhoto, LIGHTBOX_IMAGE_WIDTHS, { quality: 94 })
+    ? getPreviewMediaSrcSet(lightboxPhoto, LIGHTBOX_IMAGE_WIDTHS, { quality: 94, preferOriginal: true })
     : '';
   const lightboxFallbackUrls = lightboxPhoto
     ? getPreviewMediaFallbackUrls(lightboxPhoto, LIGHTBOX_IMAGE_FALLBACKS)
@@ -582,7 +582,11 @@ export function GalleryPage() {
     const preloadWidth = getLightboxPreloadWidth();
     [previousLightboxPhoto, nextLightboxPhoto]
       .filter(Boolean)
-      .map((photo) => getPreviewMediaUrl(photo, { width: preloadWidth, quality: 84 }))
+      .map((photo) => getPreviewMediaUrl(photo, {
+        width: preloadWidth,
+        quality: 92,
+        preferOriginal: true,
+      }))
       .filter(Boolean)
       .forEach((src) => {
         const img = new Image();
