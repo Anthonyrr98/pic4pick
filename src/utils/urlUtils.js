@@ -63,6 +63,23 @@ const normalizeSrcSetWidths = (widths) => (
   )].sort((a, b) => a - b)
 );
 
+const getLikelyOriginalMediaUrl = (url) => {
+  const directUrl = getDirectMediaUrl(url);
+  if (!directUrl) return '';
+
+  try {
+    const parsed = new URL(directUrl);
+    if (!ALIYUN_OSS_HOST_RE.test(parsed.hostname) || !/\/ore\//i.test(parsed.pathname)) {
+      return directUrl;
+    }
+    parsed.pathname = parsed.pathname.replace(/\/ore\//i, '/origin/');
+    parsed.searchParams.delete('x-oss-process');
+    return parsed.toString();
+  } catch {
+    return directUrl;
+  }
+};
+
 /** 从代理 URL 还原为原始 OSS/直链地址（兼容历史 localStorage 中的代理 URL） */
 export const getDirectMediaUrl = (url) => {
   const httpsUrl = ensureHttps(url);
@@ -179,8 +196,11 @@ export const getPreviewMediaUrl = (media, options = {}) => {
   // Large presentation surfaces must never upscale a stored thumbnail. Generate an
   // OSS derivative from the original when possible, or use the original URL as-is.
   if (options.preferOriginal && originalDirectUrl) {
-    const generatedOriginalPreviewUrl = buildOssImagePreviewUrl(originalDirectUrl, options);
-    return resolveMediaUrl(generatedOriginalPreviewUrl || originalDirectUrl);
+    // Some legacy rows accidentally stored the `ore/` thumbnail in image_url. OSS
+    // uploads keep the matching full-resolution object under the `origin/` path.
+    const fullResolutionUrl = getLikelyOriginalMediaUrl(originalDirectUrl);
+    const generatedOriginalPreviewUrl = buildOssImagePreviewUrl(fullResolutionUrl, options);
+    return resolveMediaUrl(generatedOriginalPreviewUrl || fullResolutionUrl);
   }
 
   const storedPreviewUrl = [thumbnailDirectUrl, previewDirectUrl]
