@@ -7,7 +7,8 @@ import { GalleryPhoto } from '../utils/photoDataUtils';
 import { handleError, ErrorType } from '../../../utils/errorHandler';
 import { getPreviewMediaFallbackUrls, getPreviewMediaSrcSet, getPreviewMediaUrl } from '../../../utils/urlUtils';
 
-const GRID_IMAGE_WIDTHS = [360, 540, 720, 900, 1200];
+// Keep enough source pixels for high-DPI displays; 360px previews looked soft after cover cropping.
+const GRID_IMAGE_WIDTHS = [540, 720, 900, 1200, 1440];
 const GRID_IMAGE_SIZES =
   [
     '(max-width: 768px) calc((100vw - 40px) / 2)',
@@ -17,8 +18,8 @@ const GRID_IMAGE_SIZES =
     'calc((100vw - 240px) / 5)',
   ].join(', ');
 const GRID_IMAGE_FALLBACKS = [
-  { width: 600, quality: 86 },
-  { width: 540, quality: 84, format: false },
+  { width: 900, quality: 90 },
+  { width: 720, quality: 88, format: false },
 ];
 
 interface PhotoGridProps {
@@ -129,8 +130,8 @@ export const PhotoGrid: React.FC<PhotoGridProps> = ({
         const imageFailed = !!failedImageIds[item.id];
         const liked = likedPhotoIds.includes(item.id);
         const likeCount = typeof item.likes === 'number' ? item.likes : 0;
-        const imageSrc = getPreviewMediaUrl(item, { width: 900, quality: 86 });
-        const imageSrcSet = getPreviewMediaSrcSet(item, GRID_IMAGE_WIDTHS, { quality: 86 });
+        const imageSrc = getPreviewMediaUrl(item, { width: 1200, quality: 92 });
+        const imageSrcSet = getPreviewMediaSrcSet(item, GRID_IMAGE_WIDTHS, { quality: 92 });
         const imageFallbackUrls = getPreviewMediaFallbackUrls(item, GRID_IMAGE_FALLBACKS);
         return (
           <article
