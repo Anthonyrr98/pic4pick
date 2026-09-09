@@ -26,6 +26,10 @@ try {
   const dialog = page.getByRole('dialog');
   await dialog.waitFor({ state: 'visible' });
   if (await dialog.getAttribute('aria-modal') !== 'true') throw new Error('Lightbox is not modal');
+  await page.waitForFunction(() => {
+    const image = document.querySelector('.lightbox.active .lightbox-media img');
+    return image?.complete && image.naturalWidth >= image.clientWidth;
+  }, undefined, { timeout: 20_000 });
   const lightboxCurrentSrc = await dialog.locator('.lightbox-media img').evaluate((image) => image.currentSrc);
   if (/\/ore\//i.test(lightboxCurrentSrc)) {
     throw new Error('Lightbox is upscaling the stored thumbnail instead of using the original image');
