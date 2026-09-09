@@ -123,7 +123,8 @@ VITE_SUPABASE_ANON_KEY=your-anon-key
 VITE_AMAP_KEY=your-amap-key
 
 # 管理员密码
-VITE_ADMIN_PASSWORD=your-secure-password
+ADMIN_USERNAME=your-admin-username
+ADMIN_PASSWORD=your-strong-password
 ```
 
 ### 后端环境变量（`server/.env`）

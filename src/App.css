@@ -6261,3 +6261,103 @@ main {
     grid-column: 1 / -1;
   }
 }
+
+/* 2026 maintenance layer: accessibility, restrained film palette, and compact mobile rhythm. */
+.photo-card:focus-visible {
+  outline: 3px solid rgba(181, 102, 62, 0.92);
+  outline-offset: 4px;
+  --card-lift: -4px;
+}
+
+.toggle-btn[aria-pressed='true'],
+.tab[aria-selected='true'] {
+  font-weight: 650;
+}
+
+.like-badge.liked {
+  background: rgba(167, 61, 46, 0.94);
+  border-color: rgba(255, 225, 208, 0.9);
+  box-shadow: 0 5px 16px rgba(118, 39, 31, 0.28);
+}
+
+.like-badge.liked .like-badge-heart svg {
+  fill: #e36f52;
+  stroke: #fff2ea;
+}
+
+.admin-login-stage {
+  background:
+    radial-gradient(circle at 18% 12%, rgba(207, 165, 106, 0.16), transparent 34%),
+    linear-gradient(145deg, #f5f3ee 0%, #e8e7e3 48%, #d9dde4 100%) !important;
+}
+
+.admin-login-card {
+  position: relative;
+  overflow: hidden;
+  border-color: rgba(17, 18, 24, 0.08) !important;
+  box-shadow: 0 28px 70px rgba(17, 18, 24, 0.18) !important;
+}
+
+.admin-login-card::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto;
+  height: 3px;
+  background: linear-gradient(90deg, #111218 0 58%, #b5663e 58% 100%);
+}
+
+.admin-login-back {
+  position: absolute;
+  top: 18px;
+  right: 20px;
+  color: rgba(17, 18, 24, 0.58);
+  font-size: 0.78rem;
+  text-decoration: none;
+}
+
+.admin-login-back:hover,
+.admin-login-back:focus-visible {
+  color: #111218;
+}
+
+.admin-login-brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 2px 0 24px;
+  color: rgba(17, 18, 24, 0.48);
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+}
+
+.admin-login-brand img {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+}
+
+.admin-login-card input:focus-visible {
+  border-color: rgba(181, 102, 62, 0.72) !important;
+  box-shadow: 0 0 0 3px rgba(181, 102, 62, 0.14);
+}
+
+@media (max-width: 640px) {
+  .gallery-status-row .gallery-count {
+    color: rgba(17, 18, 24, 0.78);
+  }
+
+  .gallery-status-row .gallery-sync,
+  .tab:not(.active) {
+    color: rgba(17, 18, 24, 0.6);
+    opacity: 1;
+  }
+
+  .app-shell:not(.explore-mode) .app-header {
+    padding-top: 12px;
+  }
+
+  #gallery-view {
+    gap: 18px;
+  }
+}

@@ -2291,6 +2291,13 @@ export function AdminPage() {
                 border: '1px solid rgba(15, 23, 42, 0.04)',
               }}
             >
+              <a href={`${import.meta.env.BASE_URL}#/`} className="admin-login-back">
+                <span aria-hidden="true">←</span> 返回图库
+              </a>
+              <div className="admin-login-brand" aria-hidden="true">
+                <img src="/pic4pick-icon.svg" alt="" />
+                <span>LIGHT OF ANTHONY · STUDIO</span>
+              </div>
               <h1
                 style={{
                   fontSize: '1.4rem',
@@ -2312,6 +2319,8 @@ export function AdminPage() {
               <div style={{ marginBottom: 12 }}>
                 <input
                   type="text"
+                  aria-label="管理员用户名"
+                  autoComplete="username"
                   value={adminUsernameInput}
                   disabled={isAdminLoginSubmitting}
                   onChange={(e) => {
@@ -2341,6 +2350,8 @@ export function AdminPage() {
                 >
                   <input
                     type={showAdminPassword ? 'text' : 'password'}
+                    aria-label="管理员密码"
+                    autoComplete="current-password"
                     value={adminPasswordInput}
                     disabled={isAdminLoginSubmitting}
                     onChange={(e) => {
@@ -2367,6 +2378,8 @@ export function AdminPage() {
                   <button
                     type="button"
                     onClick={() => setShowAdminPassword((v) => !v)}
+                    aria-label={showAdminPassword ? '隐藏密码' : '显示密码'}
+                    aria-pressed={showAdminPassword}
                     style={{
                       position: 'absolute',
                       right: 10,
@@ -2385,6 +2398,7 @@ export function AdminPage() {
               </div>
               {adminAuthError && (
                 <div
+                  role="alert"
                   style={{
                     fontSize: '0.85rem',
                     color: '#ff6b6b',

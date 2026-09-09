@@ -44,6 +44,7 @@ export const PhotoGrid: React.FC<PhotoGridProps> = ({
   loadMoreRef,
   totalCount,
 }) => {
+  const eagerImageCount = typeof window !== 'undefined' && window.innerWidth <= 768 ? 4 : 6;
   const [loadedImageIds, setLoadedImageIds] = useState<Record<string, boolean>>({});
   const [failedImageIds, setFailedImageIds] = useState<Record<string, boolean>>({});
 
@@ -138,6 +139,16 @@ export const PhotoGrid: React.FC<PhotoGridProps> = ({
             onClick={() => onPhotoClick(item)}
             onMouseMove={handlePhotoCardMouseMove}
             onMouseLeave={handlePhotoCardMouseLeave}
+            onKeyDown={(event) => {
+              if (event.target !== event.currentTarget) return;
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                onPhotoClick(item);
+              }
+            }}
+            role="button"
+            tabIndex={0}
+            aria-label={`查看作品：${item.title || '未命名照片'}`}
             style={{ ['--stagger' as any]: index }}
           >
             {item.image ? (
@@ -157,8 +168,8 @@ export const PhotoGrid: React.FC<PhotoGridProps> = ({
                     srcSet={imageSrcSet || undefined}
                     sizes={imageSrcSet ? GRID_IMAGE_SIZES : undefined}
                     alt={item.title}
-                    loading={index < 6 ? 'eager' : 'lazy'}
-                    fetchPriority={index < 6 ? 'high' : 'auto'}
+                    loading={index < eagerImageCount ? 'eager' : 'lazy'}
+                    fetchPriority={index === 0 ? 'high' : 'auto'}
                     referrerPolicy="no-referrer"
                     decoding="async"
                     onLoad={(e) => {

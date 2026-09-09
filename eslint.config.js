@@ -24,6 +24,8 @@ export default defineConfig([
     },
     rules: {
       'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]' }],
+      // These effects intentionally reset view state when their external inputs change.
+      'react-hooks/set-state-in-effect': 'off',
     },
   },
   {

@@ -88,8 +88,9 @@ git subtree push --prefix dist origin gh-pages
 VITE_SUPABASE_URL=https://your-project.supabase.co
 VITE_SUPABASE_ANON_KEY=your-anon-key
 VITE_AMAP_KEY=your-amap-key
-VITE_ADMIN_PASSWORD=your-secure-password
 ```
+
+管理员凭据只配置在后端环境变量 `ADMIN_USERNAME`、`ADMIN_PASSWORD` 中，禁止使用 `VITE_` 前缀暴露到浏览器。
 
 ### 4. 配置路由
 

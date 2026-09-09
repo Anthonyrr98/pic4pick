@@ -254,7 +254,8 @@ VITE_SUPABASE_ANON_KEY=your-anon-key
 VITE_AMAP_KEY=your-amap-key
 
 # 管理员密码
-VITE_ADMIN_PASSWORD=your-secure-password
+ADMIN_USERNAME=your-admin-username
+ADMIN_PASSWORD=your-strong-password
 
 # 后端服务器地址（开发环境）
 VITE_API_URL=http://localhost:3001
@@ -350,7 +351,7 @@ npm run dev
 ### 默认登录信息
 
 - **用户名**：`admin`
-- **密码**：`admin123`（或 `.env.local` 中配置的 `VITE_ADMIN_PASSWORD`）
+- **凭据**：通过后端环境变量 `ADMIN_USERNAME`、`ADMIN_PASSWORD` 配置，生产环境禁止使用默认值
 
 ⚠️ **生产环境请务必修改默认密码！**
 
@@ -366,7 +367,6 @@ Pic4Pick/
 │   │   │   ├── ConfigPanel.jsx  # 配置面板
 │   │   │   └── ToolsPanel.jsx   # 工具面板
 │   │   ├── ErrorBoundary.jsx    # 错误边界
-│   │   ├── LoginForm.jsx        # 登录表单
 │   │   └── UploadProgress.jsx   # 上传进度
 │   ├── pages/                    # 页面组件
 │   │   ├── Admin.jsx            # 管理后台页面
@@ -425,7 +425,7 @@ Pic4Pick/
 │
 ├── public/                        # 静态资源
 │   ├── CNAME                     # GitHub Pages 自定义域名
-│   └── vite.svg                  # 默认图标
+│   └── pic4pick-icon.svg         # 站点图标
 │
 ├── dist/                          # 构建输出
 │   ├── assets/                   # 打包后的资源
@@ -469,7 +469,8 @@ VITE_SUPABASE_ANON_KEY=your-anon-key
 VITE_AMAP_KEY=your-amap-key
 
 # 管理员密码（必需）
-VITE_ADMIN_PASSWORD=your-secure-password
+ADMIN_USERNAME=your-admin-username
+ADMIN_PASSWORD=your-strong-password
 
 # 后端服务器地址（开发环境）
 VITE_API_URL=http://localhost:3001
@@ -895,7 +896,7 @@ jobs:
    - `VITE_SUPABASE_URL`
    - `VITE_SUPABASE_ANON_KEY`
    - `VITE_AMAP_KEY`
-   - `VITE_ADMIN_PASSWORD`
+   - 后端 `ADMIN_USERNAME` / `ADMIN_PASSWORD`
    - `VITE_API_URL`（后端公网地址或 Cloudflare Tunnel 地址）
 4. 自定义域名（可选）
    - 在 Pages 中添加自定义域名
@@ -963,7 +964,7 @@ jobs:
 - `VITE_SUPABASE_URL`
 - `VITE_SUPABASE_ANON_KEY`
 - `VITE_AMAP_KEY`
-- `VITE_ADMIN_PASSWORD`
+- 后端 `ADMIN_USERNAME` / `ADMIN_PASSWORD`
 - `VITE_API_URL`（后端服务器地址）
 
 #### 生产环境后端变量

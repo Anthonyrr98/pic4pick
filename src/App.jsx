@@ -12,6 +12,14 @@ const GalleryPage = lazy(() =>
 
 const INTRO_VISIBLE_MS = 900;
 const INTRO_FADE_MS = 260;
+const INTRO_SESSION_KEY = 'pic4pick_intro_seen';
+
+const shouldSkipIntro = () => {
+  if (typeof window === 'undefined') return false;
+  if (window.location.hash.includes('/admin')) return true;
+  if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return true;
+  return window.sessionStorage.getItem(INTRO_SESSION_KEY) === '1';
+};
 
 function AppLoading({ exiting = false } = {}) {
   return (
@@ -41,9 +49,11 @@ function AppLoading({ exiting = false } = {}) {
 }
 
 function App() {
-  const [introState, setIntroState] = useState('visible');
+  const [introState, setIntroState] = useState(() => shouldSkipIntro() ? 'hidden' : 'visible');
 
   useEffect(() => {
+    if (introState !== 'visible') return undefined;
+    window.sessionStorage.setItem(INTRO_SESSION_KEY, '1');
     const fadeTimer = window.setTimeout(() => setIntroState('exiting'), INTRO_VISIBLE_MS);
     const removeTimer = window.setTimeout(() => setIntroState('hidden'), INTRO_VISIBLE_MS + INTRO_FADE_MS);
 
@@ -51,6 +61,8 @@ function App() {
       window.clearTimeout(fadeTimer);
       window.clearTimeout(removeTimer);
     };
+    // The timers intentionally use the mount-time intro state; rerunning on phase changes cancels removal.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (

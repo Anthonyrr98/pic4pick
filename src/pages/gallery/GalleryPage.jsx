@@ -189,6 +189,8 @@ export function GalleryPage() {
   const [isLightboxPortrait, setIsLightboxPortrait] = useState(false);
   const [lightboxPreviewFailed, setLightboxPreviewFailed] = useState(false);
   const lightboxPointerRef = useRef(null);
+  const lightboxRef = useRef(null);
+  const lightboxReturnFocusRef = useRef(null);
 
   // 鈹€鈹€ 鍝佺墝鐘舵€?
   const [brandLogo, setBrandLogo] = useState(() => getStoredBrandLogo());
@@ -345,6 +347,7 @@ export function GalleryPage() {
   }, [isLoadingMore, displayedCount, filteredPhotos.length]);
 
   const openLightboxPhoto = useCallback((photo) => {
+    lightboxReturnFocusRef.current = document.activeElement;
     setMetaPopover(null);
     setShowMobileMeta(false);
     setLightboxPhoto(photo);
@@ -354,6 +357,7 @@ export function GalleryPage() {
     setMetaPopover(null);
     setShowMobileMeta(false);
     setLightboxPhoto(null);
+    window.requestAnimationFrame(() => lightboxReturnFocusRef.current?.focus?.());
   }, []);
 
   const goToAdjacentLightboxPhoto = useCallback((direction) => {
@@ -528,6 +532,32 @@ export function GalleryPage() {
     setMetaAttribute('meta[name="twitter:description"]', 'content', description);
     setMetaAttribute('meta[name="twitter:image"]', 'content', image);
   }, [activeView, allPhotos.length, brandText.siteTitle, lightboxPhoto]);
+
+  useEffect(() => {
+    if (!lightboxPhoto) return undefined;
+    const dialog = lightboxRef.current;
+    dialog?.focus();
+
+    const trapFocus = (event) => {
+      if (event.key !== 'Tab' || !dialog) return;
+      const focusable = Array.from(dialog.querySelectorAll(
+        'button:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])'
+      ));
+      if (!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    dialog?.addEventListener('keydown', trapFocus);
+    return () => dialog?.removeEventListener('keydown', trapFocus);
+  }, [lightboxPhoto]);
 
   useEffect(() => {
     const handleKey = (e) => {
@@ -745,11 +775,11 @@ export function GalleryPage() {
             />
           )}
         </div>
-        <nav className="primary-menu" />
         <div className={`view-toggle ${activeView === 'explore-view' ? 'explore-active' : ''}`}>
           <button
             className={`toggle-btn ${activeView === 'gallery-view' ? 'active' : ''}`}
             onClick={() => handleViewChange('gallery-view')}
+            aria-pressed={activeView === 'gallery-view'}
           >
             <span className="toggle-label">图库</span>
           </button>
@@ -761,6 +791,7 @@ export function GalleryPage() {
             onFocus={handleExploreIntent}
             onTouchStart={handleExploreIntent}
             onClick={() => handleViewChange('explore-view')}
+            aria-pressed={activeView === 'explore-view'}
           >
             <span className="toggle-label">发现</span>
           </button>
@@ -829,8 +860,13 @@ export function GalleryPage() {
 
       {/* Lightbox */}
       <div
+        ref={lightboxRef}
         className={`lightbox ${lightboxPhoto ? 'active' : ''}`}
         aria-hidden={lightboxPhoto ? 'false' : 'true'}
+        role={lightboxPhoto ? 'dialog' : undefined}
+        aria-modal={lightboxPhoto ? 'true' : undefined}
+        aria-labelledby={lightboxPhoto ? 'lightbox-title' : undefined}
+        tabIndex={lightboxPhoto ? -1 : undefined}
         onClick={(e) => {
           if (e.target === e.currentTarget) closeLightbox();
         }}
@@ -929,7 +965,7 @@ export function GalleryPage() {
             {lightboxPhoto && (
               <div className={`lightbox-meta ${showMobileMeta ? 'mobile-visible' : ''}`}>
                 <div className="lightbox-title-section">
-                  <h3>{lightboxPhoto.title}</h3>
+                  <h3 id="lightbox-title">{lightboxPhoto.title}</h3>
                   <p className="subtitle">{lightboxPhoto.country} · {lightboxPhoto.location}</p>
                 </div>
                 <div className="lightbox-story-grid">

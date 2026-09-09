@@ -104,7 +104,8 @@ cd ..
 VITE_SUPABASE_URL=https://your-project.supabase.co
 VITE_SUPABASE_ANON_KEY=your-anon-key
 VITE_AMAP_KEY=your-amap-key
-VITE_ADMIN_PASSWORD=your-password
+ADMIN_USERNAME=your-admin-username
+ADMIN_PASSWORD=your-strong-password
 ```
 
 创建 `server/.env` 文件（后端）：
