@@ -52,19 +52,19 @@ const ExploreView = lazy(() =>
   loadExploreView().then((module) => ({ default: module.ExploreView }))
 );
 
-const LIGHTBOX_IMAGE_WIDTHS = [720, 1080, 1400];
+const LIGHTBOX_IMAGE_WIDTHS = [1080, 1600, 2000, 2400];
 const LIGHTBOX_IMAGE_SIZES = '(max-width: 768px) 100vw, (max-width: 1200px) 72vw, 980px';
 const LIGHTBOX_IMAGE_FALLBACKS = [
-  { width: 1080, quality: 80 },
-  { width: 720, quality: 76 },
-  { width: 720, quality: 72, format: false },
+  { width: 2000, quality: 92 },
+  { width: 1600, quality: 90 },
+  { width: 1080, quality: 88, format: false },
 ];
 
 const getLightboxPreloadWidth = () => {
-  if (typeof window === 'undefined') return 1400;
-  if (window.innerWidth <= 768) return 720;
-  if (window.innerWidth <= 1200) return 1080;
-  return 1400;
+  if (typeof window === 'undefined') return 2000;
+  if (window.innerWidth <= 768) return 1080;
+  if (window.innerWidth <= 1200) return 1600;
+  return window.devicePixelRatio > 1 ? 2400 : 2000;
 };
 
 function ApertureIcon(props) {
@@ -290,10 +290,10 @@ export function GalleryPage() {
     },
   ] : [];
   const lightboxVisualSrc = lightboxPhoto
-    ? getPreviewMediaUrl(lightboxPhoto, { width: 1400, quality: 84 })
+    ? getPreviewMediaUrl(lightboxPhoto, { width: 2000, quality: 94 })
     : '';
   const lightboxVisualSrcSet = lightboxPhoto
-    ? getPreviewMediaSrcSet(lightboxPhoto, LIGHTBOX_IMAGE_WIDTHS, { quality: 84 })
+    ? getPreviewMediaSrcSet(lightboxPhoto, LIGHTBOX_IMAGE_WIDTHS, { quality: 94 })
     : '';
   const lightboxFallbackUrls = lightboxPhoto
     ? getPreviewMediaFallbackUrls(lightboxPhoto, LIGHTBOX_IMAGE_FALLBACKS)
