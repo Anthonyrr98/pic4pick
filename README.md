@@ -15,7 +15,7 @@ separated.
 
 **Live site:** [https://pic.rlzhao.com](https://pic.rlzhao.com)
 
-![Light of Anthony](https://pic.rlzhao.com/og-image.png)
+![Light of Anthony photography archive](./public/og-image.png)
 
 ## Features
 

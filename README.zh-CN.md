@@ -11,7 +11,7 @@ Pic4Pick 是 **Light of Anthony** 的开源摄影作品集与内容管理系统�
 
 **在线访问：** [https://pic.rlzhao.com](https://pic.rlzhao.com)
 
-![Light of Anthony](https://pic.rlzhao.com/og-image.png)
+![Light of Anthony 摄影档案](./public/og-image.png)
 
 ## 功能特性
 
