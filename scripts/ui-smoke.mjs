@@ -40,12 +40,52 @@ try {
   if (lightboxObjectFit !== 'contain') {
     throw new Error('Lightbox image is cropped instead of preserving the original composition');
   }
+  const lightboxRatios = await dialog.locator('.lightbox-media img').evaluate((image) => {
+    const frame = image.closest('.lightbox-media').getBoundingClientRect();
+    return {
+      frame: frame.width / frame.height,
+      image: image.naturalWidth / image.naturalHeight,
+    };
+  });
+  if (Math.abs(lightboxRatios.frame - lightboxRatios.image) > 0.02) {
+    throw new Error('Lightbox frame does not match the original image aspect ratio');
+  }
   if (artifactDir) {
     await mkdir(artifactDir, { recursive: true });
     await page.screenshot({ path: path.join(artifactDir, 'lightbox-desktop.png'), fullPage: true });
   }
   await page.keyboard.press('Escape');
   await dialog.waitFor({ state: 'hidden' });
+
+  let landscapeChecked = false;
+  for (let index = 0; index < Math.min(await cards.count(), 12); index += 1) {
+    const candidate = cards.nth(index);
+    const isLandscape = await candidate.locator('img').evaluate(
+      (image) => image.complete && image.naturalWidth > image.naturalHeight
+    );
+    if (!isLandscape) continue;
+    await candidate.click();
+    await dialog.waitFor({ state: 'visible' });
+    await page.waitForFunction(() => {
+      const image = document.querySelector('.lightbox.active .lightbox-media img');
+      return image?.complete && image.naturalWidth > image.naturalHeight;
+    });
+    const landscapeRatios = await dialog.locator('.lightbox-media img').evaluate((image) => {
+      const frame = image.closest('.lightbox-media').getBoundingClientRect();
+      return { frame: frame.width / frame.height, image: image.naturalWidth / image.naturalHeight };
+    });
+    if (Math.abs(landscapeRatios.frame - landscapeRatios.image) > 0.02) {
+      throw new Error('Landscape lightbox frame does not match the original image aspect ratio');
+    }
+    if (artifactDir) {
+      await page.screenshot({ path: path.join(artifactDir, 'lightbox-landscape.png'), fullPage: true });
+    }
+    await page.keyboard.press('Escape');
+    await dialog.waitFor({ state: 'hidden' });
+    landscapeChecked = true;
+    break;
+  }
+  if (!landscapeChecked) throw new Error('No landscape photo was available for the lightbox regression');
 
   const selectedTab = page.locator('[role="tab"][aria-selected="true"]');
   const initialTab = await selectedTab.textContent();

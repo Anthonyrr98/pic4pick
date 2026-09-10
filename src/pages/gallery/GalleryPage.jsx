@@ -924,7 +924,7 @@ export function GalleryPage() {
             </>
           )}
           <div className={`lightbox-content-wrapper ${showMobileMeta ? 'meta-visible' : ''}`}>
-            <div className={`lightbox-media ${isLightboxPortrait ? 'portrait-fit' : ''}`}
+            <div className={`lightbox-media ${isLightboxPortrait ? 'portrait-fit' : ''} ${lightboxAspectRatio ? 'aspect-fit' : ''}`}
               style={lightboxAspectRatio ? { '--lightbox-aspect-ratio': lightboxAspectRatio } : undefined}
               onPointerDown={handleLightboxPointerDown}
               onPointerUp={handleLightboxPointerUp}

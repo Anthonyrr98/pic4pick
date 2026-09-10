@@ -2811,15 +2811,20 @@ main {
   text-align: center;
 }
 
-.lightbox-media.portrait-fit img {
+.lightbox-media.aspect-fit img {
   object-fit: contain;
   background: transparent;
 }
 
-.lightbox-media.portrait-fit {
+.lightbox-media.aspect-fit {
   flex: 0 1 auto;
-  width: auto;
-  height: 100%;
+  width: min(
+    calc(100% - clamp(240px, 22vw, 300px) - 12px),
+    calc((90vh - 80px) * var(--lightbox-aspect-ratio, 1.5))
+  );
+  height: auto;
+  max-height: 100%;
+  align-self: center;
   aspect-ratio: var(--lightbox-aspect-ratio, 2 / 3);
   background: transparent;
 }
