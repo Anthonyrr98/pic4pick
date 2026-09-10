@@ -1,47 +1,53 @@
 # Pic4Pick · Light of Anthony
 
+**English** | [简体中文](./README.zh-CN.md)
+
 [![Deploy to GitHub Pages](https://github.com/Anthonyrr98/pic4pick/actions/workflows/deploy.yml/badge.svg)](https://github.com/Anthonyrr98/pic4pick/actions/workflows/deploy.yml)
 [![Supabase Keepalive](https://github.com/Anthonyrr98/pic4pick/actions/workflows/supabase-keepalive.yml/badge.svg)](https://github.com/Anthonyrr98/pic4pick/actions/workflows/supabase-keepalive.yml)
 [![React](https://img.shields.io/badge/React-19-149ECA?logo=react&logoColor=white)](https://react.dev/)
 [![Supabase](https://img.shields.io/badge/Supabase-Postgres-3FCF8E?logo=supabase&logoColor=white)](https://supabase.com/)
 
-Pic4Pick 是 **Light of Anthony** 的开源摄影作品集与内容管理系统。项目提供响应式图库、高清灯箱、地理位置探索、EXIF 信息展示和受保护的管理后台，并将公开数据、管理操作和图片存储分离部署。
+Pic4Pick is the open-source photography portfolio and content management system
+behind **Light of Anthony**. It combines a responsive gallery, high-resolution
+lightbox, geographic exploration, EXIF presentation, and a protected admin
+workflow while keeping public data, privileged operations, and image storage
+separated.
 
-**在线访问：** [https://pic.rlzhao.com](https://pic.rlzhao.com)
+**Live site:** [https://pic.rlzhao.com](https://pic.rlzhao.com)
 
 ![Light of Anthony](https://pic.rlzhao.com/og-image.png)
 
-## 功能特性
+## Features
 
-- 响应式摄影图库，适配桌面、iPad 和手机
-- 按精选、时间、距离、胶片等维度筛选作品
-- 保留原始宽高比的高清灯箱预览
-- 支持键盘、触摸滑动和无障碍对话框操作
-- 地图与地理位置探索视图
-- EXIF、拍摄日期、器材和胶片信息展示
-- 管理员登录、作品上传、审核、编辑和删除
-- 支持最大 100 MB 的原图上传
-- 上传时生成最长边 2000 px、JPEG 质量 90 的高清预览
-- 原图与预览图分别存储在阿里云 OSS
-- Supabase Row Level Security（RLS）与服务端管理 API
-- 点赞原子更新、接口限流和基础安全响应头
-- GitHub Pages 与 Render 自动部署
+- Responsive photography gallery for desktop, iPad, and mobile
+- Featured, chronological, distance-based, and film-based filters
+- High-resolution lightbox that preserves each photograph's aspect ratio
+- Keyboard navigation, touch gestures, and accessible modal behavior
+- Map-based geographic exploration
+- EXIF, capture date, camera, lens, and film stock presentation
+- Protected admin login, upload, review, edit, and delete workflows
+- Original image uploads up to 100 MB
+- Automatic 2,000 px, quality-90 JPEG lightbox previews during upload
+- Separate Aliyun OSS storage for originals and previews
+- Supabase Row Level Security and server-side administration APIs
+- Atomic like updates, API rate limiting, and security response headers
+- Automatic deployment to GitHub Pages and Render
 
-## 技术栈
+## Technology Stack
 
-| 层级 | 技术 |
+| Layer | Technology |
 | --- | --- |
-| 前端 | React 19、Vite 7、React Router、i18next |
-| 地图 | MapLibre GL、高德地图 Web API |
-| 图片元数据 | exifr |
-| 数据库 | Supabase Postgres、PostgREST、RLS |
-| 后端 | Node.js、Express 5、Sharp、Multer、JWT |
-| 图片存储 | 阿里云 OSS |
-| 前端托管 | GitHub Pages |
-| 后端托管 | Render |
-| 自动化 | GitHub Actions、Playwright、ESLint |
+| Frontend | React 19, Vite 7, React Router, i18next |
+| Maps | MapLibre GL, AMap Web API |
+| Image metadata | exifr |
+| Database | Supabase Postgres, PostgREST, RLS |
+| Backend | Node.js, Express 5, Sharp, Multer, JWT |
+| Image storage | Aliyun OSS |
+| Frontend hosting | GitHub Pages |
+| Backend hosting | Render |
+| Automation | GitHub Actions, Playwright, ESLint |
 
-## 系统架构
+## Architecture
 
 ```text
 Browser
@@ -51,85 +57,87 @@ Browser
   │    └─ Supabase service role ─ protected database operations
   └─ Aliyun OSS
        ├─ origin/YYYY/MM/DD/ ── original files
-       └─ ore/hd/YYYY/MM/DD/ ── 2000 px lightbox previews
+       └─ ore/hd/YYYY/MM/DD/ ── 2,000 px lightbox previews
 ```
 
-公开页面使用 Supabase publishable/anon key 读取已审核且未隐藏的作品。
-所有管理写操作均通过 Render 后端完成，`SUPABASE_SERVICE_ROLE_KEY`
-和阿里云 OSS AccessKey 不会发送到浏览器。
+The public application uses a Supabase publishable/anon key to read approved,
+visible photographs. Every privileged write is routed through the Render API.
+The `SUPABASE_SERVICE_ROLE_KEY` and Aliyun OSS credentials never reach the
+browser.
 
-## 目录结构
+## Repository Structure
 
 ```text
 .
-├─ .github/workflows/       # GitHub Pages 部署与 Supabase 定时访问
-├─ public/                  # 静态资源、站点图标与社交分享图片
-├─ scripts/                 # UI 与兼容性回归测试
-├─ server/                  # Express API、图片处理与 OSS 上传
+├─ .github/workflows/       # GitHub Pages deployment and Supabase keepalive
+├─ public/                  # Static assets, icons, and social preview images
+├─ scripts/                 # UI and compatibility regression tests
+├─ server/                  # Express API, image processing, and OSS uploads
 ├─ src/
-│  ├─ components/           # 通用界面组件
-│  ├─ hooks/                # 上传、地图、品牌等业务 hooks
-│  ├─ pages/                # 图库与管理后台
-│  └─ utils/                # 认证、Supabase、存储与安全工具
+│  ├─ components/           # Shared UI components
+│  ├─ hooks/                # Upload, map, and branding hooks
+│  ├─ pages/                # Gallery and admin application
+│  └─ utils/                # Auth, Supabase, storage, and security utilities
 ├─ supabase/
-│  ├─ functions/            # 可选 Edge Functions
-│  └─ migrations/           # 数据库迁移与 RLS 策略
+│  ├─ functions/            # Optional Edge Functions
+│  └─ migrations/           # Database migrations and RLS policies
 ├─ render.yaml              # Render Blueprint
-└─ vite.config.js           # Vite 构建与本地代理
+└─ vite.config.js           # Vite build and development proxies
 ```
 
-## 环境要求
+## Requirements
 
-- Node.js 20 或更高版本
-- npm 10 或更高版本
-- 一个 Supabase 项目
-- 一个阿里云 OSS Bucket
-- 可选：Supabase CLI，用于数据库迁移和 Advisors
+- Node.js 20 or newer
+- npm 10 or newer
+- A Supabase project
+- An Aliyun OSS bucket
+- Optional: Supabase CLI for migrations and database advisors
 
-## 本地开发
+## Local Development
 
-### 1. 克隆仓库
+### 1. Clone the repository
 
 ```bash
 git clone https://github.com/Anthonyrr98/pic4pick.git
 cd pic4pick
 ```
 
-### 2. 安装前端依赖
+### 2. Install frontend dependencies
 
 ```bash
 npm ci
 ```
 
-### 3. 配置前端环境变量
+### 3. Configure frontend environment variables
 
-在项目根目录创建 `.env.local`：
+Create `.env.local` in the repository root:
 
 ```dotenv
 VITE_SUPABASE_URL=https://your-project.supabase.co
 VITE_SUPABASE_ANON_KEY=your-publishable-or-anon-key
 VITE_API_BASE_URL=http://localhost:3002
 
-# 地图功能需要时配置
+# Required only when map features are enabled
 VITE_AMAP_KEY=
 VITE_AMAP_WEB_KEY=
 VITE_AMAP_SECURITY_JS_CODE=
 VITE_AMAP_WEB_SERVICE_KEY=
 
-# OSS 图片无法直接访问时可启用后端媒体代理
+# Enable only when OSS media must be proxied through the backend
 VITE_USE_OSS_MEDIA_PROXY=false
 ```
 
-> `VITE_*` 变量会被编译进浏览器代码。不要在其中放置 Supabase `service_role`、数据库密码或 OSS AccessKey Secret。
+> Variables prefixed with `VITE_` are compiled into browser code. Never place a
+> Supabase service-role key, database password, or OSS AccessKey secret in them.
 
-### 4. 配置后端
+### 4. Configure the backend
 
 ```bash
 cd server
 npm ci
 ```
 
-复制 `server/.env.example` 为 `server/.env`，然后填写真实配置：
+Copy `server/.env.example` to `server/.env`, then supply real credentials:
 
 ```dotenv
 PORT=3002
@@ -149,11 +157,13 @@ ALIYUN_OSS_ACCESS_KEY_ID=your-access-key-id
 ALIYUN_OSS_ACCESS_KEY_SECRET=your-access-key-secret
 ```
 
-生产环境会拒绝默认管理员凭据、少于 32 位的 JWT Secret、少于 12 位的管理员密码以及通配符 CORS。
+Production startup rejects default admin credentials, JWT secrets shorter than
+32 characters, admin passwords shorter than 12 characters, and wildcard CORS
+origins.
 
-### 5. 启动开发服务
+### 5. Start the development services
 
-在两个终端中分别运行：
+Run the frontend and backend in separate terminals:
 
 ```bash
 # Terminal 1: frontend
@@ -165,14 +175,17 @@ npm run dev
 npm run server
 ```
 
-打开 [http://localhost:5173](http://localhost:5173)。管理后台位于 [http://localhost:5173/#/admin](http://localhost:5173/#/admin)。
+Open [http://localhost:5173](http://localhost:5173). The admin application is
+available at
+[http://localhost:5173/#/admin](http://localhost:5173/#/admin).
 
-## 数据库配置
+## Database Setup
 
-完整基础结构位于
-[`docs/schema_domestic_postgres.sql`](./docs/schema_domestic_postgres.sql)，后续变更位于
-[`supabase/migrations`](./supabase/migrations)。首次部署时先执行基础结构，
-再按文件名顺序执行迁移，并确认所有公开 schema 表都启用了 RLS。
+The complete base schema is stored in
+[`docs/schema_domestic_postgres.sql`](./docs/schema_domestic_postgres.sql).
+Subsequent changes live in [`supabase/migrations`](./supabase/migrations).
+For a new deployment, apply the base schema first and then execute the migration
+files in filename order.
 
 ```bash
 npx supabase login
@@ -181,59 +194,61 @@ npx supabase db query --linked --file docs/schema_domestic_postgres.sql
 npx supabase db query --linked --file supabase/migrations/<migration-file>.sql
 ```
 
-对每个迁移文件重复最后一条命令。当前仓库的早期迁移沿用了日期前缀，
-尚未形成完整的 Supabase migration history；在整理历史版本之前，
-不建议直接对新数据库运行 `supabase db push`。
+Repeat the final command for every migration file. Earlier migrations in this
+repository reuse date-only prefixes and do not yet form a complete Supabase
+migration history. Do not run `supabase db push` against a fresh database until
+that history has been normalized.
 
-应用迁移后运行安全和性能检查：
+Run Supabase security and performance checks after applying migrations:
 
 ```bash
 npx supabase db advisors --linked --type security
 npx supabase db advisors --linked --type performance
 ```
 
-当前权限模型：
+The current permission model is:
 
-- `anon`：只读公开、已审核且未隐藏的照片及公开品牌配置
-- `authenticated`：不获得管理写权限
-- `service_role`：仅在后端使用，执行管理写操作与原子点赞函数
+- `anon`: read-only access to approved public photographs and public branding
+- `authenticated`: no administrative write permissions
+- `service_role`: backend-only writes and atomic like updates
 
-## 图片上传流程
+## Image Upload Pipeline
 
-1. 管理员通过后端 API 登录并获取短期 JWT。
-2. 浏览器以 `multipart/form-data` 将原图发送到 `/api/upload/oss`。
-3. 后端验证 JWT、文件类型和 100 MB 大小限制。
-4. 原始字节上传到 `origin/YYYY/MM/DD/`。
-5. Sharp 根据 EXIF 方向旋转，并生成最长边 2000 px 的 JPEG 高清预览。
-6. 预览图上传到 `ore/hd/YYYY/MM/DD/`。
-7. 后端使用 Supabase `service_role` 保存作品记录。
+1. An administrator signs in through the backend and receives a JWT.
+2. The browser sends the original file to `/api/upload/oss` as multipart data.
+3. The backend validates the JWT, file type, and 100 MB size limit.
+4. Original bytes are uploaded to `origin/YYYY/MM/DD/`.
+5. Sharp applies EXIF orientation and creates a 2,000 px JPEG preview.
+6. The preview is uploaded to `ore/hd/YYYY/MM/DD/`.
+7. The backend writes the photograph record through the Supabase service role.
 
-原图不会因生成预览而被重新编码。“下载原图”始终指向保留的原始文件。
+The original file is never re-encoded to produce the preview. The **Download
+original** action always resolves to the preserved source file.
 
-## 可用命令
+## Available Commands
 
-### 前端
+### Frontend
 
-| 命令 | 说明 |
+| Command | Description |
 | --- | --- |
-| `npm run dev` | 启动 Vite 开发服务器 |
-| `npm run build` | 生成生产构建 |
-| `npm run preview` | 本地预览生产构建 |
-| `npm run lint` | 运行 ESLint |
-| `npm run test:ui` | 运行 Playwright UI 回归 |
-| `npm run server` | 从根目录启动后端开发服务 |
+| `npm run dev` | Start the Vite development server |
+| `npm run build` | Create a production build |
+| `npm run preview` | Preview the production build locally |
+| `npm run lint` | Run ESLint |
+| `npm run test:ui` | Run Playwright UI regression tests |
+| `npm run server` | Start the backend in development mode |
 
-### 后端
+### Backend
 
-| 命令 | 说明 |
+| Command | Description |
 | --- | --- |
-| `npm start` | 启动生产服务器 |
-| `npm run dev` | 使用 watch 模式启动服务器 |
-| `npm run previews:rebuild` | 为历史 OSS 原图重建高清预览 |
+| `npm start` | Start the production server |
+| `npm run dev` | Start the server in watch mode |
+| `npm run previews:rebuild` | Rebuild HD previews for historical OSS files |
 
-## 测试与质量检查
+## Testing and Quality Checks
 
-提交前建议运行：
+Run the following checks before submitting changes:
 
 ```bash
 npm run lint
@@ -243,27 +258,31 @@ npm audit --omit=dev
 npm --prefix server audit --omit=dev
 ```
 
-UI 回归覆盖图库加载、键盘灯箱、横竖图比例、iPad 布局、手机双列布局、地图切换和后台登录页。
+The UI suite covers gallery loading, keyboard lightbox controls, landscape and
+portrait ratios, iPad layout, the mobile two-column grid, map transitions, and
+the admin login page.
 
-## 部署
+## Deployment
 
-### 前端：GitHub Pages
+### Frontend: GitHub Pages
 
-推送到 `main` 后，
-[`.github/workflows/deploy.yml`](./.github/workflows/deploy.yml)
-会自动安装依赖、构建并发布 `dist`。在 GitHub Actions Secrets 中配置以下变量：
+Every push to `main` triggers
+[`.github/workflows/deploy.yml`](./.github/workflows/deploy.yml), which installs
+dependencies, builds the application, and publishes `dist`. Configure these
+GitHub Actions secrets:
 
 - `VITE_SUPABASE_URL`
 - `VITE_SUPABASE_ANON_KEY`
 - `VITE_API_BASE_URL`
-- 地图功能所需的 `VITE_AMAP_*`
-- 可选的 `VITE_USE_OSS_MEDIA_PROXY`
+- The required `VITE_AMAP_*` map credentials
+- Optional: `VITE_USE_OSS_MEDIA_PROXY`
 
-自定义域名由 [`public/CNAME`](./public/CNAME) 管理。
+The custom domain is configured by [`public/CNAME`](./public/CNAME).
 
-### 后端：Render
+### Backend: Render
 
-[`render.yaml`](./render.yaml) 定义了后端服务、健康检查和非敏感配置。以下敏感变量必须在 Render Dashboard 中设置：
+[`render.yaml`](./render.yaml) defines the service, health check, and
+non-sensitive configuration. Configure these secrets in the Render Dashboard:
 
 - `ADMIN_USERNAME`
 - `ADMIN_PASSWORD`
@@ -273,51 +292,60 @@ UI 回归覆盖图库加载、键盘灯箱、横竖图比例、iPad 布局、手
 - `ALIYUN_OSS_ACCESS_KEY_ID`
 - `ALIYUN_OSS_ACCESS_KEY_SECRET`
 
-Render 使用 `/api/health` 进行健康检查，并在 `main` 更新后自动部署。
+Render checks `/api/health` and automatically deploys updates from `main`.
 
-## Supabase 免费项目定时访问
+## Supabase Free-Project Keepalive
 
-[`supabase-keepalive.yml`](./.github/workflows/supabase-keepalive.yml)
-每天三次读取公开表，用于维持正常的应用访问并尽早发现 Supabase 连接故障。
-该工作流也支持在 GitHub Actions 中手动运行。
+[`supabase-keepalive.yml`](./.github/workflows/supabase-keepalive.yml) reads a
+small sample from the public tables three times per day. This maintains normal
+application traffic and provides an early signal when the Supabase connection
+fails. The workflow can also be run manually from GitHub Actions.
 
-这项任务不能替代监控或付费可用性保证；对于需要稳定在线、备份或生产 SLA 的站点，应使用合适的付费方案。
+This workflow is not a substitute for monitoring, backups, or a paid uptime
+guarantee. Use an appropriate paid plan when stable production availability or
+an SLA is required.
 
-## 安全设计
+## Security
 
-- 所有 Supabase 公开表均使用 RLS 和最小权限授权
-- 管理写操作只允许通过受 JWT 保护的后端 API
-- `service_role` 与 OSS Secret 只保存在后端环境变量中
-- 登录和点赞接口具有请求限流
-- 数据库使用原子函数更新点赞，避免并发覆盖
-- 上传文件验证扩展名、MIME 类型和大小
-- OSS 删除路径和管理查询字段均经过白名单校验
-- 后端启用 HSTS、CSP、防 MIME 嗅探、防 iframe 嵌入等响应头
-- 前端配置基础 CSP 与严格 Referrer Policy
-- 生产环境 CORS 只允许明确配置的站点来源
+- All public Supabase tables use RLS and least-privilege grants
+- Administrative writes are routed through the JWT-protected backend
+- Supabase service-role and OSS secrets remain in backend environment variables
+- Login and like endpoints are rate-limited
+- Likes use an atomic database function to avoid concurrent overwrites
+- Uploads validate file extensions, MIME types, and size
+- OSS deletion paths and admin query fields use allowlist validation
+- The backend sends HSTS, CSP, anti-sniffing, and anti-framing headers
+- The frontend defines a baseline CSP and strict referrer policy
+- Production CORS accepts only an explicitly configured site origin
 
-发现安全问题时，请不要创建包含利用细节、密钥或用户数据的公开 Issue。请通过仓库所有者的 GitHub 主页私下联系，并在确认修复后再公开讨论。
+Do not open a public Issue containing exploit details, credentials, or user data.
+Report security concerns privately through the repository owner's GitHub profile
+and allow time for a fix before public disclosure.
 
-## 运维建议
+## Operations
 
-- 定期检查 GitHub Actions 和 Render 部署状态
-- 定期运行 Supabase Security Advisor 与 Performance Advisor
-- 定期轮换管理员密码、JWT Secret、Supabase service role 和 OSS AccessKey
-- 保留数据库导出和 OSS 对象清单；Supabase 数据库备份不包含外部 OSS 文件
-- 更新依赖后运行完整 UI 回归和 `npm audit`
-- 修改图片预览规格后，为历史文件运行 `npm run previews:rebuild`
+- Review GitHub Actions and Render deployment status regularly
+- Run Supabase Security Advisor and Performance Advisor regularly
+- Rotate admin credentials, JWT secrets, service-role keys, and OSS keys
+- Keep database exports and OSS object inventories; database backups do not
+  include external OSS files
+- Run the full UI suite and `npm audit` after dependency updates
+- Run `npm run previews:rebuild` after changing preview specifications
 
-## 贡献
+## Contributing
 
-1. Fork 本仓库并创建功能分支。
-2. 保持改动范围清晰，避免提交 `.env`、密钥、构建产物或个人数据。
-3. 运行 lint、build 和 UI 回归。
-4. 提交 Pull Request，并说明改动目的、验证方式和界面截图（如适用）。
+1. Fork the repository and create a focused feature branch.
+2. Do not commit `.env` files, credentials, build artifacts, or personal data.
+3. Run lint, build, and UI regression checks.
+4. Open a Pull Request describing the purpose, verification, and screenshots
+   when applicable.
 
-## 许可证
+## License
 
-本仓库当前未声明开源许可证。除非仓库所有者另行授权，否则保留所有权利。公开可见不等同于允许复制、修改或再分发。
+This repository does not currently declare an open-source license. Unless the
+owner grants additional permission, all rights are reserved. Public visibility
+does not imply permission to copy, modify, or redistribute the source.
 
-## 维护者
+## Maintainer
 
 Maintained by [Anthonyrr98](https://github.com/Anthonyrr98).
