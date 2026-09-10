@@ -188,6 +188,7 @@ export function GalleryPage() {
   const metaPopoverRef = useRef(null);
   const [showMobileMeta, setShowMobileMeta] = useState(false);
   const [isLightboxPortrait, setIsLightboxPortrait] = useState(false);
+  const [lightboxAspectRatio, setLightboxAspectRatio] = useState(null);
   const [lightboxPreviewFailed, setLightboxPreviewFailed] = useState(false);
   const lightboxPointerRef = useRef(null);
   const lightboxRef = useRef(null);
@@ -354,6 +355,7 @@ export function GalleryPage() {
     lightboxReturnFocusRef.current = document.activeElement;
     setMetaPopover(null);
     setShowMobileMeta(false);
+    setLightboxAspectRatio(null);
     setLightboxPhoto(photo);
   }, []);
 
@@ -371,6 +373,7 @@ export function GalleryPage() {
     if (!nextPhoto) return;
     setMetaPopover(null);
     setShowMobileMeta(false);
+    setLightboxAspectRatio(null);
     setLightboxPhoto(nextPhoto);
   }, [canNavigateLightbox, lightboxIndex, lightboxSequence]);
 
@@ -922,6 +925,7 @@ export function GalleryPage() {
           )}
           <div className={`lightbox-content-wrapper ${showMobileMeta ? 'meta-visible' : ''}`}>
             <div className={`lightbox-media ${isLightboxPortrait ? 'portrait-fit' : ''}`}
+              style={lightboxAspectRatio ? { '--lightbox-aspect-ratio': lightboxAspectRatio } : undefined}
               onPointerDown={handleLightboxPointerDown}
               onPointerUp={handleLightboxPointerUp}
               onPointerCancel={handleLightboxPointerCancel}>
@@ -940,6 +944,7 @@ export function GalleryPage() {
                     const img = e.currentTarget;
                     delete img.dataset.previewFallbackIndex;
                     setIsLightboxPortrait(img.naturalHeight > img.naturalWidth);
+                    setLightboxAspectRatio(img.naturalWidth / img.naturalHeight);
                   }}
                   onError={(e) => {
                     const img = e.currentTarget;

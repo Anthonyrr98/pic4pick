@@ -2760,6 +2760,7 @@ main {
   display: flex;
   gap: 12px;
   align-items: stretch;
+  justify-content: center;
   flex: 1;
   min-height: 0;
 }
@@ -2770,12 +2771,13 @@ main {
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.35), 0 4px 16px rgba(0, 0, 0, 0.2);
   flex-shrink: 0;
   margin-bottom: 0;
-  background: transparent;
+  background: rgba(12, 14, 18, 0.92);
   flex: 1 1 auto;
   min-width: 0;
   min-height: 0;
   display: flex;
-  align-items: stretch;
+  align-items: center;
+  justify-content: center;
   line-height: 0;
   touch-action: pan-y;
   transition: transform 0.3s ease;
@@ -2790,7 +2792,7 @@ main {
   height: 100%;
   display: block;
   max-height: 100%;
-  object-fit: cover;
+  object-fit: contain;
   border-radius: 24px;
   margin: 0 auto;
 }
@@ -2810,7 +2812,15 @@ main {
 }
 
 .lightbox-media.portrait-fit img {
-  object-fit: cover;
+  object-fit: contain;
+  background: transparent;
+}
+
+.lightbox-media.portrait-fit {
+  flex: 0 1 auto;
+  width: auto;
+  height: 100%;
+  aspect-ratio: var(--lightbox-aspect-ratio, 2 / 3);
   background: transparent;
 }
 

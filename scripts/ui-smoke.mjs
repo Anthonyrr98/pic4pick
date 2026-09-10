@@ -34,6 +34,16 @@ try {
   if (/\/ore\/(?!hd\/)/i.test(lightboxCurrentSrc)) {
     throw new Error('Lightbox is upscaling the stored thumbnail instead of using the original image');
   }
+  const lightboxObjectFit = await dialog.locator('.lightbox-media img').evaluate(
+    (image) => getComputedStyle(image).objectFit
+  );
+  if (lightboxObjectFit !== 'contain') {
+    throw new Error('Lightbox image is cropped instead of preserving the original composition');
+  }
+  if (artifactDir) {
+    await mkdir(artifactDir, { recursive: true });
+    await page.screenshot({ path: path.join(artifactDir, 'lightbox-desktop.png'), fullPage: true });
+  }
   await page.keyboard.press('Escape');
   await dialog.waitFor({ state: 'hidden' });
 
