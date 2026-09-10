@@ -9,6 +9,7 @@ import OSS from 'ali-oss';
 import dotenv from 'dotenv';
 import winston from 'winston';
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -43,6 +44,9 @@ if (process.env.NODE_ENV === 'production') {
   if (!process.env.ADMIN_PASSWORD || ADMIN_PASSWORD === DEFAULT_ADMIN_PASSWORD || ADMIN_PASSWORD.length < 12) {
     throw new Error('生产环境必须配置长度至少 12 位的非默认 ADMIN_PASSWORD');
   }
+  if (!process.env.CORS_ORIGIN || process.env.CORS_ORIGIN === '*') {
+    throw new Error('生产环境必须配置明确的 CORS_ORIGIN，不能使用通配符');
+  }
 }
 
 // 设置服务器级别的超时（10分钟，适合大文件上传）
@@ -68,9 +72,24 @@ if (process.env.NODE_ENV !== 'production') {
 }
 
 // 中间件
-// 配置 CORS，允许所有来源（生产环境建议限制特定域名）
+app.disable('x-powered-by');
+app.set('trust proxy', 1);
+
+app.use((_req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(self)');
+  res.setHeader('Content-Security-Policy', "frame-ancestors 'none'; object-src 'none'; base-uri 'self'");
+  if (process.env.NODE_ENV === 'production') {
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  }
+  next();
+});
+
+const configuredCorsOrigin = process.env.CORS_ORIGIN || 'http://localhost:5173';
 const corsOptions = {
-  origin: process.env.CORS_ORIGIN || '*',
+  origin: configuredCorsOrigin,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
   credentials: true,
@@ -81,10 +100,42 @@ const corsOptions = {
 app.use(cors(corsOptions));
 
 // 处理预检请求
-app.options('*', cors(corsOptions));
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+const createMemoryRateLimiter = ({ windowMs, max, key = (req) => req.ip }) => {
+  const buckets = new Map();
+  return (req, res, next) => {
+    const now = Date.now();
+    const bucketKey = key(req);
+    const current = buckets.get(bucketKey);
+    const bucket = !current || current.resetAt <= now
+      ? { count: 0, resetAt: now + windowMs }
+      : current;
+    bucket.count += 1;
+    buckets.set(bucketKey, bucket);
+    res.setHeader('RateLimit-Limit', String(max));
+    res.setHeader('RateLimit-Remaining', String(Math.max(0, max - bucket.count)));
+    res.setHeader('RateLimit-Reset', String(Math.ceil(bucket.resetAt / 1000)));
+    if (bucket.count > max) {
+      res.setHeader('Retry-After', String(Math.ceil((bucket.resetAt - now) / 1000)));
+      return res.status(429).json({ error: '请求过于频繁，请稍后再试' });
+    }
+    if (buckets.size > 5000) {
+      for (const [entryKey, entry] of buckets) {
+        if (entry.resetAt <= now) buckets.delete(entryKey);
+      }
+    }
+    next();
+  };
+};
+
+const loginRateLimit = createMemoryRateLimiter({ windowMs: 15 * 60 * 1000, max: 8 });
+const likeRateLimit = createMemoryRateLimiter({
+  windowMs: 60 * 1000,
+  max: 30,
+  key: (req) => `${req.ip}:${req.params.id || 'unknown'}`,
+});
 
 // 配置上传目录
 const UPLOAD_DIR = path.join(__dirname, 'uploads', 'pic4pick');
@@ -217,7 +268,10 @@ app.post('/api/upload', authenticateToken, requireAdmin, upload.single('file'), 
 // 删除图片
 app.delete('/api/upload/:filename', authenticateToken, requireAdmin, (req, res) => {
   try {
-    const filename = req.params.filename;
+    const filename = path.basename(String(req.params.filename || '')).replace(/[^a-zA-Z0-9._-]/g, '_');
+    if (!filename || filename === '.' || filename === '..') {
+      return res.status(400).json({ error: '文件名无效' });
+    }
     const filePath = path.join(UPLOAD_DIR, filename);
     const optimizedPath = path.join(PUBLIC_DIR, filename);
 
@@ -235,7 +289,7 @@ app.delete('/api/upload/:filename', authenticateToken, requireAdmin, (req, res) 
 });
 
 // 获取所有图片列表
-app.get('/api/images', (req, res) => {
+app.get('/api/images', authenticateToken, requireAdmin, (req, res) => {
   try {
     const files = fs.readdirSync(UPLOAD_DIR);
     const images = files
@@ -425,36 +479,22 @@ app.get('/api/media/proxy', async (req, res) => {
   }
 });
 
-app.patch('/api/photos/:id/likes', async (req, res) => {
+app.patch('/api/photos/:id/likes', likeRateLimit, async (req, res) => {
   try {
     const delta = Number(req.body?.delta);
     if (![-1, 1].includes(delta)) {
       return res.status(400).json({ error: 'delta 只能是 1 或 -1' });
     }
 
-    const currentRows = await supabaseAdminFetch('photos', new URLSearchParams({
-      select: 'id,likes',
-      id: `eq.${req.params.id}`,
-      status: 'eq.approved',
-      hidden: 'eq.false',
-      limit: '1',
-    }));
-    const current = Array.isArray(currentRows) ? currentRows[0] : null;
-    if (!current) {
+    const updated = await supabaseAdminFetch('rpc/update_public_photo_likes', new URLSearchParams(), {
+      method: 'POST',
+      body: { photo_id: req.params.id, like_delta: delta },
+    });
+    const result = Array.isArray(updated) ? updated[0] || null : updated;
+    if (!result) {
       return res.status(404).json({ error: '照片不存在或不可公开点赞' });
     }
-
-    const nextLikes = Math.max(0, Number(current.likes || 0) + delta);
-    const updated = await supabaseAdminFetch('photos', new URLSearchParams({
-      id: `eq.${req.params.id}`,
-      select: 'id,likes',
-    }), {
-      method: 'PATCH',
-      body: { likes: nextLikes },
-      prefer: 'return=representation',
-    });
-
-    res.json({ success: true, data: Array.isArray(updated) ? updated[0] || null : null });
+    res.json({ success: true, data: result });
   } catch (error) {
     sendSupabaseAdminError(res, error, '点赞更新失败');
   }
@@ -569,14 +609,20 @@ app.post('/api/upload/oss', authenticateToken, requireAdmin, upload.single('file
 });
 
 // 从 OSS 删除文件
-app.delete('/api/upload/oss/:filename(*)', authenticateToken, requireAdmin, async (req, res) => {
+app.delete('/api/upload/oss/*filename', authenticateToken, requireAdmin, async (req, res) => {
   try {
     if (!ossClient) {
       return res.status(500).json({ error: 'OSS 客户端未配置' });
     }
 
     // filename 可能包含路径，例如 "origin/filename.jpg" 或 "ore/filename.jpg"
-    const filename = req.params.filename;
+    const rawFilename = Array.isArray(req.params.filename)
+      ? req.params.filename.join('/')
+      : req.params.filename;
+    const filename = String(rawFilename || '').replace(/\\/g, '/').replace(/^\/+/, '');
+    if (!filename || filename.split('/').includes('..') || (filename.includes('/') && !OSS_OBJECT_KEY_PREFIX_RE.test(filename))) {
+      return res.status(400).json({ error: 'OSS 对象路径无效' });
+    }
     logger.info('收到删除请求，filename:', filename);
     
     // 构建 objectKey
@@ -649,34 +695,8 @@ app.delete('/api/upload/oss/:filename(*)', authenticateToken, requireAdmin, asyn
 
 // === 认证 API ===
 
-// 用户注册
-app.post('/api/auth/register', async (req, res) => {
-  try {
-    const { username, password } = req.body;
-
-    if (!username || !password) {
-      return res.status(400).json({ error: '用户名和密码不能为空' });
-    }
-
-    if (password.length < 6) {
-      return res.status(400).json({ error: '密码长度至少6位' });
-    }
-
-    logger.info(`User registered: ${username}`);
-
-    res.json({
-      success: true,
-      message: '注册成功',
-      username
-    });
-  } catch (error) {
-    logger.error(`Registration error: ${error.message}`);
-    res.status(500).json({ error: '注册失败' });
-  }
-});
-
 // 用户登录
-app.post('/api/auth/login', async (req, res) => {
+app.post('/api/auth/login', loginRateLimit, async (req, res) => {
   try {
     const { username, password } = req.body;
 
@@ -684,8 +704,13 @@ app.post('/api/auth/login', async (req, res) => {
       return res.status(400).json({ error: '用户名和密码不能为空' });
     }
 
-    const isValidUsername = username === ADMIN_USERNAME;
-    const isValidPassword = password === ADMIN_PASSWORD;
+    const safeEqual = (left, right) => {
+      const leftHash = crypto.createHash('sha256').update(String(left)).digest();
+      const rightHash = crypto.createHash('sha256').update(String(right)).digest();
+      return crypto.timingSafeEqual(leftHash, rightHash);
+    };
+    const isValidUsername = safeEqual(username, ADMIN_USERNAME);
+    const isValidPassword = safeEqual(password, ADMIN_PASSWORD);
 
     if (!isValidUsername || !isValidPassword) {
       logger.warn(`Login failed for username: ${username}`);
@@ -744,8 +769,15 @@ app.get('/api/admin/photos', authenticateToken, requireAdmin, async (req, res) =
 
 app.get('/api/admin/photos/:id', authenticateToken, requireAdmin, async (req, res) => {
   try {
+    const requestedFields = typeof req.query.select === 'string'
+      ? req.query.select.split(',').map((field) => field.trim()).filter(Boolean)
+      : [];
+    const allowedFields = new Set(PHOTO_SELECT_FIELDS.split(','));
+    const select = requestedFields.length && requestedFields.every((field) => allowedFields.has(field))
+      ? requestedFields.join(',')
+      : PHOTO_SELECT_FIELDS;
     const params = new URLSearchParams({
-      select: typeof req.query.select === 'string' ? req.query.select : PHOTO_SELECT_FIELDS,
+      select,
       id: `eq.${req.params.id}`,
       limit: '1',
     });
@@ -912,7 +944,7 @@ if (process.env.NODE_ENV === 'production' || process.env.SERVE_STATIC === 'true'
   // 服务其他静态文件（如 favicon 等）
   app.use(express.static(DIST_DIR));
   // 所有非 API 路由都返回 index.html（用于 React Router）
-  app.get('*', (req, res, next) => {
+  app.get('/{*splat}', (req, res, next) => {
     if (!req.path.startsWith('/api') && !req.path.startsWith('/uploads')) {
       res.sendFile(path.join(DIST_DIR, 'index.html'));
     } else {
