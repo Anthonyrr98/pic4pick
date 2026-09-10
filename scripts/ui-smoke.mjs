@@ -109,6 +109,48 @@ try {
     await page.screenshot({ path: path.join(artifactDir, 'gallery-desktop.png'), fullPage: true });
   }
 
+  const tabletPage = await browser.newPage({ viewport: { width: 820, height: 1180 }, deviceScaleFactor: 1 });
+  tabletPage.on('pageerror', (error) => errors.push(error.message));
+  await tabletPage.goto(`${baseUrl}/`, { waitUntil: 'networkidle' });
+  await tabletPage.locator('.photo-card').first().waitFor({ state: 'visible' });
+  const tabletCards = tabletPage.locator('.photo-card');
+  let tabletLandscapeCard = tabletCards.first();
+  for (let index = 0; index < Math.min(await tabletCards.count(), 12); index += 1) {
+    const candidate = tabletCards.nth(index);
+    if (await candidate.locator('img').evaluate((image) => image.complete && image.naturalWidth > image.naturalHeight)) {
+      tabletLandscapeCard = candidate;
+      break;
+    }
+  }
+  await tabletLandscapeCard.click();
+  const tabletDialog = tabletPage.getByRole('dialog');
+  await tabletDialog.waitFor({ state: 'visible' });
+  await tabletPage.waitForFunction(() => {
+    const image = document.querySelector('.lightbox.active .lightbox-media img');
+    return image?.complete && image.naturalWidth > 0;
+  });
+  const tabletLayout = await tabletDialog.evaluate((element) => {
+    const wrapper = element.querySelector('.lightbox-content-wrapper');
+    const media = element.querySelector('.lightbox-media').getBoundingClientRect();
+    const meta = element.querySelector('.lightbox-meta').getBoundingClientRect();
+    const image = element.querySelector('.lightbox-media img');
+    return {
+      direction: getComputedStyle(wrapper).flexDirection,
+      mediaWidth: media.width,
+      metaWidth: meta.width,
+      frameRatio: media.width / media.height,
+      imageRatio: image.naturalWidth / image.naturalHeight,
+    };
+  });
+  if (tabletLayout.direction !== 'column') throw new Error('iPad portrait lightbox did not switch to a stacked layout');
+  if (tabletLayout.mediaWidth < tabletLayout.metaWidth * 0.9) throw new Error('iPad lightbox photograph is too small beside its metadata');
+  if (Math.abs(tabletLayout.frameRatio - tabletLayout.imageRatio) > 0.02) {
+    throw new Error('iPad lightbox frame does not preserve the original image ratio');
+  }
+  if (artifactDir) {
+    await tabletPage.screenshot({ path: path.join(artifactDir, 'lightbox-ipad.png'), fullPage: true });
+  }
+
   const mobilePage = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1 });
   mobilePage.on('pageerror', (error) => errors.push(error.message));
   await mobilePage.goto(`${baseUrl}/`, { waitUntil: 'networkidle' });
