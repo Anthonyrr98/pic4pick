@@ -298,8 +298,8 @@ export function GalleryPage() {
     : '';
   const lightboxFallbackUrls = lightboxPhoto
     ? [
-        getOriginalMediaUrl(lightboxPhoto),
         ...getPreviewMediaFallbackUrls(lightboxPhoto, LIGHTBOX_IMAGE_FALLBACKS),
+        getOriginalMediaUrl(lightboxPhoto),
       ].filter(Boolean)
     : [];
 

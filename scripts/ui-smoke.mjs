@@ -31,7 +31,7 @@ try {
     return image?.complete && image.naturalWidth >= image.clientWidth;
   }, undefined, { timeout: 20_000 });
   const lightboxCurrentSrc = await dialog.locator('.lightbox-media img').evaluate((image) => image.currentSrc);
-  if (/\/ore\//i.test(lightboxCurrentSrc)) {
+  if (/\/ore\/(?!hd\/)/i.test(lightboxCurrentSrc)) {
     throw new Error('Lightbox is upscaling the stored thumbnail instead of using the original image');
   }
   await page.keyboard.press('Escape');

@@ -203,6 +203,10 @@ export const getPreviewMediaUrl = (media, options = {}) => {
   // Large presentation surfaces must never upscale a stored thumbnail. Generate an
   // OSS derivative from the original when possible, or use the original URL as-is.
   if (options.preferOriginal && originalDirectUrl) {
+    if (/\/ore\/hd\//i.test(thumbnailDirectUrl)) {
+      const generatedHdPreviewUrl = buildOssImagePreviewUrl(thumbnailDirectUrl, options);
+      return resolveMediaUrl(generatedHdPreviewUrl || thumbnailDirectUrl);
+    }
     // Some legacy rows accidentally stored the `ore/` thumbnail in image_url. OSS
     // uploads keep the matching full-resolution object under the `origin/` path.
     const fullResolutionUrl = getLikelyOriginalMediaUrl(originalDirectUrl);
