@@ -169,8 +169,7 @@ location.reload();
 ### 3. 检查 OSS
 
 访问阿里云 OSS 控制台：
-- 确认文件已上传到 `origin/YYYY/MM/DD/` 目录
-- 确认缩略图已上传到 `ore/YYYY/MM/DD/` 目录
+- 确认原图已上传到 `origin/YYYY/MM/DD/`，2000px 高清预览已上传到 `ore/hd/YYYY/MM/DD/`
 
 ### 4. 检查数据库
 

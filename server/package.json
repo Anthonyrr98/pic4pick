@@ -6,7 +6,8 @@
   "main": "server-enhanced.js",
   "scripts": {
     "start": "node server-enhanced.js",
-    "dev": "node --watch server-enhanced.js"
+    "dev": "node --watch server-enhanced.js",
+    "previews:rebuild": "node scripts/rebuild-oss-previews.mjs"
   },
   "dependencies": {
     "ali-oss": "6.23.0",

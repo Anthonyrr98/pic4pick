@@ -50,7 +50,7 @@ const FILM_STOCK_OPTIONS = [
   'Cinestill 800T',
 ];
 
-const MAX_UPLOAD_FILE_SIZE = 50 * 1024 * 1024;
+const MAX_UPLOAD_FILE_SIZE = 100 * 1024 * 1024;
 const OPTIMIZE_UPLOAD_THRESHOLD = 6 * 1024 * 1024;
 const UPLOAD_OPTIMIZE_OPTIONS = { maxWidth: 2560, maxHeight: 2560, quality: 0.88 };
 const SUPPORTED_UPLOAD_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
@@ -1123,7 +1123,11 @@ export function AdminPage() {
     }
 
     setSubmitMessage({ type: 'info', text: '正在检查照片...' });
-    const { file: uploadFile, optimized } = await maybeOptimizeUploadFile(file);
+    // OSS keeps the byte-for-byte original; its backend creates the 2000px lightbox preview.
+    const shouldPreserveOriginal = uploadType === UPLOAD_TYPES.ALIYUN_OSS;
+    const { file: uploadFile, optimized } = shouldPreserveOriginal
+      ? { file, optimized: false }
+      : await maybeOptimizeUploadFile(file);
     const fileMeta = {
       name: file.name,
       originalSize: file.size,
@@ -2714,7 +2718,7 @@ export function AdminPage() {
                             </svg>
                         </div>
                           <p className="dropzone-text">点击或拖拽上传照片</p>
-                          <p className="dropzone-hint">支持 JPG、PNG、WEBP，单张不超过 50MB</p>
+                          <p className="dropzone-hint">支持 JPG、PNG、WEBP，原图最大 100MB；自动生成 2000px 高清预览</p>
                           </div>
                         )}
                     </label>

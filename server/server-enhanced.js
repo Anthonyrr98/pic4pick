@@ -125,12 +125,12 @@ const fileFilter = (req, file, cb) => {
   }
 };
 
-// 配置 multer，设置合理的文件大小限制（50MB）
+// 原图可超过 OSS 20MB 图片处理上限；高清预览由本服务使用 Sharp 生成。
 const upload = multer({
   storage: storage,
   fileFilter: fileFilter,
   limits: {
-    fileSize: 50 * 1024 * 1024, // 50MB
+    fileSize: 100 * 1024 * 1024, // 100MB
     fieldSize: 10 * 1024 * 1024, // 10MB for other fields
   },
 });
@@ -181,7 +181,11 @@ app.post('/api/upload', authenticateToken, requireAdmin, upload.single('file'), 
     }
 
     const file = req.file;
-    const filename = req.body.filename || file.filename;
+    const requestedFilename = String(req.body.filename || file.filename);
+    const filename = path.basename(requestedFilename).replace(/[^a-zA-Z0-9._-]/g, '_');
+    if (!filename) {
+      return res.status(400).json({ error: '文件名无效' });
+    }
     let processedFilename = filename;
     if (req.body.optimize === 'true') {
       const optimizedPath = path.join(PUBLIC_DIR, `optimized-${filename}`);
@@ -475,31 +479,21 @@ app.post('/api/upload/oss', authenticateToken, requireAdmin, upload.single('file
     logger.info(`开始处理 OSS 上传: ${req.file.originalname}, 大小: ${req.file.size} bytes`);
 
     const file = req.file;
-    const filename = req.body.filename || file.filename;
-    // 原图放在 origin 目录，缩略图放在 ore 目录
+    const requestedFilename = String(req.body.filename || file.filename);
+    const filename = path.basename(requestedFilename).replace(/[^a-zA-Z0-9._-]/g, '_');
+    if (!filename) {
+      return res.status(400).json({ error: '文件名无效' });
+    }
+    // 原图放在 origin，统一的灯箱高清预览放在 ore/hd。
     const datePrefix = getBeijingDatePrefix();
     const originKey = `origin/${datePrefix}/${filename}`;
-    const thumbKey = `ore/${datePrefix}/${filename}`;
+    const previewFilename = `${path.parse(filename).name}.jpg`;
+    const thumbKey = `ore/hd/${datePrefix}/${previewFilename}`;
 
-    // 处理原图：根据 EXIF Orientation 自动旋转并去除 EXIF（避免浏览器再次旋转）
-    let processedOriginBuffer;
-    try {
-      const originImage = sharp(file.path);
-      // 根据 EXIF Orientation 旋转图片，并移除 EXIF（避免浏览器重复旋转）
-      processedOriginBuffer = await originImage
-        .rotate() // 自动根据 EXIF Orientation 旋转
-        .resize(req.body.optimize === 'true' ? 1920 : null, req.body.optimize === 'true' ? 1920 : null, {
-          fit: 'inside',
-          withoutEnlargement: true
-        })
-        .jpeg({ quality: req.body.optimize === 'true' ? 85 : 95 })
-        .toBuffer();
-    } catch (originError) {
-      logger.warn('处理原图失败，使用原始文件:', originError.message || originError);
-      processedOriginBuffer = fs.readFileSync(file.path);
-    }
+    // 保留真正原文件；显示方向与压缩只应用到高清预览。
+    const originalBuffer = fs.readFileSync(file.path);
 
-    // 生成缩略图（较小尺寸，并按 EXIF 自动旋转）
+    // 生成最长边 2000px 的灯箱高清预览，网格再由 OSS 按需缩小。
     let thumbBuffer;
     try {
       const thumbImage = sharp(file.path);
@@ -508,19 +502,20 @@ app.post('/api/upload/oss', authenticateToken, requireAdmin, upload.single('file
       
       thumbBuffer = await thumbImage
         .rotate() // 根据 EXIF Orientation 自动旋转
-        .resize(600, 600, { fit: 'inside', withoutEnlargement: true })
-        .jpeg({ quality: 80 })
+        .resize(2000, 2000, { fit: 'inside', withoutEnlargement: true })
+        .jpeg({ quality: 90, mozjpeg: true })
         .toBuffer();
     } catch (thumbError) {
       logger.warn('生成缩略图失败，仅上传原图:', thumbError.message || thumbError);
       thumbBuffer = null;
     }
 
-    // 上传原图到 origin 目录（已根据 EXIF 旋转）
-    const originResult = await ossClient.put(originKey, processedOriginBuffer, {
+    // 上传原始字节；超过 20MB 也不依赖 OSS 图片处理能力。
+    const originResult = await ossClient.put(originKey, originalBuffer, {
       timeout: ALIYUN_OSS_TIMEOUT_MS,
       headers: {
-        'Content-Type': 'image/jpeg', // 统一为 JPEG（因为经过 sharp 处理）
+        'Content-Type': file.mimetype || 'application/octet-stream',
+        'Content-Disposition': `attachment; filename="${encodeURIComponent(file.originalname)}"`,
         'x-oss-object-acl': 'public-read',
       },
     });
@@ -532,6 +527,8 @@ app.post('/api/upload/oss', authenticateToken, requireAdmin, upload.single('file
         timeout: ALIYUN_OSS_TIMEOUT_MS,
         headers: {
           'Content-Type': 'image/jpeg',
+          'Content-Disposition': 'inline',
+          'Cache-Control': 'public, max-age=31536000, immutable',
           'x-oss-object-acl': 'public-read',
         },
       });
@@ -928,7 +925,7 @@ if (process.env.NODE_ENV === 'production' || process.env.SERVE_STATIC === 'true'
 app.use((error, req, res, _next) => {
   if (error instanceof multer.MulterError) {
     if (error.code === 'LIMIT_FILE_SIZE') {
-      return res.status(400).json({ error: '文件大小超过限制（最大 50MB）' });
+      return res.status(400).json({ error: '文件大小超过限制（最大 100MB）' });
     }
     if (error.code === 'LIMIT_FIELD_SIZE') {
       return res.status(400).json({ error: '字段大小超过限制（最大 10MB）' });
