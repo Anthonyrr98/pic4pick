@@ -1,4 +1,5 @@
-@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600&family=Noto+Sans+SC:wght@400;500;600&display=swap');
+@import '@fontsource/playfair-display/latin-600.css';
+@import '@fontsource-variable/noto-sans-sc';
 
 :root {
   --bg: #f5f5f4;
@@ -24,7 +25,7 @@
 
 body {
   margin: 0;
-  font-family: 'Noto Sans SC', 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family: 'Noto Sans SC Variable', 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
   background: var(--bg);
   color: var(--text);
   min-height: 100vh;

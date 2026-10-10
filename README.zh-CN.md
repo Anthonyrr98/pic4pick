@@ -39,7 +39,7 @@ Pic4Pick 是 **Light of Anthony** 的开源摄影作品集与内容管理系统�
 | 数据库 | Supabase Postgres、PostgREST、RLS |
 | 后端 | Node.js、Express 5、Sharp、Multer、JWT |
 | 图片存储 | 阿里云 OSS |
-| 前端托管 | GitHub Pages |
+| 前端托管 | 阿里云北京 OSS + CDN；GitHub Pages 备用 |
 | 后端托管 | Render |
 | 自动化 | GitHub Actions、Playwright、ESLint |
 
@@ -47,7 +47,7 @@ Pic4Pick 是 **Light of Anthony** 的开源摄影作品集与内容管理系统�
 
 ```text
 Browser
-  ├─ GitHub Pages ───────────── React / Vite frontend
+  ├─ Aliyun CDN → Beijing OSS ─ React / Vite frontend
   ├─ Supabase Data API ──────── public approved photos (read only)
   ├─ Render API ─────────────── admin auth, writes, likes, uploads
   │    └─ Supabase service role ─ protected database operations
@@ -248,6 +248,10 @@ npm --prefix server audit --omit=dev
 UI 回归覆盖图库加载、键盘灯箱、横竖图比例、iPad 布局、手机双列布局、地图切换和后台登录页。
 
 ## 部署
+
+### 前端：北京 OSS + 阿里云 CDN
+
+独立前端 Bucket、CDN 配置、本地发布命令及默认关闭的 GitHub Actions 工作流见[阿里云部署说明](./docs/aliyun-frontend-deployment.md)。字体随前端发布，照片存储、Supabase 与 Render 继续使用现有配置。
 
 ### 前端：GitHub Pages
 

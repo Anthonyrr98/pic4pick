@@ -32,6 +32,7 @@ import {
 import { TabStrip } from './components/TabStrip';
 import { PhotoGrid } from './components/PhotoGrid';
 import { LocationPanel } from './components/LocationPanel';
+import { ThemeSwitcher } from '../../themes/ThemeSwitcher';
 
 let exploreViewModulePromise = null;
 
@@ -786,26 +787,29 @@ export function GalleryPage() {
             />
           )}
         </div>
-        <div className={`view-toggle ${activeView === 'explore-view' ? 'explore-active' : ''}`}>
-          <button
-            className={`toggle-btn ${activeView === 'gallery-view' ? 'active' : ''}`}
-            onClick={() => handleViewChange('gallery-view')}
-            aria-pressed={activeView === 'gallery-view'}
-          >
-            <span className="toggle-label">图库</span>
-          </button>
-          <button
-            className={`toggle-btn ${activeView === 'explore-view' ? 'active' : ''}`}
-            onMouseEnter={handleExploreIntent}
-            onPointerEnter={handleExploreIntent}
-            onPointerDown={handleExploreIntent}
-            onFocus={handleExploreIntent}
-            onTouchStart={handleExploreIntent}
-            onClick={() => handleViewChange('explore-view')}
-            aria-pressed={activeView === 'explore-view'}
-          >
-            <span className="toggle-label">发现</span>
-          </button>
+        <div className="header-actions">
+          <ThemeSwitcher />
+          <div className={`view-toggle ${activeView === 'explore-view' ? 'explore-active' : ''}`}>
+            <button
+              className={`toggle-btn ${activeView === 'gallery-view' ? 'active' : ''}`}
+              onClick={() => handleViewChange('gallery-view')}
+              aria-pressed={activeView === 'gallery-view'}
+            >
+              <span className="toggle-label">图库</span>
+            </button>
+            <button
+              className={`toggle-btn ${activeView === 'explore-view' ? 'active' : ''}`}
+              onMouseEnter={handleExploreIntent}
+              onPointerEnter={handleExploreIntent}
+              onPointerDown={handleExploreIntent}
+              onFocus={handleExploreIntent}
+              onTouchStart={handleExploreIntent}
+              onClick={() => handleViewChange('explore-view')}
+              aria-pressed={activeView === 'explore-view'}
+            >
+              <span className="toggle-label">发现</span>
+            </button>
+          </div>
         </div>
       </header>
 

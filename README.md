@@ -43,7 +43,7 @@ separated.
 | Database | Supabase Postgres, PostgREST, RLS |
 | Backend | Node.js, Express 5, Sharp, Multer, JWT |
 | Image storage | Aliyun OSS |
-| Frontend hosting | GitHub Pages |
+| Frontend hosting | Beijing Aliyun OSS + CDN; GitHub Pages backup |
 | Backend hosting | Render |
 | Automation | GitHub Actions, Playwright, ESLint |
 
@@ -51,7 +51,7 @@ separated.
 
 ```text
 Browser
-  ├─ GitHub Pages ───────────── React / Vite frontend
+  ├─ Aliyun CDN → Beijing OSS ─ React / Vite frontend
   ├─ Supabase Data API ──────── public approved photos (read only)
   ├─ Render API ─────────────── admin auth, writes, likes, uploads
   │    └─ Supabase service role ─ protected database operations
@@ -263,6 +263,10 @@ portrait ratios, iPad layout, the mobile two-column grid, map transitions, and
 the admin login page.
 
 ## Deployment
+
+### Frontend: Beijing OSS + Aliyun CDN
+
+The dedicated frontend bucket, CDN settings, local publishing commands, and opt-in GitHub Actions workflow are documented in [the Aliyun deployment guide](./docs/aliyun-frontend-deployment.md). Fonts are bundled with the frontend. Existing photo storage, Supabase, and Render services retain their current configuration.
 
 ### Frontend: GitHub Pages
 

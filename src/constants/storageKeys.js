@@ -5,6 +5,7 @@
 
 // 照片相关
 export const STORAGE_KEYS = {
+  THEME: 'pic4pick_theme',
   // 管理员上传的作品（待审核）
   ADMIN_UPLOADS: 'camarts_admin_uploads',
   

@@ -10,6 +10,11 @@ const errors = [];
 
 try {
   const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+  if (process.env.UI_MAP_PRESET) {
+    await page.addInitScript((preset) => {
+      localStorage.setItem('pic4pick_env_overrides', JSON.stringify({ VITE_MAP_STYLE_PRESET: preset }));
+    }, process.env.UI_MAP_PRESET);
+  }
   page.on('pageerror', (error) => errors.push(error.message));
 
   await page.goto(`${baseUrl}/`, { waitUntil: 'networkidle' });
@@ -95,7 +100,7 @@ try {
   if (initialTab === nextTab) throw new Error('Arrow-key tab navigation did not change the filter');
 
   await page.getByRole('button', { name: '发现', exact: true }).click();
-  await page.locator('.maplibregl-map').waitFor({ state: 'visible', timeout: 15_000 });
+  await page.locator('#mapCanvas.maplibregl-map, #mapCanvas.amap-container').waitFor({ state: 'visible', timeout: 15_000 });
   await page.getByRole('button', { name: '图库', exact: true }).click();
   await page.locator('.photo-card').first().waitFor({ state: 'visible' });
   await page.waitForTimeout(700);

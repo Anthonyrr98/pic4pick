@@ -98,7 +98,7 @@ main {
   padding: 32px;
   overflow: hidden;
   background:
-    radial-gradient(circle at 50% 38%, rgba(255, 255, 255, 0.82), rgba(245, 242, 236, 0.56) 24%, transparent 46%),
+    radial-gradient(circle at 50% 38%, rgb(var(--panel-rgb) / 0.82), rgba(245, 242, 236, 0.56) 24%, transparent 46%),
     linear-gradient(135deg, #eef0f4 0%, #f6f0e7 42%, #d9dde6 100%);
   color: var(--text);
   opacity: 1;
@@ -157,8 +157,8 @@ main {
   background: linear-gradient(
     90deg,
     transparent,
-    rgba(255, 255, 255, 0.28),
-    rgba(255, 255, 255, 0.62),
+    rgb(var(--panel-rgb) / 0.28),
+    rgb(var(--panel-rgb) / 0.62),
     transparent
   );
   mix-blend-mode: screen;
@@ -187,7 +187,7 @@ main {
 
 .app-loading-screen p {
   margin: 0;
-  color: rgba(17, 18, 24, 0.58);
+  color: rgb(var(--ink-rgb) / 0.58);
   font-size: 0.9rem;
   font-weight: 700;
   letter-spacing: 0.16em;
@@ -905,12 +905,12 @@ main {
 
 .gallery-status-row span {
   font-weight: 600;
-  color: rgba(17, 18, 24, 0.68);
+  color: rgb(var(--ink-rgb) / 0.68);
 }
 
 .gallery-status-row time {
   flex-shrink: 0;
-  color: rgba(17, 18, 24, 0.46);
+  color: rgb(var(--ink-rgb) / 0.46);
 }
 
 .gallery-loading-state {
@@ -926,7 +926,7 @@ main {
   padding: 14px 16px;
   border: 1px solid rgba(17, 18, 24, 0.08);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.62);
+  background: rgb(var(--panel-rgb) / 0.62);
 }
 
 .gallery-loading-copy span {
@@ -961,7 +961,7 @@ main {
   position: absolute;
   inset: 0;
   background:
-    linear-gradient(110deg, transparent 8%, rgba(255, 255, 255, 0.62) 18%, transparent 34%),
+    linear-gradient(110deg, transparent 8%, rgb(var(--panel-rgb) / 0.62) 18%, transparent 34%),
     linear-gradient(180deg, transparent 58%, rgba(18, 19, 24, 0.12));
   background-size: 220% 100%, 100% 100%;
   animation: photo-skeleton-shimmer 1.25s linear infinite;
@@ -1096,7 +1096,7 @@ main {
   }
 
   .tab:not(.active) {
-    color: #6b7280;
+    color: var(--muted);
     opacity: 0.85;
   }
 
@@ -1461,7 +1461,7 @@ main {
   max-height: none;
   overflow-y: auto;
   overflow-x: hidden;
-  background: #ffffff;
+  background: var(--panel);
   border-radius: 20px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
   padding: 20px;
@@ -1513,7 +1513,7 @@ main {
   margin: 0 !important;
   display: block !important;
   visibility: visible !important;
-  color: #111218 !important;
+  color: var(--text) !important;
 }
 
 #explore-view .curation-panel.collapsed .curation-category:first-child .curation-category-content {
@@ -1647,7 +1647,7 @@ main {
   margin: 0;
   font-size: 1.15rem;
   font-weight: 600;
-  color: #111218;
+  color: var(--text);
   letter-spacing: 0.02em;
   transition: color 0.2s ease, text-shadow 0.2s ease, transform 0.2s ease;
 }
@@ -1664,7 +1664,7 @@ main {
 }
 
 .curation-category-header:hover .curation-category-title {
-  color: #000;
+  color: var(--text);
   text-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
   transform: translateY(-1px);
 }
@@ -1857,8 +1857,8 @@ main {
   padding: 0 18px;
   border: 1px solid rgba(255, 255, 255, 0.34);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.56);
-  color: rgba(18, 19, 24, 0.86);
+  background: rgb(var(--panel-rgb) / 0.56);
+  color: rgb(var(--ink-rgb) / 0.86);
   font-size: 0.92rem;
   font-weight: 700;
   line-height: 1;
@@ -1900,7 +1900,7 @@ main {
 }
 
 .location-panel {
-  background: #ffffff;
+  background: var(--panel);
   border-radius: 24px;
   padding: 0;
   width: min(520px, 90vw);
@@ -1923,7 +1923,7 @@ main {
   margin: 0;
   font-size: 1.4rem;
   font-weight: 600;
-  color: #111218;
+  color: var(--text);
 }
 
 .location-panel-subtitle {
@@ -2038,7 +2038,7 @@ main {
 
 .admin-settings-nav-item:hover {
   color: var(--text);
-  background: rgba(255, 255, 255, 0.04);
+  background: rgb(var(--panel-rgb) / 0.04);
 }
 
 .admin-settings-nav-item.active {
@@ -2138,7 +2138,7 @@ main {
   padding: 8px;
   border-radius: 12px;
   border: 2px solid var(--border);
-  background: rgba(255, 255, 255, 0.03);
+  background: rgb(var(--panel-rgb) / 0.03);
   cursor: pointer;
   text-align: left;
   transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.15s ease;
@@ -2214,7 +2214,7 @@ main {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(255, 255, 255, 0.02);
+  background: rgb(var(--panel-rgb) / 0.02);
 }
 
 /* 统计卡片 */
@@ -2394,7 +2394,7 @@ main {
 .admin-loading-hint,
 .admin-login-hint {
   margin-top: 12px;
-  color: #64748b;
+  color: var(--muted);
   font-size: 0.86rem;
   font-weight: 500;
   line-height: 1.55;
@@ -2734,7 +2734,7 @@ main {
 
 /* MapLibre GL JS 地图容器样式 */
 .maplibregl-map {
-  font-family: 'Noto Sans SC', sans-serif;
+  font-family: 'Noto Sans SC Variable', sans-serif;
 }
 
 .lightbox {
@@ -2750,7 +2750,7 @@ main {
   background-repeat: no-repeat;
   /* 更明亮柔和的背景基调 */
   background:
-    radial-gradient(circle at 20% 15%, rgba(255, 255, 255, 0.24), transparent 42%),
+    radial-gradient(circle at 20% 15%, rgb(var(--panel-rgb) / 0.24), transparent 42%),
     radial-gradient(circle at 78% 82%, rgba(255, 244, 224, 0.2), transparent 48%),
     rgba(26, 28, 34, 0.32);
   backdrop-filter: blur(14px) saturate(120%);
@@ -2762,7 +2762,7 @@ main {
   position: absolute;
   inset: 0;
   /* 叠加轻雾层，避免背景发灰发硬 */
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(250, 244, 235, 0.08));
+  background: linear-gradient(180deg, rgb(var(--panel-rgb) / 0.1), rgba(250, 244, 235, 0.08));
   z-index: -1;
 }
 
@@ -2796,7 +2796,7 @@ main {
   content: '';
   position: absolute;
   inset: 0;
-  background: rgba(255, 255, 255, 0.2);
+  background: rgb(var(--panel-rgb) / 0.2);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   z-index: -1;
@@ -2859,7 +2859,7 @@ main {
   display: grid;
   place-items: center;
   border-radius: 24px;
-  background: rgba(255, 255, 255, 0.18);
+  background: rgb(var(--panel-rgb) / 0.18);
   color: rgba(255, 255, 255, 0.86);
   font-size: 0.95rem;
   font-weight: 700;
@@ -2897,10 +2897,10 @@ main {
 
 .lightbox-close {
   border: 1px solid rgba(255, 255, 255, 0.4);
-  background: rgba(255, 255, 255, 0.5);
+  background: rgb(var(--panel-rgb) / 0.5);
   backdrop-filter: blur(16px) saturate(170%);
   -webkit-backdrop-filter: blur(16px) saturate(170%);
-  color: rgba(18, 19, 24, 0.86);
+  color: rgb(var(--ink-rgb) / 0.86);
   font-size: 1.5rem;
   width: 48px;
   height: 48px;
@@ -2915,7 +2915,7 @@ main {
 }
 
 .lightbox-close:hover {
-  background: rgba(255, 255, 255, 0.68);
+  background: rgb(var(--panel-rgb) / 0.68);
   transform: translateY(-1px);
   box-shadow: 0 16px 30px rgba(10, 12, 18, 0.32), 0 5px 14px rgba(10, 12, 18, 0.16);
   border-color: rgba(255, 255, 255, 0.6);
@@ -2923,10 +2923,10 @@ main {
 
 .lightbox-download {
   border: 1px solid rgba(255, 255, 255, 0.4);
-  background: rgba(255, 255, 255, 0.5);
+  background: rgb(var(--panel-rgb) / 0.5);
   backdrop-filter: blur(16px) saturate(170%);
   -webkit-backdrop-filter: blur(16px) saturate(170%);
-  color: rgba(18, 19, 24, 0.9);
+  color: rgb(var(--ink-rgb) / 0.9);
   font-size: 0.86rem;
   font-weight: 600;
   padding: 0 14px;
@@ -2938,7 +2938,7 @@ main {
 }
 
 .lightbox-download:hover {
-  background: rgba(255, 255, 255, 0.68);
+  background: rgb(var(--panel-rgb) / 0.68);
   transform: translateY(-1px);
   box-shadow: 0 14px 28px rgba(10, 12, 18, 0.3), 0 4px 12px rgba(10, 12, 18, 0.14);
   border-color: rgba(255, 255, 255, 0.6);
@@ -2967,8 +2967,8 @@ main {
 
 .lightbox-nav:hover {
   opacity: 1;
-  color: rgba(18, 19, 24, 0.86);
-  background: rgba(255, 255, 255, 0.62);
+  color: rgb(var(--ink-rgb) / 0.86);
+  background: rgb(var(--panel-rgb) / 0.62);
   border-color: rgba(255, 255, 255, 0.62);
   box-shadow: 0 18px 38px rgba(10, 12, 18, 0.28);
   text-shadow: none;
@@ -2982,8 +2982,8 @@ main {
 .lightbox-nav:focus-visible {
   outline: none;
   opacity: 1;
-  color: rgba(18, 19, 24, 0.86);
-  background: rgba(255, 255, 255, 0.62);
+  color: rgb(var(--ink-rgb) / 0.86);
+  background: rgb(var(--panel-rgb) / 0.62);
   box-shadow: var(--focus-ring), 0 14px 32px rgba(10, 12, 18, 0.22);
   text-shadow: none;
 }
@@ -3040,7 +3040,7 @@ main {
   padding: 10px 12px;
   border: 1px solid rgba(255, 255, 255, 0.32);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.24);
+  background: rgb(var(--panel-rgb) / 0.24);
   backdrop-filter: blur(14px) saturate(150%);
   -webkit-backdrop-filter: blur(14px) saturate(150%);
   box-shadow: 0 8px 18px rgba(10, 12, 18, 0.12);
@@ -3086,7 +3086,7 @@ main {
 }
 
 .lightbox-param-card {
-  background: rgba(255, 255, 255, 0.92);
+  background: rgb(var(--panel-rgb) / 0.92);
   backdrop-filter: blur(16px) saturate(180%);
   -webkit-backdrop-filter: blur(16px) saturate(180%);
   border-radius: 16px;
@@ -3115,7 +3115,7 @@ main {
 }
 
 .lightbox-param-card:hover {
-  background: rgba(255, 255, 255, 0.98);
+  background: rgb(var(--panel-rgb) / 0.98);
   transform: translateY(-3px);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.08);
   border-color: rgba(207, 165, 106, 0.5);
@@ -3132,7 +3132,7 @@ main {
 
 .lightbox-param-card .param-label {
   font-size: 0.8rem;
-  color: rgba(0, 0, 0, 0.55);
+  color: rgb(var(--ink-rgb) / 0.55);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.8px;
@@ -3154,7 +3154,7 @@ main {
 
 .lightbox-param-card .param-value {
   font-size: 1.15rem;
-  color: #1a1a1a;
+  color: var(--text);
   font-weight: 700;
   line-height: 1.3;
   word-break: break-word;
@@ -3172,7 +3172,7 @@ main {
 }
 
 .meta-cell {
-  background: rgba(255, 255, 255, 0.55);
+  background: rgb(var(--panel-rgb) / 0.55);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border-radius: 16px;
@@ -3184,7 +3184,7 @@ main {
 }
 
 .meta-cell:hover {
-  background: rgba(255, 255, 255, 0.8);
+  background: rgb(var(--panel-rgb) / 0.8);
   transform: translateY(-2px);
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
   border-color: rgba(255, 255, 255, 0.7);
@@ -3194,7 +3194,7 @@ main {
   display: block;
   font-size: 0.75rem;
   font-weight: 600;
-  color: rgba(0, 0, 0, 0.65);
+  color: rgb(var(--ink-rgb) / 0.65);
   letter-spacing: 0.06em;
   margin-bottom: 6px;
   text-transform: uppercase;
@@ -3202,7 +3202,7 @@ main {
 }
 
 .meta-cell span:not(.label) {
-  color: #000;
+  color: var(--text);
   font-size: 1.1rem;
   font-weight: 600;
   line-height: 1.3;
@@ -3236,7 +3236,7 @@ main {
 .meta-tabs {
   display: inline-flex;
   padding: 3px;
-  background: rgba(255, 255, 255, 0.7);
+  background: rgb(var(--panel-rgb) / 0.7);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   border-radius: 999px;
@@ -3253,7 +3253,7 @@ main {
 }
 
 .meta-tab.active {
-  background: rgba(255, 255, 255, 0.9);
+  background: rgb(var(--panel-rgb) / 0.9);
   color: var(--text);
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
   backdrop-filter: blur(8px);
@@ -3262,7 +3262,7 @@ main {
 
 .meta-close {
   border: none;
-  background: rgba(255, 255, 255, 0.6);
+  background: rgb(var(--panel-rgb) / 0.6);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   font-size: 1.2rem;
@@ -3278,7 +3278,7 @@ main {
 }
 
 .meta-close:hover {
-  background: rgba(255, 255, 255, 0.8);
+  background: rgb(var(--panel-rgb) / 0.8);
 }
 
 .meta-card-grid {
@@ -3290,7 +3290,7 @@ main {
 }
 
 .meta-card {
-  background: #ffffff;
+  background: var(--panel);
   border-radius: 18px;
   padding: 10px 12px 12px;
   box-shadow: 0 8px 18px rgba(0, 0, 0, 0.06);
@@ -3349,7 +3349,7 @@ main {
   z-index: 2;
   font-size: 1.8rem;
   font-weight: 700;
-  color: #1a1a1a;
+  color: var(--text);
   line-height: 1;
 }
 
@@ -3364,7 +3364,7 @@ main {
 
 .meta-star-circle {
   font-size: 0.7rem;
-  color: #1a1a1a;
+  color: var(--text);
   display: inline-block;
   line-height: 1;
 }
@@ -3404,7 +3404,7 @@ main {
   content: '';
   position: absolute;
   inset: 0;
-  background: rgba(255, 255, 255, 0.4);
+  background: rgb(var(--panel-rgb) / 0.4);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   z-index: -1;
@@ -3422,7 +3422,7 @@ main {
 
 .meta-popover .meta-card {
   box-shadow: none;
-  background: rgba(255, 255, 255, 0.7);
+  background: rgb(var(--panel-rgb) / 0.7);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   padding: 8px 10px 10px;
@@ -3562,7 +3562,7 @@ main {
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
     /* 让整块面板（包括参数区域）都有更明显的磨砂玻璃效果 */
-    background: rgba(255, 255, 255, 0.18);
+    background: rgb(var(--panel-rgb) / 0.18);
     backdrop-filter: blur(26px) saturate(170%);
     -webkit-backdrop-filter: blur(26px) saturate(170%);
   }
@@ -3674,7 +3674,7 @@ main {
     padding: 10px 8px;
     border-radius: 10px;
     /* 手机端参数卡片也使用磨砂玻璃效果，不再是完全实心白块 */
-    background: rgba(255, 255, 255, 0.82);
+    background: rgb(var(--panel-rgb) / 0.82);
     backdrop-filter: blur(14px) saturate(150%);
     -webkit-backdrop-filter: blur(14px) saturate(150%);
   }
@@ -4115,7 +4115,7 @@ main {
   display: flex;
   flex-direction: column;
   gap: 24px;
-  background: rgba(255, 255, 255, 0.03);
+  background: rgb(var(--panel-rgb) / 0.03);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 16px;
   padding: 28px;
@@ -4137,7 +4137,7 @@ main {
 }
 
 .form-section:hover {
-  background: rgba(255, 255, 255, 0.04);
+  background: rgb(var(--panel-rgb) / 0.04);
   border-color: rgba(255, 255, 255, 0.12);
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
   transform: translateY(-1px);
@@ -4278,7 +4278,7 @@ main {
   border-radius: 12px;
   font-size: 0.95rem;
   font-family: inherit;
-  background: #fff;
+  background: var(--panel);
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
   height: 44px;
   box-sizing: border-box;
@@ -4314,8 +4314,8 @@ main {
   border-radius: 12px;
   font-size: 0.95rem;
   font-family: inherit;
-  background: #fff;
-  color: #1a1a1a;
+  background: var(--panel);
+  color: var(--text);
   cursor: pointer;
   transition: all 0.2s ease;
   display: flex;
@@ -4340,7 +4340,7 @@ main {
 .category-select-display:hover {
   border-color: rgba(0, 0, 0, 0.2);
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
-  background: #fafafa;
+  background: var(--surface-soft);
 }
 
 .category-select:focus + .category-select-display {
@@ -4354,7 +4354,7 @@ main {
   right: 16px;
   top: 50%;
   transform: translateY(-50%);
-  color: rgba(0, 0, 0, 0.5);
+  color: rgb(var(--ink-rgb) / 0.5);
   transition: transform 0.2s ease, color 0.2s ease;
   pointer-events: none;
   flex-shrink: 0;
@@ -4364,15 +4364,15 @@ main {
 
 .category-select-wrapper:hover .category-select-arrow,
 .category-select:focus + .category-select-display .category-select-arrow {
-  color: rgba(0, 0, 0, 0.7);
+  color: rgb(var(--ink-rgb) / 0.7);
   transform: translateY(-50%) rotate(180deg);
 }
 
 /* 优化原生select下拉菜单样式 */
 .category-select option {
   padding: 10px 16px;
-  background: #fff;
-  color: #1a1a1a;
+  background: var(--panel);
+  color: var(--text);
 }
 
 .category-select:focus {
@@ -4463,7 +4463,7 @@ main {
 .admin-date-popper .react-datepicker__day--selected,
 .admin-date-popper .react-datepicker__day--keyboard-selected {
   background: linear-gradient(180deg, #d6b07b 0%, var(--accent) 100%);
-  color: #111218;
+  color: var(--text);
   font-weight: 600;
   box-shadow: 0 4px 12px rgba(207, 165, 106, 0.35);
 }
@@ -4496,7 +4496,7 @@ main {
   right: 0;
   top: 100%;
   margin-top: 6px;
-  background: #fff;
+  background: var(--panel);
   border: 1px solid rgba(17, 18, 24, 0.12);
   border-radius: 12px;
   overflow: hidden;
@@ -4510,7 +4510,7 @@ main {
   padding: 10px 12px;
   background: transparent;
   border: none;
-  color: #111218;
+  color: var(--text);
   cursor: pointer;
   font-size: 0.92rem;
   font-weight: 500;
@@ -4832,7 +4832,7 @@ main {
   padding: 9px 12px;
   border: 1px solid rgba(220, 38, 38, 0.24);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.72);
+  background: rgb(var(--panel-rgb) / 0.72);
   color: var(--text);
   font-size: 0.9rem;
 }
@@ -4911,7 +4911,7 @@ main {
   padding: 5px 8px;
   border: 1px solid rgba(17, 18, 24, 0.1);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.9);
+  background: rgb(var(--panel-rgb) / 0.9);
   color: var(--text);
   font-size: 0.76rem;
   font-weight: 600;
@@ -5201,7 +5201,7 @@ main {
 /* 地图相关样式 */
 /* MapLibre attribution 样式 */
 .maplibregl-ctrl-attrib {
-  background: rgba(255, 255, 255, 0.8) !important;
+  background: rgb(var(--panel-rgb) / 0.8) !important;
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   padding: 4px 8px !important;
@@ -5219,7 +5219,7 @@ main {
   border-radius: 12px;
   overflow: hidden;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  background: rgba(255, 255, 255, 0.8);
+  background: rgb(var(--panel-rgb) / 0.8);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
 }
@@ -5235,7 +5235,7 @@ main {
   height: 36px !important;
   line-height: 36px !important;
   font-size: 1.8rem !important;
-  color: #333 !important;
+  color: var(--text) !important;
   background-color: transparent !important;
   border: none !important;
   border-bottom: 1px solid rgba(0, 0, 0, 0.1) !important;
@@ -5360,7 +5360,7 @@ main {
   padding: 10px 12px;
   border: 1px solid rgba(220, 38, 38, 0.24);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.06);
+  background: rgb(var(--panel-rgb) / 0.06);
   color: var(--text);
   font-size: 0.95rem;
 }
@@ -5401,7 +5401,7 @@ main {
   align-items: center;
   justify-content: center;
   padding: 32px 16px;
-  background: radial-gradient(circle at top, rgba(255, 255, 255, 0.04), transparent 55%),
+  background: radial-gradient(circle at top, rgb(var(--panel-rgb) / 0.04), transparent 55%),
     radial-gradient(circle at bottom, rgba(207, 165, 106, 0.1), transparent 60%),
     var(--bg, #111218);
 }
@@ -5446,7 +5446,7 @@ main {
 }
 
 .login-container .form-group input {
-  background: rgba(255, 255, 255, 0.04);
+  background: rgb(var(--panel-rgb) / 0.04);
   border-color: rgba(255, 255, 255, 0.12);
   color: #f9fafb;
 }
@@ -5541,7 +5541,7 @@ main {
   font-family: inherit;
   font-size: 0.85rem;
   color: rgba(255, 255, 255, 0.45);
-  background: rgba(255, 255, 255, 0.06);
+  background: rgb(var(--panel-rgb) / 0.06);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 999px;
   padding: 8px 16px;
@@ -5551,7 +5551,7 @@ main {
 
 .home-intro-skip:hover {
   color: rgba(255, 255, 255, 0.85);
-  background: rgba(255, 255, 255, 0.1);
+  background: rgb(var(--panel-rgb) / 0.1);
   border-color: rgba(255, 255, 255, 0.18);
 }
 
@@ -5596,7 +5596,7 @@ main {
     border-radius: 0 !important;
     background:
       linear-gradient(180deg, rgba(7, 8, 10, 0.12), rgba(7, 8, 10, 0.42)),
-      rgba(255, 255, 255, 0.08);
+      rgb(var(--panel-rgb) / 0.08);
   }
 
   .lightbox-content-wrapper {
@@ -5650,7 +5650,7 @@ main {
     width: 48px;
     height: 5px;
     border-radius: 999px;
-    background: rgba(255, 255, 255, 0.66);
+    background: rgb(var(--panel-rgb) / 0.66);
     box-shadow: 0 2px 12px rgba(0, 0, 0, 0.38);
     opacity: 0.9;
     transform: translateX(-50%);
@@ -5679,14 +5679,14 @@ main {
     height: 54px;
     top: 50%;
     border-color: rgba(255, 255, 255, 0.28);
-    background: rgba(255, 255, 255, 0.22);
+    background: rgb(var(--panel-rgb) / 0.22);
     color: rgba(255, 255, 255, 0.88);
     font-size: 1.9rem;
     box-shadow: 0 14px 30px rgba(0, 0, 0, 0.32);
   }
 
   .lightbox-nav:hover {
-    background: rgba(255, 255, 255, 0.3);
+    background: rgb(var(--panel-rgb) / 0.3);
     border-color: rgba(255, 255, 255, 0.36);
   }
 
@@ -5701,7 +5701,7 @@ main {
   .lightbox-close,
   .lightbox-download {
     border-color: rgba(255, 255, 255, 0.48);
-    background: rgba(255, 255, 255, 0.72);
+    background: rgb(var(--panel-rgb) / 0.72);
     color: rgba(17, 18, 22, 0.9);
   }
 
@@ -5787,7 +5787,7 @@ main {
   .lightbox-story-chip {
     padding: 9px 10px;
     border-radius: 10px;
-    background: rgba(255, 255, 255, 0.16);
+    background: rgb(var(--panel-rgb) / 0.16);
   }
 
   .lightbox-story-chip span {
@@ -5809,7 +5809,7 @@ main {
     gap: 7px;
     border-radius: 14px !important;
     cursor: default;
-    background: rgba(255, 255, 255, 0.9);
+    background: rgb(var(--panel-rgb) / 0.9);
   }
 
   .lightbox-param-card:hover {
@@ -5936,7 +5936,7 @@ main {
 
 /* Both navigation groups share the same frosted glass and smoked glass selection. */
 .app-shell:not(.admin-shell) :is(.view-toggle, .tab-strip) {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(255, 255, 255, 0.38));
+  background: linear-gradient(180deg, rgb(var(--panel-rgb) / 0.72), rgb(var(--panel-rgb) / 0.38));
   border: 1px solid rgba(255, 255, 255, 0.72);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.8),
@@ -5958,7 +5958,7 @@ main {
 .app-shell:not(.admin-shell) :is(.toggle-btn, .tab) {
   font-size: 0.95rem;
   font-weight: 500;
-  color: rgba(17, 18, 24, 0.56);
+  color: rgb(var(--ink-rgb) / 0.56);
   transition:
     transform 180ms var(--press-ease),
     color 220ms ease,
@@ -5977,8 +5977,8 @@ main {
 
 @media (hover: hover) and (pointer: fine) {
   .app-shell:not(.admin-shell) :is(.toggle-btn, .tab):hover:not(.active) {
-    color: rgba(17, 18, 24, 0.82);
-    background: rgba(255, 255, 255, 0.42);
+    color: rgb(var(--ink-rgb) / 0.82);
+    background: rgb(var(--panel-rgb) / 0.42);
     box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.56);
   }
 }
@@ -5990,7 +5990,7 @@ main {
 }
 
 .gallery-status-row .gallery-count {
-  color: rgba(17, 18, 24, 0.72);
+  color: rgb(var(--ink-rgb) / 0.72);
   font-weight: 700;
 }
 
@@ -5998,7 +5998,7 @@ main {
   display: inline-flex;
   align-items: center;
   gap: 12px;
-  color: rgba(17, 18, 24, 0.4);
+  color: rgb(var(--ink-rgb) / 0.4);
   font-size: 0.84rem;
 }
 
@@ -6016,7 +6016,7 @@ main {
 
 .gallery-loading-card {
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.18), rgba(11, 12, 16, 0.14)),
+    linear-gradient(180deg, rgb(var(--panel-rgb) / 0.18), rgba(11, 12, 16, 0.14)),
     radial-gradient(ellipse at 38% 26%, rgba(207, 165, 106, 0.18), transparent 42%),
     linear-gradient(135deg, #edf0f4 0%, #e2ddd4 52%, #cfd5df 100%);
 }
@@ -6031,8 +6031,8 @@ main {
   height: 54px;
   border-radius: 12px;
   background:
-    linear-gradient(90deg, rgba(255, 255, 255, 0.58) 0 38%, transparent 38% 100%) 0 0 / 100% 14px no-repeat,
-    linear-gradient(90deg, rgba(255, 255, 255, 0.38) 0 56%, transparent 56% 100%) 0 28px / 100% 10px no-repeat;
+    linear-gradient(90deg, rgb(var(--panel-rgb) / 0.58) 0 38%, transparent 38% 100%) 0 0 / 100% 14px no-repeat,
+    linear-gradient(90deg, rgb(var(--panel-rgb) / 0.38) 0 56%, transparent 56% 100%) 0 28px / 100% 10px no-repeat;
   opacity: 0.56;
 }
 
@@ -6062,7 +6062,7 @@ main {
 .photo-skeleton {
   z-index: 0;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0) 42%, rgba(9, 10, 14, 0.16) 100%),
+    linear-gradient(180deg, rgb(var(--panel-rgb) / 0) 42%, rgba(9, 10, 14, 0.16) 100%),
     radial-gradient(ellipse at 38% 28%, rgba(207, 165, 106, 0.18), transparent 45%),
     linear-gradient(110deg, #e7e1d8 8%, #f4f0e8 18%, #dfe5ec 33%, #e7e1d8 52%);
   background-size: 100% 100%, 100% 100%, 220% 100%;
@@ -6144,7 +6144,7 @@ main {
     margin-top: 8px;
     padding: 5px;
     border-radius: 999px;
-    background: rgba(255, 255, 255, 0.82);
+    background: rgb(var(--panel-rgb) / 0.82);
     box-shadow: 0 12px 28px rgba(15, 17, 26, 0.1);
   }
 
@@ -6285,13 +6285,13 @@ main {
 }
 
 .curation-panel-status-copy span {
-  color: #111218;
+  color: var(--text);
   font-size: 1rem;
   font-weight: 700;
 }
 
 .curation-panel-status-copy small {
-  color: rgba(17, 18, 24, 0.56);
+  color: rgb(var(--ink-rgb) / 0.56);
   font-size: 0.8rem;
   line-height: 1.5;
 }
@@ -6473,14 +6473,14 @@ main {
   position: absolute;
   top: 18px;
   right: 20px;
-  color: rgba(17, 18, 24, 0.58);
+  color: rgb(var(--ink-rgb) / 0.58);
   font-size: 0.78rem;
   text-decoration: none;
 }
 
 .admin-login-back:hover,
 .admin-login-back:focus-visible {
-  color: #111218;
+  color: var(--text);
 }
 
 .admin-login-brand {
@@ -6488,7 +6488,7 @@ main {
   align-items: center;
   gap: 9px;
   margin: 2px 0 24px;
-  color: rgba(17, 18, 24, 0.48);
+  color: rgb(var(--ink-rgb) / 0.48);
   font-size: 0.66rem;
   font-weight: 700;
   letter-spacing: 0.12em;
@@ -6507,12 +6507,12 @@ main {
 
 @media (max-width: 640px) {
   .gallery-status-row .gallery-count {
-    color: rgba(17, 18, 24, 0.78);
+    color: rgb(var(--ink-rgb) / 0.78);
   }
 
   .gallery-status-row .gallery-sync,
   .tab:not(.active) {
-    color: rgba(17, 18, 24, 0.6);
+    color: rgb(var(--ink-rgb) / 0.6);
     opacity: 1;
   }
 

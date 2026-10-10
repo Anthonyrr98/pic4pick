@@ -1,0 +1,55 @@
+name: Deploy frontend to Beijing OSS
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: frontend-oss
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    # Enable only after the dedicated bucket and deployment credentials are ready.
+    if: vars.OSS_FRONTEND_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    environment:
+      name: aliyun-oss
+      url: https://pic.rlzhao.com
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Build
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          VITE_AMAP_KEY: ${{ secrets.VITE_AMAP_KEY }}
+          VITE_AMAP_WEB_KEY: ${{ secrets.VITE_AMAP_WEB_KEY }}
+          VITE_AMAP_SECURITY_JS_CODE: ${{ secrets.VITE_AMAP_SECURITY_JS_CODE }}
+          VITE_AMAP_WEB_SERVICE_KEY: ${{ secrets.VITE_AMAP_WEB_SERVICE_KEY }}
+          VITE_MAP_STYLE_PRESET: ${{ vars.VITE_MAP_STYLE_PRESET || 'js_whitesmoke' }}
+          VITE_MAP_USE_AMAP_SDK: 'true'
+          VITE_AMAP_MAP_STYLE: ${{ vars.VITE_AMAP_MAP_STYLE || 'amap://styles/whitesmoke' }}
+          VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
+          VITE_USE_OSS_MEDIA_PROXY: ${{ secrets.VITE_USE_OSS_MEDIA_PROXY }}
+        run: npm run build
+      - name: Validate deployment files
+        env:
+          OSS_FRONTEND_BUCKET: ${{ vars.OSS_FRONTEND_BUCKET }}
+          OSS_FRONTEND_REGION: oss-cn-beijing
+        run: npm run deploy:oss -- --dry-run
+      - name: Publish assets, then HTML
+        env:
+          OSS_FRONTEND_BUCKET: ${{ vars.OSS_FRONTEND_BUCKET }}
+          OSS_FRONTEND_REGION: oss-cn-beijing
+          OSS_DEPLOY_ACCESS_KEY_ID: ${{ secrets.OSS_DEPLOY_ACCESS_KEY_ID }}
+          OSS_DEPLOY_ACCESS_KEY_SECRET: ${{ secrets.OSS_DEPLOY_ACCESS_KEY_SECRET }}
+        run: npm run deploy:oss

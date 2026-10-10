@@ -13,6 +13,7 @@ import { handleError, formatErrorMessage, ErrorType } from '../utils/errorHandle
 import { mapSupabaseRowToPhoto, buildSupabasePayloadFromPhoto, getUploadTypeName, deleteOSSFile, getAmapApiUrl } from '../utils/adminUtils';
 import { ensureHttps } from '../utils/urlUtils';
 import { login as loginWithApi, verifyToken } from '../utils/auth';
+import { ThemeSwitcher } from '../themes/ThemeSwitcher';
 import {
   createAdminPhoto,
   deleteAdminPhoto,
@@ -2283,6 +2284,7 @@ export function AdminPage() {
                 'radial-gradient(circle at top, #f5f7fb 0, #e8edf6 32%, #dde3f0 60%, #d7dee9 100%)',
             }}
           >
+            <div className="login-theme-switcher"><ThemeSwitcher /></div>
             <div
               className="admin-login-card"
               style={{
@@ -2464,9 +2466,12 @@ export function AdminPage() {
             className="brand-wordmark-img"
           />
         </div>
-        <nav className="primary-menu">
-          <a href={`${import.meta.env.BASE_URL}#/`}>返回前台</a>
-        </nav>
+        <div className="header-actions">
+          <ThemeSwitcher />
+          <nav className="primary-menu">
+            <a href={`${import.meta.env.BASE_URL}#/`}>返回前台</a>
+          </nav>
+        </div>
       </header>
 
       <main className="admin-main">

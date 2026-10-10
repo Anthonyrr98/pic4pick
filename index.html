@@ -8,6 +8,15 @@
     <!-- 将你的图标文件 (例如 pic4pick-icon.svg 或 pic4pick-icon.png) 放到 public 目录，并修改下面的文件名即可 -->
     <link rel="icon" type="image/svg+xml" href="/pic4pick-icon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#f5f5f2" />
+    <script>
+      try {
+        const savedTheme = localStorage.getItem('pic4pick_theme');
+        document.documentElement.dataset.theme = ['paper', 'film'].includes(savedTheme) ? savedTheme : 'paper';
+      } catch {
+        document.documentElement.dataset.theme = 'paper';
+      }
+    </script>
     <link rel="preconnect" href="https://pic4pick-backend.onrender.com" crossorigin />
     <link rel="dns-prefetch" href="https://pic4pick-backend.onrender.com" />
     <link rel="preconnect" href="https://iwlwbnvhgxlnqozduhrp.supabase.co" crossorigin />
