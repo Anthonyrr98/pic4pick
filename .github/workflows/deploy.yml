@@ -37,6 +37,9 @@ jobs:
           VITE_AMAP_WEB_KEY: ${{ secrets.VITE_AMAP_WEB_KEY }}
           VITE_AMAP_SECURITY_JS_CODE: ${{ secrets.VITE_AMAP_SECURITY_JS_CODE }}
           VITE_AMAP_WEB_SERVICE_KEY: ${{ secrets.VITE_AMAP_WEB_SERVICE_KEY }}
+          VITE_MAP_STYLE_PRESET: ${{ vars.VITE_MAP_STYLE_PRESET || 'js_whitesmoke' }}
+          VITE_MAP_USE_AMAP_SDK: 'true'
+          VITE_AMAP_MAP_STYLE: ${{ vars.VITE_AMAP_MAP_STYLE || 'amap://styles/whitesmoke' }}
           VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
           VITE_USE_OSS_MEDIA_PROXY: ${{ secrets.VITE_USE_OSS_MEDIA_PROXY }}
         run: npm run build
