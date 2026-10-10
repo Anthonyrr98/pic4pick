@@ -462,6 +462,18 @@ main {
   }
 }
 
+/* Use a separate translate so entry animation cannot override hover transforms. */
+@keyframes photo-card-in {
+  from {
+    opacity: 0;
+    translate: 0 6px;
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
+  }
+}
+
 /* 首屏轻微入场（仅图库视图） */
 .app-shell:not(.explore-mode) .app-header {
   animation: hero-in 520ms cubic-bezier(0.16, 1, 0.3, 1) both;
@@ -473,8 +485,7 @@ main {
 }
 
 .app-shell:not(.explore-mode) .photo-card {
-  opacity: 0;
-  animation: hero-in-soft 520ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: photo-card-in 520ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
   animation-delay: calc(140ms + (min(var(--stagger, 0), 11) * 34ms));
   will-change: transform, opacity;
 }
@@ -1100,8 +1111,6 @@ main {
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   gap: 24px;
   width: 100%;
-  /* Provide depth for photo-card tilt */
-  perspective: 1100px;
 }
 
 .photo-card {
@@ -1117,39 +1126,31 @@ main {
   background: linear-gradient(180deg, #f4f5f7 0%, #e5e7ec 55%, #cfd2da 100%);
   /* 统一卡片尺寸：固定纵横比，保证高度一致 */
   aspect-ratio: 3 / 4;
-  transform: translateY(var(--card-lift, 0));
-  transition: transform 0.2s ease, box-shadow 0.3s ease;
+  transform: none;
+  transition:
+    transform 420ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 420ms cubic-bezier(0.22, 1, 0.36, 1);
   will-change: box-shadow;
-}
-
-.photo-card:hover {
-  --card-lift: -6px;
-  box-shadow:
-    calc(var(--shadow-shift-x, 0px) * 0.8)
-    calc(18px + (var(--shadow-shift-y, 0px) * 0.8))
-    46px
-    rgba(20, 23, 32, 0.28);
 }
 
 .photo-card::after {
   content: '';
   position: absolute;
   inset: 0;
+  z-index: 2;
+  border-radius: inherit;
+  padding: 1.5px;
   background: radial-gradient(
     circle at var(--cursor-x, 50%) var(--cursor-y, 50%),
-    rgba(255, 255, 255, 0.22),
-    rgba(255, 255, 255, 0.12) 28%,
-    rgba(255, 255, 255, 0.04) 55%,
-    transparent 80%
+    rgba(255, 255, 255, 0.85),
+    rgba(255, 255, 255, 0.3) 30%,
+    transparent 65%
   );
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
   opacity: 0;
   pointer-events: none;
-  mix-blend-mode: screen;
   transition: opacity 240ms ease-out;
-}
-
-.photo-card:hover::after {
-  opacity: 1;
 }
 
 .photo-card img {
@@ -1157,8 +1158,9 @@ main {
   height: 100%;
   display: block;
   object-fit: cover;
-  transform: none;
+  transform: scale(1);
   transition:
+    transform 650ms cubic-bezier(0.22, 1, 0.36, 1),
     filter 520ms cubic-bezier(0.16, 1, 0.3, 1),
     opacity 360ms ease;
   image-rendering: auto;
@@ -1170,8 +1172,43 @@ main {
   opacity: 1;
 }
 
-.photo-card:hover img {
-  filter: saturate(1.03) contrast(1.01);
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  .photo-card {
+    transform: perspective(1100px) translateY(var(--card-lift, 0px))
+      rotateX(var(--card-rotate-x, 0deg)) rotateY(var(--card-rotate-y, 0deg));
+  }
+
+  /* Constant overscan leaves room for parallax without a hover zoom or exposed edges. */
+  .photo-card img {
+    transform: scale(1.04);
+    transition: transform 180ms ease-out, opacity 360ms ease;
+  }
+
+  .photo-card:hover {
+    --card-lift: -6px;
+    z-index: 1;
+    box-shadow:
+      calc(var(--shadow-shift-x, 0px) * 0.8)
+      calc(18px + (var(--shadow-shift-y, 0px) * 0.8))
+      46px
+      rgba(20, 23, 32, 0.24);
+  }
+
+  .photo-card:hover img {
+    transform: translate(var(--img-shift-x, 0px), var(--img-shift-y, 0px)) scale(1.04);
+  }
+
+  .photo-card:hover::after {
+    opacity: 1;
+  }
+
+  .photo-card .like-badge:hover {
+    transform: translateY(-1px) scale(1.08);
+  }
+
+  .photo-card .like-badge:active {
+    transform: scale(0.95);
+  }
 }
 
 .photo-skeleton {
@@ -1238,6 +1275,25 @@ main {
   font-weight: 600;
 }
 
+.photo-card .photo-location {
+  display: inline-block;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .photo-card {
+    transform: none !important;
+    transition: none !important;
+  }
+
+  .photo-card .like-badge-heart svg,
+  .photo-card .like-badge::before,
+  .photo-card .like-badge::after {
+    animation: none !important;
+    transform: none !important;
+    transition: none !important;
+  }
+}
+
 .photo-card .caption span {
   font-size: 0.85rem;
   opacity: 0.8;
@@ -1296,7 +1352,7 @@ main {
   fill: #ff4b6a;
   stroke: #ffe5ee;
   transform: scale(1.12);
-  animation: like-pop 0.25s ease-out;
+  animation: like-pop 320ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .like-badge-count {
@@ -1307,15 +1363,15 @@ main {
 
 @keyframes like-pop {
   0% {
-    transform: scale(0.7);
+    transform: scale(0.85);
     opacity: 0.3;
   }
   60% {
-    transform: scale(1.15);
+    transform: scale(1.28);
     opacity: 1;
   }
   100% {
-    transform: scale(1.0);
+    transform: scale(1.12);
   }
 }
 
@@ -5833,13 +5889,98 @@ main {
   -webkit-backdrop-filter: blur(18px) saturate(120%);
 }
 
+.app-shell:not(.explore-mode) .app-header:not(.admin-header) {
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  isolation: isolate;
+  /* Release the entry filter so the glass can sample the photographs behind it. */
+  animation-fill-mode: backwards;
+}
+
+/* Fade the glass itself, including its blur, beyond the header's bottom edge. */
+.app-shell:not(.explore-mode) .app-header:not(.admin-header)::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 -64px;
+  z-index: -1;
+  pointer-events: none;
+  background: rgba(245, 245, 244, 0.88);
+  backdrop-filter: blur(14px) saturate(105%);
+  -webkit-backdrop-filter: blur(14px) saturate(105%);
+  --header-glass-mask: linear-gradient(
+    to bottom,
+    #000 0%,
+    #000 35%,
+    rgba(0, 0, 0, 0.92) 50%,
+    rgba(0, 0, 0, 0.68) 65%,
+    rgba(0, 0, 0, 0.32) 82%,
+    rgba(0, 0, 0, 0.08) 94%,
+    transparent 100%
+  );
+  -webkit-mask-image: var(--header-glass-mask);
+  mask-image: var(--header-glass-mask);
+}
+
+@media (max-width: 640px) {
+  .app-shell:not(.explore-mode) .app-header:not(.admin-header)::before {
+    bottom: -40px;
+    backdrop-filter: blur(12px) saturate(105%);
+    -webkit-backdrop-filter: blur(12px) saturate(105%);
+  }
+}
+
 .app-shell:not(.explore-mode) .brand {
   filter: drop-shadow(0 10px 18px rgba(18, 19, 24, 0.08));
 }
 
-.app-shell:not(.explore-mode) .view-toggle,
-.tab-strip {
-  border: 1px solid rgba(17, 18, 24, 0.06);
+/* Both navigation groups share the same frosted glass and smoked glass selection. */
+.app-shell:not(.admin-shell) :is(.view-toggle, .tab-strip) {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(255, 255, 255, 0.38));
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.8),
+    inset 0 -1px 0 rgba(17, 18, 24, 0.04),
+    0 10px 28px rgba(15, 17, 26, 0.1);
+  backdrop-filter: blur(18px) saturate(115%);
+  -webkit-backdrop-filter: blur(18px) saturate(115%);
+}
+
+.app-shell:not(.admin-shell) :is(.view-toggle, .tab-strip)::before {
+  background: linear-gradient(180deg, rgba(73, 76, 82, 0.78), rgba(17, 18, 24, 0.9));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.12),
+    0 3px 10px rgba(17, 18, 24, 0.16);
+  pointer-events: none;
+}
+
+.app-shell:not(.admin-shell) :is(.toggle-btn, .tab) {
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: rgba(17, 18, 24, 0.56);
+  transition:
+    transform 180ms var(--press-ease),
+    color 220ms ease,
+    background-color 220ms ease,
+    box-shadow 220ms ease;
+}
+
+.app-shell:not(.admin-shell) :is(.toggle-btn, .tab).active {
+  color: #fff;
+  font-weight: 650;
+}
+
+.app-shell:not(.admin-shell) .toggle-label {
+  opacity: 1;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .app-shell:not(.admin-shell) :is(.toggle-btn, .tab):hover:not(.active) {
+    color: rgba(17, 18, 24, 0.82);
+    background: rgba(255, 255, 255, 0.42);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.56);
+  }
 }
 
 .gallery-status-row {
@@ -5984,6 +6125,13 @@ main {
     right: 18px;
     padding: 4px;
     margin: 0;
+  }
+
+  .app-shell:not(.explore-mode) .view-toggle::before {
+    top: 4px;
+    left: 4px;
+    width: calc(50% - 4px);
+    height: calc(100% - 8px);
   }
 
   .app-shell:not(.explore-mode) .toggle-btn {

@@ -2,7 +2,7 @@
  * 照片网格组件 - 显示照片卡片列表
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { GalleryPhoto } from '../utils/photoDataUtils';
 import { handleError, ErrorType } from '../../../utils/errorHandler';
 import { getPreviewMediaFallbackUrls, getPreviewMediaSrcSet, getPreviewMediaUrl } from '../../../utils/urlUtils';
@@ -48,6 +48,7 @@ export const PhotoGrid: React.FC<PhotoGridProps> = ({
   const eagerImageCount = typeof window !== 'undefined' && window.innerWidth <= 768 ? 4 : 6;
   const [loadedImageIds, setLoadedImageIds] = useState<Record<string, boolean>>({});
   const [failedImageIds, setFailedImageIds] = useState<Record<string, boolean>>({});
+  const hoverBounds = useRef<{ card: HTMLElement; rect: DOMRect } | null>(null);
 
   useEffect(() => {
     const currentPhotoIds = new Set(photos.map((photo) => photo.id));
@@ -67,38 +68,36 @@ export const PhotoGrid: React.FC<PhotoGridProps> = ({
     });
   }, [photos]);
 
-  const handlePhotoCardMouseMove = (event: React.MouseEvent<HTMLElement>) => {
-    if (typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
-      return;
-    }
+  const handlePhotoCardPointerMove = (event: React.PointerEvent<HTMLElement>) => {
+    if (
+      event.pointerType !== 'mouse' ||
+      !window.matchMedia('(hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference)').matches
+    ) return;
 
     const card = event.currentTarget;
-    const rect = card.getBoundingClientRect();
-    const relativeX = (event.clientX - rect.left) / rect.width - 0.5;
-    const relativeY = (event.clientY - rect.top) / rect.height - 0.5;
-
-    const percentX = ((event.clientX - rect.left) / rect.width) * 100;
-    const percentY = ((event.clientY - rect.top) / rect.height) * 100;
-    card.style.setProperty('--cursor-x', `${percentX}%`);
-    card.style.setProperty('--cursor-y', `${percentY}%`);
-    card.style.setProperty('--img-shift-x', `${(-relativeX * 10).toFixed(2)}px`);
-    card.style.setProperty('--img-shift-y', `${(-relativeY * 10).toFixed(2)}px`);
-    card.style.setProperty('--shadow-shift-x', `${(-relativeX * 18).toFixed(2)}px`);
-    card.style.setProperty('--shadow-shift-y', `${(-relativeY * 18).toFixed(2)}px`);
-
-    card.style.setProperty('--card-lift', '-6px');
+    // A stable frame avoids feedback from measuring the card as it tilts.
+    if (hoverBounds.current?.card !== card) {
+      hoverBounds.current = { card, rect: card.getBoundingClientRect() };
+    }
+    const { rect } = hoverBounds.current;
+    const x = Math.max(-0.5, Math.min(0.5, (event.clientX - rect.left) / rect.width - 0.5));
+    const y = Math.max(-0.5, Math.min(0.5, (event.clientY - rect.top) / rect.height - 0.5));
+    card.style.setProperty('--card-rotate-x', `${(-y * 6).toFixed(2)}deg`);
+    card.style.setProperty('--card-rotate-y', `${(x * 6).toFixed(2)}deg`);
+    card.style.setProperty('--img-shift-x', `${(-x * 2 * Math.min(5, rect.width * 0.015)).toFixed(2)}px`);
+    card.style.setProperty('--img-shift-y', `${(-y * 2 * Math.min(5, rect.height * 0.015)).toFixed(2)}px`);
+    card.style.setProperty('--cursor-x', `${(x + 0.5) * 100}%`);
+    card.style.setProperty('--cursor-y', `${(y + 0.5) * 100}%`);
+    card.style.setProperty('--shadow-shift-x', `${(-x * 18).toFixed(2)}px`);
+    card.style.setProperty('--shadow-shift-y', `${(-y * 18).toFixed(2)}px`);
   };
 
-  const handlePhotoCardMouseLeave = (event: React.MouseEvent<HTMLElement>) => {
-    const card = event.currentTarget;
-    card.style.transform = '';
-    card.style.setProperty('--card-lift', '0px');
-    card.style.setProperty('--cursor-x', '50%');
-    card.style.setProperty('--cursor-y', '50%');
-    card.style.setProperty('--img-shift-x', '0px');
-    card.style.setProperty('--img-shift-y', '0px');
-    card.style.setProperty('--shadow-shift-x', '0px');
-    card.style.setProperty('--shadow-shift-y', '0px');
+  const handlePhotoCardPointerLeave = (event: React.PointerEvent<HTMLElement>) => {
+    hoverBounds.current = null;
+    [
+      '--card-rotate-x', '--card-rotate-y', '--img-shift-x', '--img-shift-y',
+      '--cursor-x', '--cursor-y', '--shadow-shift-x', '--shadow-shift-y',
+    ].forEach((property) => event.currentTarget.style.removeProperty(property));
   };
 
   const categoryLabels: Record<string, string> = {
@@ -138,8 +137,10 @@ export const PhotoGrid: React.FC<PhotoGridProps> = ({
             key={item.id}
             className="photo-card"
             onClick={() => onPhotoClick(item)}
-            onMouseMove={handlePhotoCardMouseMove}
-            onMouseLeave={handlePhotoCardMouseLeave}
+            onPointerEnter={handlePhotoCardPointerMove}
+            onPointerMove={handlePhotoCardPointerMove}
+            onPointerLeave={handlePhotoCardPointerLeave}
+            onPointerCancel={handlePhotoCardPointerLeave}
             onKeyDown={(event) => {
               if (event.target !== event.currentTarget) return;
               if (event.key === 'Enter' || event.key === ' ') {
@@ -223,7 +224,7 @@ export const PhotoGrid: React.FC<PhotoGridProps> = ({
             <span className="badge">{formatBadgeText(item)}</span>
             <div className="caption">
               <h4>{item.title}</h4>
-              <span>
+              <span className="photo-location">
                 {item.country || ''} {item.country && item.location ? '·' : ''} {item.location || ''}
               </span>
               <button
