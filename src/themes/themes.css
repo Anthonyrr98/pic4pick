@@ -148,7 +148,6 @@ html { background: var(--bg); scrollbar-color: var(--muted) var(--bg); }
 .theme-preview-line { position: absolute; top: 9px; left: 8px; width: 23px; height: 2px; background: var(--preview-ink); }
 .theme-preview-frame { position: absolute; left: 8px; right: 8px; top: 19px; bottom: 8px; background: linear-gradient(155deg, var(--preview-panel) 40%, var(--preview-accent) 41% 62%, var(--preview-ink) 63%); }
 .theme-preview-dot { position: absolute; top: 8px; right: 8px; width: 5px; height: 5px; border-radius: 50%; background: var(--preview-accent); }
-.theme-popover-note { margin: 15px 0 0; text-align: center; color: var(--muted); font-size: 0.65rem; letter-spacing: 0.06em; }
 .theme-sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .theme-transition-wash { position: fixed; inset: 0; z-index: 40; background: var(--accent); opacity: 0; pointer-events: none; }
 

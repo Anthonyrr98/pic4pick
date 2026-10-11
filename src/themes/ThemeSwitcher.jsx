@@ -91,7 +91,6 @@ export function ThemeSwitcher() {
               </button>
             ))}
           </div>
-          <p className="theme-popover-note">全站同步 · 自动记住你的选择</p>
         </div>, document.body
       )}
       <span className="theme-sr-only" role="status" aria-live="polite">当前主题：{activeTheme.name}</span>
