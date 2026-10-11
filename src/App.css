@@ -4878,6 +4878,26 @@ main {
   gap: 16px;
 }
 
+.admin-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+}
+
+.admin-pagination-pages {
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.admin-pagination button {
+  flex-shrink: 0;
+}
+
 @media (min-width: 768px) {
   .admin-list.grid {
     grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));

@@ -3989,20 +3989,11 @@ export function AdminPage() {
                   </article>
                   ))
                 )}
+              </div>
 
                 {/* 分页控件 */}
                 {totalPages > 1 && (
-                  <div
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'center',
-                      alignItems: 'center',
-                      gap: '8px',
-                      marginTop: '24px',
-                      paddingTop: '20px',
-                      borderTop: '1px solid var(--border)',
-                    }}
-                  >
+                  <nav className="admin-pagination" aria-label="作品分页">
                     <button
                       type="button"
                       onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
@@ -4021,6 +4012,7 @@ export function AdminPage() {
                       上一页
                     </button>
                     <div
+                      className="admin-pagination-pages"
                       style={{
                         display: 'flex',
                         gap: '4px',
@@ -4042,6 +4034,7 @@ export function AdminPage() {
                           <button
                             key={pageNum}
                             type="button"
+                            aria-current={currentPage === pageNum ? 'page' : undefined}
                             onClick={() => setCurrentPage(pageNum)}
                             style={{
                               minWidth: '36px',
@@ -4082,9 +4075,8 @@ export function AdminPage() {
                     >
                       下一页
                     </button>
-                  </div>
+                  </nav>
                 )}
-              </div>
             </div>
           )}
 
