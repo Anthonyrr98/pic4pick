@@ -305,7 +305,15 @@ html { background: var(--bg); scrollbar-color: var(--muted) var(--bg); }
 :root[data-theme] :is(.lightbox-param-card, .meta-cell):hover { background: var(--surface-hover); border-color: var(--accent); }
 :root[data-theme] .lightbox-param-card::before { background: var(--accent); }
 :root[data-theme] :is(.lightbox-story-chip strong, .lightbox-param-card .param-value, .meta-cell span:not(.label), .meta-rating-number, .meta-star-circle) { color: var(--text); text-shadow: none; }
-:root[data-theme] .lightbox-param-card .param-value { font-family: var(--display-font); }
+:root[data-theme] .lightbox-param-card .param-value {
+  font-family: 'Times New Roman', Times, 'Liberation Serif', serif;
+  font-weight: 400;
+  font-variant-numeric: lining-nums;
+  line-height: 1.4;
+  word-break: normal;
+  overflow-wrap: anywhere;
+}
+:root[data-theme] .lightbox-param-card .param-value-equipment { font-size: 1rem; }
 :root[data-theme] :is(.lightbox-story-chip span, .lightbox-story-chip em, .lightbox-param-card .param-label, .meta-cell .label, .meta-card-label) { color: var(--muted); text-shadow: none; }
 :root[data-theme] .meta-card-main { color: var(--text); text-shadow: none; }
 :root[data-theme] .meta-popover::before { background: rgb(var(--panel-rgb) / 0.92); }

@@ -911,7 +911,7 @@ export function GalleryPage() {
                         {label === '快门' && <ShutterIcon className="param-label-icon param-label-icon-shutter" />}
                         {label === 'ISO' && <IsoIcon className="param-label-icon" />}
                       </span>
-                      <span className="param-value">{value}</span>
+                      <span className={`param-value ${label === '相机' || label === '镜头' ? 'param-value-equipment' : ''}`}>{value}</span>
                     </div>
                   ))}
                 </div>
