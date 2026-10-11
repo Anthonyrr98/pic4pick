@@ -2,6 +2,8 @@
  * 位置相关的常量数据
  */
 
+import { PHOTO_CATEGORIES } from '../../../utils/photoCategories';
+
 export const provinceCityData = [
   { id: 'beijing', title: '北京', cities: ['朝阳区', '海淀区', '通州区'] },
   { id: 'tianjin', title: '天津', cities: ['河西区', '滨海新区', '武清区'] },
@@ -161,14 +163,7 @@ export const cityMeta: Record<string, { lat: number; lng: number }> = {
 
 export const MUNICIPALITY_PROVINCES = new Set(['beijing', 'tianjin', 'shanghai', 'chongqing', 'hongkong', 'macao']);
 
-export const tabs = [
-  { id: 'latest', label: '最新' },
-  { id: 'featured', label: '精选' },
-  { id: 'random', label: '随览' },
-  { id: 'nearby', label: '附近' },
-  { id: 'far', label: '远方' },
-  { id: 'film', label: '胶片' },
-];
+export const tabs = PHOTO_CATEGORIES;
 
 export const explorePins = [
   { name: '北京', coords: [39.9042, 116.4074] },

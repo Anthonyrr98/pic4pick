@@ -5,7 +5,7 @@
 import { GalleryPhoto } from './photoDataUtils';
 import { getTimeValue } from './timeUtils';
 
-export type FilterType = 'latest' | 'featured' | 'film' | 'random' | 'nearby' | 'far';
+export type FilterType = 'latest' | 'film' | 'random' | 'nearby' | 'far';
 
 export interface BrowserLocation {
   lat: number;
@@ -15,15 +15,6 @@ export interface BrowserLocation {
 // 按最新排序
 const sortByLatest = (list: GalleryPhoto[]): GalleryPhoto[] =>
   [...list].sort((a, b) => getTimeValue(b) - getTimeValue(a));
-
-// 按精选排序（星级从高到低，相同星级按时间从新到旧）
-const sortByFeatured = (list: GalleryPhoto[]): GalleryPhoto[] =>
-  [...list].sort((a, b) => {
-    const aRating = typeof a.rating === 'number' ? a.rating : 0;
-    const bRating = typeof b.rating === 'number' ? b.rating : 0;
-    if (bRating !== aRating) return bRating - aRating;
-    return getTimeValue(b) - getTimeValue(a);
-  });
 
 // 按胶片筛选（仅返回胶片相关照片）
 const sortByFilm = (list: GalleryPhoto[]): GalleryPhoto[] => {
@@ -97,8 +88,6 @@ export const filterAndSortPhotos = (
   if (!allPhotos || allPhotos.length === 0) return [];
 
   switch (filterType) {
-    case 'featured':
-      return sortByFeatured(allPhotos);
     case 'film':
       return sortByFilm(allPhotos);
     case 'latest':

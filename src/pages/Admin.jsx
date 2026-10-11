@@ -28,15 +28,9 @@ import { ConfigPanel } from '../components/admin/ConfigPanel';
 import { loadMapLibre } from '../utils/maplibreLoader';
 import { getDefaultMaplibreStyle, getMapStylePresetFromEnv } from '../utils/gaodeMapStyle';
 import { escapeHtml } from '../utils/security';
+import { PHOTO_CATEGORIES, normalizePhotoCategory } from '../utils/photoCategories';
 
-const tabs = [
-  { id: 'featured', label: '精选' },
-  { id: 'latest', label: '最新' },
-  { id: 'random', label: '随览' },
-  { id: 'nearby', label: '附近' },
-  { id: 'far', label: '远方' },
-  { id: 'film', label: '胶片' },
-];
+const tabs = PHOTO_CATEGORIES;
 
 const FILM_STOCK_TAG_PREFIX = 'film_stock:';
 const FILM_STOCK_OPTIONS = [
@@ -224,7 +218,7 @@ export function AdminPage() {
     title: '',
     location: '',
     country: '',
-    category: 'featured',
+    category: 'latest',
     tags: '',
     preview: '',
     file: null,
@@ -425,7 +419,7 @@ export function AdminPage() {
     title: '',
     location: '',
     country: '',
-    category: 'featured',
+    category: 'latest',
     tags: '',
     latitude: null,
     longitude: null,
@@ -1673,7 +1667,7 @@ export function AdminPage() {
       title: '',
       location: '',
       country: '',
-      category: 'featured',
+      category: 'latest',
       tags: '',
       preview: '',
       file: null,
@@ -1986,7 +1980,7 @@ export function AdminPage() {
       title: photo.title || '',
       location: photo.location || '',
       country: photo.country || '',
-      category: photo.category || 'featured',
+      category: normalizePhotoCategory(photo.category),
       tags: photo.tags || '',
       latitude: photo.latitude ?? null,
       longitude: photo.longitude ?? null,
@@ -2163,7 +2157,7 @@ export function AdminPage() {
       title: '',
       location: '',
       country: '',
-      category: 'featured',
+      category: 'latest',
       tags: '',
       latitude: null,
       longitude: null,
@@ -2806,7 +2800,7 @@ export function AdminPage() {
                         }}
                       >
                         <span className="category-select-text">
-                          {tabs.find((tab) => tab.id === uploadForm.category)?.label || '精选'}
+                          {tabs.find((tab) => tab.id === uploadForm.category)?.label || '最新'}
                         </span>
                         <svg
                           width="12"
@@ -3175,7 +3169,7 @@ export function AdminPage() {
                       title: '',
                       location: '',
                       country: '',
-                      category: 'featured',
+                      category: 'latest',
                       tags: '',
                       preview: '',
                       file: null,
@@ -4221,7 +4215,7 @@ export function AdminPage() {
                           }}
                         >
                           <span className="category-select-text">
-                            {tabs.find((tab) => tab.id === editForm.category)?.label || '精选'}
+                            {tabs.find((tab) => tab.id === editForm.category)?.label || '最新'}
                           </span>
                           <svg
                             width="12"

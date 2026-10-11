@@ -101,7 +101,6 @@ export const PhotoGrid: React.FC<PhotoGridProps> = ({
   };
 
   const categoryLabels: Record<string, string> = {
-    featured: '精选',
     latest: '最新',
     random: '随览',
     nearby: '附近',

@@ -110,7 +110,6 @@ function IsoIcon(props) {
 }
 
 const CATEGORY_LABELS = {
-  featured: '精选',
   latest: '最新',
   random: '随览',
   nearby: '附近',

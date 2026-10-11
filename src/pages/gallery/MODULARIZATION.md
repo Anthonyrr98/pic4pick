@@ -50,7 +50,7 @@ src/pages/gallery/
 - `buildPhotosByLocation()` - 构建按地点聚合的照片列表
 
 #### photoFilterUtils.ts
-- `filterAndSortPhotos()` - 主筛选函数，支持最新、精选、随览、附近、远方五种排序
+- `filterAndSortPhotos()` - 主筛选函数，支持最新、随览、附近、远方和胶片筛选
 
 ### Constants（常量数据）
 
@@ -111,7 +111,7 @@ cp src/pages/Gallery.jsx src/pages/Gallery.jsx.backup
 使用新的模块化结构重写主组件，导入所有子模块和工具函数。
 
 ### 3. 测试
-- 测试所有筛选功能（最新、精选、随览、附近、远方）
+- 测试所有筛选功能（最新、随览、附近、远方、胶片）
 - 测试地图功能（高德地图和 MapLibre 回退）
 - 测试点赞功能
 - 测试响应式设计

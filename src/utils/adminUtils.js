@@ -6,6 +6,7 @@ import { UPLOAD_TYPES, resolveOssBackendApiUrl } from './upload';
 import { handleError, ErrorType } from './errorHandler';
 import { ensureHttps } from './urlUtils';
 import { getAuthToken } from './auth';
+import { normalizePhotoCategory } from './photoCategories';
 
 const isEmbeddedImageDataUrl = (url) =>
   typeof url === 'string' && /^data:image\//i.test(url.trim());
@@ -22,7 +23,7 @@ export const mapSupabaseRowToPhoto = (row) => {
     title: row.title || '',
     location: row.location || '',
     country: row.country || '',
-    category: row.category || 'featured',
+    category: normalizePhotoCategory(row.category),
     tags: row.tags || '',
     preview: ensureHttps(thumbnailUrl || imageUrl),
     image: ensureHttps(imageUrl),
@@ -65,7 +66,7 @@ export const buildSupabasePayloadFromPhoto = (photo, statusOverride) => {
     title: photo.title || '',
     location: photo.location || '',
     country: photo.country || '',
-    category: photo.category || 'featured',
+    category: normalizePhotoCategory(photo.category),
     tags: photo.tags || '',
     image_url: imageUrl,
     thumbnail_url: thumbnailUrl,

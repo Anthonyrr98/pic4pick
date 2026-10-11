@@ -9,6 +9,7 @@ import { handleError, safeAsync, ErrorType } from '../../../utils/errorHandler';
 import { PHOTO_SELECT_FIELDS } from '../../../utils/photoFields';
 import { getEnvValue } from '../../../utils/envConfig';
 import { GalleryPhoto } from '../utils/photoDataUtils';
+import { normalizePhotoCategory } from '../../../utils/photoCategories';
 
 const SUPABASE_REFRESH_MIN_INTERVAL_MS = 60 * 1000;
 
@@ -40,6 +41,8 @@ const loadApprovedPhotos = (): GalleryPhoto[] => {
   const photos = Storage.get(STORAGE_KEYS.APPROVED_PHOTOS, []);
   return photos.map((photo: any) => ({
     ...photo,
+    category: normalizePhotoCategory(photo.category),
+    mood: photo.mood === '精选' ? '原创作品' : photo.mood,
     image: ensureHttps(photo.image || ''),
     thumbnail: ensureHttps(photo.thumbnail || photo.preview || ''),
     preview: ensureHttps(photo.preview || photo.thumbnail || ''),
@@ -50,13 +53,14 @@ const loadApprovedPhotos = (): GalleryPhoto[] => {
 const mapSupabaseRowToGalleryPhoto = (row: any): GalleryPhoto => {
   const imageUrl = row.image_url || '';
   const thumbnailUrl = row.thumbnail_url || row.thumbnail || '';
+  const mood = row.tags?.split(',')[0]?.trim() || '原创作品';
 
   return {
     id: row.id,
     title: row.title || '',
     country: row.country || '',
     location: row.location || '',
-    category: row.category || 'featured',
+    category: normalizePhotoCategory(row.category),
     image: ensureHttps(imageUrl),
     focal: row.focal || '50mm',
     aperture: row.aperture || 'f/2.8',
@@ -65,7 +69,7 @@ const mapSupabaseRowToGalleryPhoto = (row: any): GalleryPhoto => {
     camera: row.camera || 'Unknown',
     lens: row.lens || 'Unknown',
     filmStock: row.film_stock || '',
-    mood: row.tags?.split(',')[0]?.trim() || '原创作品',
+    mood: mood === '精选' ? '原创作品' : mood,
     latitude: row.latitude ?? null,
     longitude: row.longitude ?? null,
     altitude: row.altitude ?? null,
