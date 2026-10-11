@@ -49,7 +49,8 @@ export function ExploreView({
     mapProvider,
     resizeMap,
   } = useGaodeMapInit(mapContainerRef, 'explore-view');
-  const focusMapOnCity = useFocusMapOnCity(mapInstance, maplibreInstance, mapProvider, isMapReady);
+  const focusMapOnCity = useFocusMapOnCity(mapInstance, maplibreInstance, mapProvider,
+    isMapReady, sectionRef, mapContainerRef, isActive);
   useMapMotion(sectionRef, mapInstance, maplibreInstance, mapProvider, isMapReady, isActive);
 
   const ensureMapLibre = useCallback(async () => {

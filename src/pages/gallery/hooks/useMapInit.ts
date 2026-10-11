@@ -9,7 +9,7 @@ import { handleError, ErrorType } from '../../../utils/errorHandler';
 import { loadMapLibre } from '../../../utils/maplibreLoader';
 import { ensureAMapLoaded } from '../../../utils/amapLoader';
 import { getActiveMapStylePreset, getDefaultMaplibreStyle } from '../../../utils/gaodeMapStyle';
-import { calculateDistance } from '../utils/geoUtils';
+import { createCityFlight, cityFlightEasing, getCityFocusOffset } from '../utils/cityFlight';
 
 const AMAP_READY_TIMEOUT_MS = 10000;
 
@@ -186,33 +186,77 @@ export const useFocusMapOnCity = (
   mapInstance: React.MutableRefObject<any>,
   maplibreInstance: React.MutableRefObject<MapLibreMap | null>,
   mapProvider: 'amap' | 'maplibre' | null,
-  isMapReady: boolean
+  isMapReady: boolean,
+  sectionRef: React.RefObject<HTMLElement>,
+  containerRef: React.RefObject<HTMLDivElement>,
+  isActive: boolean
 ) => {
+  const cancelFlightRef = useRef<(() => void) | null>(null);
+  useEffect(() => {
+    const container = containerRef.current;
+    const cancel = () => cancelFlightRef.current?.();
+    const visibilityChanged = () => { if (document.hidden) cancel(); };
+    // Camera control immediately returns to the visitor on any map gesture.
+    container?.addEventListener('pointerdown', cancel);
+    container?.addEventListener('wheel', cancel, { passive: true });
+    window.addEventListener('resize', cancel);
+    document.addEventListener('visibilitychange', visibilityChanged);
+    return () => {
+      cancel();
+      container?.removeEventListener('pointerdown', cancel);
+      container?.removeEventListener('wheel', cancel);
+      window.removeEventListener('resize', cancel);
+      document.removeEventListener('visibilitychange', visibilityChanged);
+    };
+  }, [containerRef, isActive, isMapReady, mapProvider]);
+
   return useCallback(
     (lng: number, lat: number) => {
-      if (!isMapReady || !Number.isFinite(lng) || !Number.isFinite(lat)) return;
-
+      if (!isMapReady || !isActive || !Number.isFinite(lng) || !Number.isFinite(lat)) return;
       const map = mapProvider === 'amap' ? mapInstance.current : maplibreInstance.current;
-      if (!map) return;
-      const currentZoom = map.getZoom();
+      const container = containerRef.current;
+      const section = sectionRef.current;
+      if (!map || !container || !section) return;
+      cancelFlightRef.current?.();
       const center = map.getCenter();
-      const distance = calculateDistance(center.lat, center.lng, lat, lng);
-      const targetZoom = Math.min(Math.max(currentZoom, 10.2), 15.2);
+      const rect = container.getBoundingClientRect();
+      const offset = getCityFocusOffset(rect, section.querySelector('.curation-panel')?.getBoundingClientRect());
+      const flight = createCityFlight({ from: [center.lng, center.lat], to: [lng, lat],
+        zoom: map.getZoom(), width: rect.width, height: rect.height, offset,
+        tileSize: mapProvider === 'amap' ? 256 : 512 });
       const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-      // Longer journeys and large zoom changes get more time, bounded for responsiveness.
-      const duration = reducedMotion ? 0 : Math.round(Math.min(2000,
-        700 + Math.abs(targetZoom - currentZoom) * 100 + Math.log1p(distance) * 100));
-
-      if (mapProvider === 'amap' && mapInstance.current) {
-        map.setZoomAndCenter(targetZoom, [lng, lat], reducedMotion, duration);
+      const duration = reducedMotion ? 0 : flight.duration;
+      if (mapProvider === 'maplibre') {
+        if (!duration) map.jumpTo({ center: flight.destination, zoom: 10.2 });
+        else map.flyTo({ center: flight.destination, zoom: 10.2, duration,
+          curve: 1.42, easing: cityFlightEasing });
+        cancelFlightRef.current = () => { cancelFlightRef.current = null; map.stop(); };
         return;
       }
-
-      if (mapProvider === 'maplibre' && maplibreInstance.current) {
-        maplibreInstance.current.flyTo({ center: [lng, lat], zoom: targetZoom, duration, curve: 1.35 });
+      if (!duration) {
+        map.setZoomAndCenter(10.2, flight.destination, true, 0);
+        return;
       }
+      let frame = 0;
+      const started = performance.now();
+      const finish = () => {
+        cancelAnimationFrame(frame);
+        cancelFlightRef.current = null;
+        section.dispatchEvent(new Event('cityflightend'));
+      };
+      cancelFlightRef.current = finish;
+      section.dispatchEvent(new Event('cityflightstart'));
+      const animate = (now: number) => {
+        const progress = Math.min((now - started) / duration, 1);
+        const camera = flight.sample(progress);
+        // One camera update per display frame; do not nest the SDK's own tween.
+        map.setZoomAndCenter(camera.zoom, camera.center, true, 0);
+        if (progress < 1) frame = requestAnimationFrame(animate);
+        else finish();
+      };
+      frame = requestAnimationFrame(animate);
     },
-    [isMapReady, mapProvider, mapInstance, maplibreInstance]
+    [isMapReady, isActive, mapProvider, mapInstance, maplibreInstance, sectionRef, containerRef]
   );
 };
 
@@ -249,8 +293,14 @@ export const useMapMotion = (
       map.on(`${handler.motion}start`, handler.start);
       map.on(`${handler.motion}end`, handler.end);
     });
+    const flightStart = () => start('cityflight');
+    const flightEnd = () => end('cityflight');
+    section.addEventListener('cityflightstart', flightStart);
+    section.addEventListener('cityflightend', flightEnd);
     return () => {
       clearTimeout(restoreTimer);
+      section.removeEventListener('cityflightstart', flightStart);
+      section.removeEventListener('cityflightend', flightEnd);
       handlers.forEach(handler => {
         map.off(`${handler.motion}start`, handler.start);
         map.off(`${handler.motion}end`, handler.end);

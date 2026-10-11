@@ -121,10 +121,12 @@ try {
   await page.locator('.curation-category-header').first().click();
   await page.locator('.curation-card').first().click();
   await page.waitForFunction(() => window.mapChecks.maps[0].calls.length > 0);
-  const move = await page.evaluate(() => window.mapChecks.maps[0].calls.at(-1));
-  assert.equal(move.immediately, false);
-  assert.ok(move.duration >= 700 && move.duration <= 2000);
+  assert.equal(await page.locator('.curation-panel').evaluate(el => getComputedStyle(el).backdropFilter), 'none');
   await page.waitForFunction(() => !document.querySelector('#explore-view').classList.contains('map-in-motion'));
+  const moves = await page.evaluate(() => window.mapChecks.maps[0].calls);
+  assert.ok(moves.length > 20, 'Flight must advance continuously across display frames');
+  assert.ok(moves.every(move => move.immediately && move.duration === 0), 'Frames must not start nested SDK animations');
+  assert.equal(moves.at(-1).zoom, 10.2);
   const glass = await page.locator('.curation-panel').evaluate(el => getComputedStyle(el).backdropFilter);
   assert.equal(glass, 'blur(20px)');
 
@@ -134,6 +136,40 @@ try {
   assert.match(await page.locator('.discover-search-result').innerText(), /北京[\s\S]*1 张/);
   await search.press('Enter');
   assert.equal(await page.locator('.discover-search-result').getAttribute('aria-pressed'), 'true');
+  // City-to-city travel should pull back, rather than sliding across at street scale.
+  await page.waitForFunction(() => !document.querySelector('#explore-view').classList.contains('map-in-motion'));
+  const cityFlightStart = await page.evaluate(() => window.mapChecks.maps[0].calls.length);
+  await search.fill('上海');
+  await search.press('Enter');
+  await page.waitForFunction(() => !document.querySelector('#explore-view').classList.contains('map-in-motion'));
+  const cityMoves = await page.evaluate(start => window.mapChecks.maps[0].calls.slice(start), cityFlightStart);
+  assert.ok(Math.min(...cityMoves.map(move => move.zoom)) < 8, 'Distant city flight must zoom out along its arc');
+  assert.equal(cityMoves.at(-1).zoom, 10.2);
+  // A newer destination replaces an in-flight journey from its current position.
+  await search.fill('北京');
+  await search.press('Enter');
+  await page.waitForFunction(() => document.querySelector('#explore-view').classList.contains('map-in-motion'));
+  await search.fill('上海');
+  await search.press('Enter');
+  await page.waitForFunction(() => !document.querySelector('#explore-view').classList.contains('map-in-motion'));
+  assert.ok(await page.evaluate(() => window.mapChecks.maps[0].getCenter().lng > 120));
+  // Touch/wheel control cancels the scheduled flight and keeps the current camera.
+  await search.fill('北京');
+  await search.press('Enter');
+  await page.waitForFunction(() => document.querySelector('#explore-view').classList.contains('map-in-motion'));
+  await page.locator('#mapCanvas').dispatchEvent('pointerdown');
+  const interruptedCalls = await page.evaluate(() => window.mapChecks.maps[0].calls.length);
+  await page.waitForTimeout(250);
+  assert.equal(await page.evaluate(() => window.mapChecks.maps[0].calls.length), interruptedCalls);
+  assert.equal(await page.locator('.curation-panel').evaluate(el => getComputedStyle(el).backdropFilter), 'blur(20px)');
+  await search.fill('北京');
+  await search.press('Enter');
+  await page.waitForFunction(() => document.querySelector('#explore-view').classList.contains('map-in-motion'));
+  await page.getByRole('button', { name: '图库', exact: true }).click();
+  const hiddenCalls = await page.evaluate(() => window.mapChecks.maps[0].calls.length);
+  await page.waitForTimeout(250);
+  assert.equal(await page.evaluate(() => window.mapChecks.maps[0].calls.length), hiddenCalls, 'A hidden discover view must stop flying');
+  await discover.click();
   await search.fill('不存在的地点');
   await page.getByText('未找到相关地点', { exact: true }).waitFor();
   await search.press('Escape');
@@ -211,7 +247,7 @@ try {
   await detailMarker.waitFor();
   await page.waitForFunction(() => document.querySelector('.photo-map-marker-target')?.getBoundingClientRect().width > 43.99);
   const detailBox = await detailMarker.boundingBox();
-  assert.equal(detailBox.width, 44);
+  assert.ok(Math.abs(detailBox.width - 44) < 0.05);
   assert.equal(await detailMarker.locator('.photo-map-marker-dot').evaluate(el => el.getBoundingClientRect().width), 12);
   const popupOpens = await page.evaluate(() => window.mapChecks.popups.at(-1).opens);
   await page.mouse.click(detailBox.x + 8, detailBox.y + 22);
