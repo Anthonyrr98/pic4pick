@@ -109,8 +109,8 @@ html { background: var(--bg); scrollbar-color: var(--muted) var(--bg); }
   z-index: 100;
   top: 94px;
   right: clamp(24px, 5vw, 72px);
-  width: 336px;
-  padding: 18px;
+  width: 280px;
+  padding: 12px;
   background: var(--panel);
   color: var(--text);
   border: 1px solid var(--border);
@@ -120,16 +120,16 @@ html { background: var(--bg); scrollbar-color: var(--muted) var(--bg); }
   overflow: auto;
   overscroll-behavior: contain;
 }
-.theme-popover-heading { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 16px; font-size: 0.8rem; font-weight: 650; }
+.theme-popover-heading { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 10px; font-size: 0.75rem; font-weight: 650; }
 .theme-popover-heading span:last-child { color: var(--muted); font-size: 0.57rem; letter-spacing: 0.16em; font-weight: 400; }
 .theme-option {
   display: flex;
   align-items: center;
-  gap: 13px;
+  gap: 10px;
   width: 100%;
-  min-height: 91px;
-  margin: 8px 0;
-  padding: 12px 10px;
+  min-height: 68px;
+  margin: 6px 0;
+  padding: 8px;
   border: 1px solid var(--border);
   border-radius: calc(var(--ui-radius) * 0.65);
   background: transparent;
@@ -139,15 +139,15 @@ html { background: var(--bg); scrollbar-color: var(--muted) var(--bg); }
 }
 .theme-option:hover { background: var(--surface-hover); }
 .theme-option.is-selected { border-color: var(--accent); background: rgb(var(--accent-rgb) / 0.08); }
-.theme-option-copy { display: flex; flex: 1; min-width: 0; flex-direction: column; gap: 5px; }
-.theme-option-name { display: flex; align-items: center; gap: 10px; font-size: 0.86rem; font-weight: 650; }
+.theme-option-copy { display: flex; flex: 1; min-width: 0; flex-direction: column; gap: 4px; }
+.theme-option-name { display: flex; align-items: center; gap: 8px; font-size: 0.82rem; font-weight: 650; }
 .theme-option-number { font-family: 'Playfair Display', serif; color: var(--muted); font-size: 0.7rem; font-weight: 400; }
 .theme-option-english { color: var(--muted); font-size: 0.55rem; letter-spacing: 0.14em; }
 .theme-option-check { width: 15px; color: var(--accent); font-weight: 700; }
-.theme-preview { position: relative; width: 56px; height: 65px; flex-shrink: 0; overflow: hidden; background: var(--preview-bg); border: 1px solid rgb(0 0 0 / 0.12); border-radius: 4px; }
-.theme-preview-line { position: absolute; top: 9px; left: 8px; width: 23px; height: 2px; background: var(--preview-ink); }
-.theme-preview-frame { position: absolute; left: 8px; right: 8px; top: 19px; bottom: 8px; background: linear-gradient(155deg, var(--preview-panel) 40%, var(--preview-accent) 41% 62%, var(--preview-ink) 63%); }
-.theme-preview-dot { position: absolute; top: 8px; right: 8px; width: 5px; height: 5px; border-radius: 50%; background: var(--preview-accent); }
+.theme-preview { position: relative; width: 40px; height: 48px; flex-shrink: 0; overflow: hidden; background: var(--preview-bg); border: 1px solid rgb(0 0 0 / 0.12); border-radius: 4px; }
+.theme-preview-line { position: absolute; top: 7px; left: 6px; width: 18px; height: 2px; background: var(--preview-ink); }
+.theme-preview-frame { position: absolute; left: 6px; right: 6px; top: 15px; bottom: 6px; background: linear-gradient(155deg, var(--preview-panel) 40%, var(--preview-accent) 41% 62%, var(--preview-ink) 63%); }
+.theme-preview-dot { position: absolute; top: 6px; right: 6px; width: 4px; height: 4px; border-radius: 50%; background: var(--preview-accent); }
 .theme-sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .theme-transition-wash { position: fixed; inset: 0; z-index: 40; background: var(--accent); opacity: 0; pointer-events: none; }
 
@@ -245,7 +245,7 @@ html { background: var(--bg); scrollbar-color: var(--muted) var(--bg); }
   .app-shell:not(.explore-mode) .app-header .brand { max-width: calc(100% - 166px); gap: 8px; }
   .app-shell:not(.explore-mode) .brand-wordmark-img { min-width: 0; width: clamp(96px, 28vw, 140px); }
   .app-header .header-actions .view-toggle { position: relative; inset: auto; }
-  .theme-popover { position: fixed; top: 68px; right: 14px; width: min(336px, calc(100vw - 28px)); max-height: calc(100dvh - 86px); }
+  .theme-popover { position: fixed; top: 68px; right: 14px; width: min(280px, calc(100vw - 28px)); max-height: calc(100dvh - 86px); }
   .login-theme-switcher { top: 16px; right: 16px; }
   :root[data-theme] .app-shell.explore-mode .app-header { padding: 12px 18px; }
   .app-shell.explore-mode .header-actions .toggle-btn { padding: 7px 13px; font-size: 0.84rem; }
