@@ -15,7 +15,14 @@ test('distant cities follow a finite, continuous zoom-out / zoom-in arc', () => 
     assert.ok(Math.abs(frames[i].zoom - frames[i - 1].zoom) < 0.4);
     assert.ok(frames[i].center[0] >= frames[i - 1].center[0] - 1e-8);
   }
-  assert.ok(flight.duration >= 900 && flight.duration <= 3600);
+  assert.ok(flight.duration >= 1150 && flight.duration <= 3850);
+});
+test('the final approach slows progressively and settles without a last-frame snap', () => {
+  const flight = createCityFlight(settings);
+  const step = t => Math.abs(flight.sample(t + 0.01).zoom - flight.sample(t).zoom);
+  assert.ok(step(0.9) < step(0.8) * 0.4);
+  assert.ok(step(0.98) < step(0.9) * 0.05);
+  assert.ok(Math.abs(flight.sample(0.99).zoom - flight.sample(1).zoom) < 0.001);
 });
 test('same-place zoom and a repeated settled selection remain stable', () => {
   const flight = createCityFlight({ ...settings, to: settings.from, zoom: 15 });

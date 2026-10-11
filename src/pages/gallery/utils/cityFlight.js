@@ -11,7 +11,9 @@ const unproject = ([x, y]) => [
   Math.atan(Math.sinh(Math.PI * (1 - 2 * y))) * 180 / Math.PI,
 ];
 
-export const cityFlightEasing = t => t * t * (3 - 2 * t);
+// Asymmetric ease: reach cruising speed early, then spend longer settling.
+// Both velocity and acceleration reach zero at arrival, avoiding a hard stop.
+export const cityFlightEasing = t => t * t * (6 + t * (-8 + 3 * t));
 
 /** Continuous zoom/pan path based on Van Wijk & Nuij (2003), equations 8–9.
  * https://www.win.tue.nl/~vanwijk/zoompan.pdf
@@ -56,7 +58,7 @@ export function createCityFlight({ from, to, zoom, targetZoom = 10.2, width, hei
 
   const stationary = distance * tileSize * 2 ** zoom < 0.5 && Math.abs(zoom - targetZoom) < 0.01;
   return {
-    duration: stationary ? 0 : Math.round(clamp(length / 1.5 * 1000, 900, 3600)),
+    duration: stationary ? 0 : Math.round(clamp(length / 1.5 * 1000, 900, 3600)) + 250,
     destination: unproject(destination),
     sample: t => t >= 1
       ? { center: unproject(destination), zoom: targetZoom }
