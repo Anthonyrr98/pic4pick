@@ -192,6 +192,110 @@ html { background: var(--bg); scrollbar-color: var(--muted) var(--bg); }
 :root[data-theme] .location-panel-title { color: var(--text); font-family: var(--display-font); }
 :root[data-theme] .location-panel-close { background: var(--surface-soft); color: var(--text); }
 
+.discover-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+  min-height: 44px;
+  margin: 8px 0 10px;
+  padding-left: 12px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  color: var(--muted);
+}
+.discover-search:focus-within { border-color: var(--accent); box-shadow: var(--focus-ring); }
+.discover-search svg { flex-shrink: 0; }
+.discover-search input {
+  min-width: 0;
+  width: 100%;
+  height: 44px;
+  padding: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 16px;
+}
+.discover-search input::placeholder { color: var(--muted); }
+.discover-search input::-webkit-search-cancel-button { -webkit-appearance: none; }
+.discover-search > button {
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 23px;
+  cursor: pointer;
+}
+.discover-search-status, .discover-search-hint { margin: 12px 0; color: var(--muted); font-size: 0.8rem; line-height: 1.6; }
+.discover-search-results ul { list-style: none; margin: 0; padding: 0; }
+.discover-search-result {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-height: 58px;
+  padding: 10px 12px;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+.discover-search-result > span:first-child { min-width: 0; }
+.discover-search-result strong { display: block; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
+.discover-search-result small { display: block; margin-top: 2px; color: var(--muted); font-size: 0.75rem; }
+.discover-search-count { flex-shrink: 0; color: var(--muted); font-size: 0.8rem; }
+.discover-search-result:hover, .discover-search-result[aria-pressed='true'] { background: var(--surface-soft); }
+.discover-search-result:focus-visible, .discover-search > button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.explore-marker-target {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.explore-marker-target:focus-visible { outline: 2px solid var(--accent); outline-offset: -5px; }
+.explore-marker-tooltip {
+  position: absolute;
+  bottom: 38px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--text);
+  box-shadow: var(--shadow-soft);
+  font: 12px/1.5 var(--body-font);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+}
+.explore-marker-target:focus-visible .explore-marker-tooltip { opacity: 1; visibility: visible; }
+@media (hover: hover) {
+  .explore-marker-target:hover .explore-marker-tooltip { opacity: 1; visibility: visible; }
+}
+
 /* Opaque metadata surfaces keep text readable over any photograph. */
 :root[data-theme] .lightbox-panel::before { background: rgb(var(--bg-rgb) / 0.88); }
 :root[data-theme] .lightbox-title-section { border-color: var(--border); }

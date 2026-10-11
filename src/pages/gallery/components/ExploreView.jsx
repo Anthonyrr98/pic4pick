@@ -113,10 +113,22 @@ export function ExploreView({
 
       const palette = ['#cfa56a', '#111218', '#9b9dad', '#d48a48'];
       const markerDots = [];
+      const markerTargets = [];
+      const showLocation = group => onShowLocationPanel({
+        title: group.location || group.country || '未命名地点',
+        subtitle: group.country
+          ? group.location ? `${group.country} · ${group.location}` : group.country
+          : '',
+        photos: group.photos,
+        emptyMessage: group.photos.length === 0 ? '当前地点暂时没有图库照片' : '',
+      });
       photosByLocation.forEach((group, index) => {
         const color = palette[index % palette.length];
-        const anchor = document.createElement('div');
-        anchor.style.cssText = 'display:block;line-height:0;';
+        const anchor = document.createElement('button');
+        anchor.type = 'button';
+        anchor.className = 'explore-marker-target';
+        const label = `${group.location || group.country || '未命名地点'} · ${group.photos.length} 张照片`;
+        anchor.setAttribute('aria-label', label);
         const dot = document.createElement('div');
         dot.className = 'explore-marker';
         dot.style.cssText = [
@@ -131,16 +143,33 @@ export function ExploreView({
           'opacity:0',
           'transform:scale(0)',
         ].join(';');
+        dot.setAttribute('aria-hidden', 'true');
         anchor.appendChild(dot);
-        anchor.addEventListener('click', () => {
-          onShowLocationPanel({
-            title: group.location || group.country || '未命名地点',
-            subtitle: group.country
-              ? group.location ? `${group.country} · ${group.location}` : group.country
-              : '',
-            photos: group.photos,
-            emptyMessage: group.photos.length === 0 ? '当前地点暂时没有图库照片' : '',
-          });
+        const tooltip = document.createElement('span');
+        tooltip.className = 'explore-marker-tooltip';
+        tooltip.textContent = label;
+        tooltip.setAttribute('aria-hidden', 'true');
+        anchor.appendChild(tooltip);
+        markerTargets.push({ anchor, group });
+        anchor.addEventListener('click', event => {
+          event.stopPropagation();
+          let selected = group;
+          // Enlarged transparent targets can overlap: select the closest visible dot.
+          // Keyboard activation has no pointer position and keeps its focused target.
+          if (event.detail > 0) {
+            let nearestDistance = Infinity;
+            markerTargets.forEach(target => {
+              const rect = target.anchor.getBoundingClientRect();
+              if (!rect.width || !rect.height) return;
+              const distance = (event.clientX - rect.left - rect.width / 2) ** 2
+                + (event.clientY - rect.top - rect.height / 2) ** 2;
+              if (distance < nearestDistance) {
+                nearestDistance = distance;
+                selected = target.group;
+              }
+            });
+          }
+          showLocation(selected);
         });
 
         if (mapProvider === 'amap') {
@@ -148,7 +177,7 @@ export function ExploreView({
           const marker = new window.AMap.Marker({
             position: [group.lng, group.lat],
             content: anchor,
-            offset: new window.AMap.Pixel(-6, -6),
+            offset: new window.AMap.Pixel(-22, -22),
             map: mapInstance.current,
           });
           exploreMarkersRef.current.push(marker);

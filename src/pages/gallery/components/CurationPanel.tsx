@@ -2,7 +2,7 @@
  * 精选面板组件 - 显示省份和城市的精选卡片
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { CurationGroup, CityEntry } from '../utils/photoDataUtils';
 
 interface CurationPanelProps {
@@ -27,6 +27,22 @@ export const CurationPanel: React.FC<CurationPanelProps> = ({
   onTogglePanelCollapse,
 }) => {
   const [loadedImageIds, setLoadedImageIds] = useState<Record<string, boolean>>({});
+  const [searchQuery, setSearchQuery] = useState('');
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const firstSearchResultRef = useRef<HTMLButtonElement>(null);
+  const searchTerms = searchQuery.normalize('NFKC').trim().toLocaleLowerCase().split(/\s+/).filter(Boolean);
+  const isSearching = searchTerms.length > 0;
+  const searchResults = useMemo(() => {
+    const terms = searchQuery.normalize('NFKC').trim().toLocaleLowerCase().split(/\s+/).filter(Boolean);
+    if (!terms.length) return [];
+    return groups.flatMap(group => group.items
+      .filter(city => terms.every(term => `${group.title} ${city.label}`.normalize('NFKC').toLocaleLowerCase().includes(term)))
+      .map(city => ({ group, city })));
+  }, [groups, searchQuery]);
+  const clearSearch = () => {
+    setSearchQuery('');
+    searchInputRef.current?.focus();
+  };
 
   useEffect(() => {
     const currentIds = new Set(groups.flatMap((group) => group.items.map((item) => item.id)));
@@ -80,6 +96,38 @@ export const CurationPanel: React.FC<CurationPanelProps> = ({
       >
         <span className={`curation-panel-toggle-icon ${isPanelCollapsed ? 'collapsed' : ''}`}></span>
       </button>
+      {!isPanelCollapsed && (
+        <form className="discover-search" role="search" aria-label="发现地点搜索"
+          onSubmit={event => {
+            event.preventDefault();
+            if (isLoading) return;
+            if (searchResults.length === 1) {
+              const { group, city } = searchResults[0];
+              onCityClick(group, city);
+            } else {
+              firstSearchResultRef.current?.focus();
+            }
+          }}>
+          <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
+            <circle cx="10.5" cy="10.5" r="6.5" /><path d="m16 16 4 4" />
+          </svg>
+          <input ref={searchInputRef} type="search" aria-label="搜索地点"
+            placeholder="搜索省份或城市" value={searchQuery} autoComplete="off"
+            onChange={event => setSearchQuery(event.target.value)}
+            onKeyDown={event => {
+              if (event.nativeEvent.isComposing) return;
+              if (event.key === 'Escape' && searchQuery) {
+                event.preventDefault();
+                clearSearch();
+              }
+              if (event.key === 'ArrowDown' && searchResults.length) {
+                event.preventDefault();
+                firstSearchResultRef.current?.focus();
+              }
+            }} />
+          {searchQuery && <button type="button" aria-label="清除地点搜索" onClick={clearSearch}>×</button>}
+        </form>
+      )}
       {!isPanelCollapsed && isLoading && (
         <div className="curation-panel-status" role="status" aria-live="polite">
           <div className="curation-panel-status-copy">
@@ -101,7 +149,28 @@ export const CurationPanel: React.FC<CurationPanelProps> = ({
           </div>
         </div>
       )}
-      {!isLoading && groups.map((group) => (
+      {!isPanelCollapsed && !isLoading && isSearching && (
+        <div className="discover-search-results">
+          <p className="discover-search-status" role="status">
+            {searchResults.length ? `找到 ${searchResults.length} 个地点` : '未找到相关地点'}
+          </p>
+          {searchResults.length === 0 && <p className="discover-search-hint">试试其他省份或城市，或清除搜索查看全部地点。</p>}
+          <ul>
+            {searchResults.map(({ group, city }, index) => (
+              <li key={city.id}>
+                <button ref={index === 0 ? firstSearchResultRef : undefined} type="button"
+                  className="discover-search-result"
+                  aria-pressed={activeCitySelection?.provinceId === group.id && activeCitySelection?.cityId === city.id}
+                  onClick={() => onCityClick(group, city)}>
+                  <span><strong>{city.label}</strong><small>{group.title}</small></span>
+                  <span className="discover-search-count">{city.photoCount} 张<span aria-hidden="true"> ›</span></span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {!isLoading && (!isSearching || isPanelCollapsed) && groups.map((group) => (
         <div key={group.id} className="curation-category">
           <button
             className="curation-category-header"

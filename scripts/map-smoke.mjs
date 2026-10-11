@@ -52,8 +52,21 @@ function installMockAmap() {
     }
   }
   class Marker {
-    constructor(options) { this.options = options; window.mapChecks.markers.push(this); }
-    setMap(map) { this.removed = map === null; }
+    constructor(options) {
+      this.options = options;
+      this.index = window.mapChecks.markers.length;
+      window.mapChecks.markers.push(this);
+      this.setMap(options.map);
+    }
+    setMap(map) {
+      this.removed = map === null;
+      const content = this.options.content;
+      if (!(content instanceof HTMLElement)) return;
+      if (!map) { content.remove(); return; }
+      // Nearby markers intentionally overlap to exercise the enlarged hit targets.
+      Object.assign(content.style, { position: 'absolute', left: `calc(60% - 22px + ${this.index * 14}px)`, top: 'calc(45% - 22px)' });
+      map.container.appendChild(content);
+    }
   }
   window.AMap = { Map, Marker, Pixel: class {},
     InfoWindow: class { open() {} close() {} },
@@ -111,6 +124,54 @@ try {
   const glass = await page.locator('.curation-panel').evaluate(el => getComputedStyle(el).backdropFilter);
   assert.equal(glass, 'blur(20px)');
 
+  const search = page.getByRole('searchbox', { name: '搜索地点' });
+  await search.fill(' 北京　北京 ');
+  assert.equal(await page.locator('.discover-search-result').count(), 1);
+  assert.match(await page.locator('.discover-search-result').innerText(), /北京[\s\S]*1 张/);
+  await search.press('Enter');
+  assert.equal(await page.locator('.discover-search-result').getAttribute('aria-pressed'), 'true');
+  await search.fill('不存在的地点');
+  await page.getByText('未找到相关地点', { exact: true }).waitFor();
+  await search.press('Escape');
+  assert.ok(await page.locator('.curation-card.active').count(), 'Clearing search restores the expanded city cards');
+  await search.fill('上海');
+  await search.press('ArrowDown');
+  assert.ok(await page.locator('.discover-search-result').evaluate(el => el === document.activeElement));
+  await page.keyboard.press('Enter');
+  assert.equal(await page.locator('.discover-search-result').getAttribute('aria-pressed'), 'true');
+  await page.getByRole('button', { name: '收起面板' }).click();
+  assert.equal(await search.count(), 0);
+  await page.getByRole('button', { name: '展开面板' }).click();
+  assert.equal(await search.inputValue(), '上海');
+  await page.getByRole('button', { name: '图库', exact: true }).click();
+  await discover.click();
+  assert.equal(await search.inputValue(), '上海', 'Search survives returning from the gallery');
+  await page.getByRole('button', { name: '清除地点搜索' }).click();
+  await search.fill('北京');
+  await search.press('Enter');
+  await page.getByRole('button', { name: '清除地点搜索' }).click();
+  await page.waitForFunction(() => !document.querySelector('#explore-view').classList.contains('map-in-motion'));
+
+  const beijingMarker = page.getByRole('button', { name: '北京 · 1 张照片', exact: true });
+  const box = await beijingMarker.boundingBox();
+  assert.equal(box.width, 44);
+  assert.equal(box.height, 44);
+  assert.equal(await beijingMarker.locator('.explore-marker').evaluate(el => el.getBoundingClientRect().width), 9);
+  // Click well outside the nine-pixel dot, but within its transparent target.
+  await page.mouse.click(box.x + 7, box.y + 22);
+  assert.equal(await page.locator('.location-panel-title').innerText(), '北京');
+  await page.getByRole('button', { name: '关闭', exact: true }).click();
+  // Shanghai's topmost transparent target overlaps Beijing's visible dot.
+  await page.mouse.click(box.x + 22, box.y + 22);
+  assert.equal(await page.locator('.location-panel-title').innerText(), '北京');
+  await page.getByRole('button', { name: '关闭', exact: true }).click();
+  const shanghaiMarker = page.getByRole('button', { name: '上海 · 1 张照片', exact: true });
+  await shanghaiMarker.press('ArrowRight');
+  assert.equal(await shanghaiMarker.locator('.explore-marker-tooltip').evaluate(el => getComputedStyle(el).visibility), 'visible');
+  await shanghaiMarker.press('Enter');
+  assert.equal(await page.locator('.location-panel-title').innerText(), '上海');
+  await page.getByRole('button', { name: '关闭', exact: true }).click();
+
   // Zoom completion must not restore expensive glass while a pan is still running.
   await page.evaluate(() => { const map = window.mapChecks.maps[0]; map.emit('movestart'); map.emit('zoomstart'); map.emit('zoomend'); });
   await page.waitForTimeout(250);
@@ -163,7 +224,7 @@ try {
   await reduced.context.close();
 
   // Exercise the actual MapLibre renderer and its camera events, including SDK failure.
-  const fallback = await setup({}, 'js_whitesmoke');
+  const fallback = await setup({ hasTouch: true }, 'js_whitesmoke');
   await fallback.context.route('https://webapi.amap.com/**', route => route.abort());
   await fallback.page.goto(baseUrl, { waitUntil: 'networkidle' });
   await fallback.page.getByRole('button', { name: '发现', exact: true }).click();
@@ -178,10 +239,19 @@ try {
   assert.ok(await canvas.evaluate(el => el === document.querySelector('#mapCanvas canvas')));
   await fallback.page.setViewportSize({ width: 390, height: 844 });
   await fallback.page.waitForFunction(() => Math.abs(document.querySelector('#mapCanvas canvas').getBoundingClientRect().width - innerWidth) < 2);
+  const mobileSearch = fallback.page.getByRole('searchbox', { name: '搜索地点' });
+  await mobileSearch.fill('北京');
+  await fallback.page.locator('.discover-search-result').click();
+  await fallback.page.waitForFunction(() => !document.querySelector('#explore-view').classList.contains('map-in-motion'));
+  const mobileMarker = await fallback.page.getByRole('button', { name: '北京 · 1 张照片', exact: true }).boundingBox();
+  await fallback.page.touchscreen.tap(mobileMarker.x + 8, mobileMarker.y + 22);
+  assert.equal(await fallback.page.locator('.location-panel-title').innerText(), '北京');
+  await fallback.page.getByRole('button', { name: '关闭', exact: true }).click();
+  assert.equal(await fallback.page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   if (artifacts) await fallback.page.screenshot({ path: path.join(artifacts, 'map-mobile.png') });
   await fallback.context.close();
   assert.deepEqual(errors, []);
-  console.log('Map checks passed: shared SDK preload, retained map/markers/camera, animation, glass restoration, reduced motion, cleanup, real MapLibre fallback and mobile resize.');
+  console.log('Map checks passed: location search, keyboard and clear/empty states, retained search/map/camera, enlarged and overlapping marker targets, mobile touch, animation, glass restoration, reduced motion, cleanup and real MapLibre fallback.');
 } finally {
   await browser.close();
 }
