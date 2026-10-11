@@ -173,7 +173,7 @@ html { background: var(--bg); scrollbar-color: var(--muted) var(--bg); }
 
 /* Map imagery keeps its configured style; the interface around it follows the theme. */
 :root[data-theme] #explore-view .curation-panel { background: var(--glass); border: 1px solid var(--border); box-shadow: var(--shadow-soft); backdrop-filter: blur(20px); }
-:root[data-theme] :is(.location-panel, .maplibregl-popup-content) { background: var(--panel); color: var(--text); border-color: var(--border); }
+:root[data-theme] :is(.location-panel, .maplibregl-popup-content, .photo-location-map .amap-info-content) { background: var(--panel); color: var(--text); border-color: var(--border); }
 :root[data-theme] .curation-category-title,
 :root[data-theme] #explore-view .curation-panel.collapsed .curation-category:first-child .curation-category-title { color: var(--text) !important; }
 :root[data-theme] :is(.curation-category-count, .curation-panel-status-copy small) { color: var(--muted); }

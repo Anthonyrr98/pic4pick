@@ -19,9 +19,8 @@ import { getShotTimeInfo } from './utils/timeUtils';
 import { filterAndSortPhotos } from './utils/photoFilterUtils';
 import { usePhotoData, useLikePhoto } from './hooks/usePhotoData';
 import { useExifData, useBrowserLocation, useAltitudeFromCoords } from './hooks/useExifAndLocation';
-import { loadMapLibre, preloadMapLibre } from '../../utils/maplibreLoader';
-import { getDefaultMaplibreStyle } from '../../utils/gaodeMapStyle';
-import { escapeHtml } from '../../utils/security';
+import { preloadMapLibre } from '../../utils/maplibreLoader';
+import { PhotoLocationMap } from './components/PhotoLocationMap';
 import {
   getDirectMediaUrl,
   getOriginalMediaUrl,
@@ -199,9 +198,6 @@ export function GalleryPage() {
   const [brandText, setBrandText] = useState(() => getStoredBrandText());
 
   // 鈹€鈹€ 鍦板浘 ref
-  const geoMapContainerRef = useRef(null);
-  const geoMapInstance = useRef(null);
-  const maplibreRef = useRef(null);
 
   // 鈹€鈹€ 鍙戠幇瑙嗗浘闈㈡澘鐘舵€?
   const [locationPanel, setLocationPanel] = useState(null);
@@ -465,13 +461,6 @@ export function GalleryPage() {
     }
   }, [lightboxPhoto]);
 
-  const ensureMapLibre = useCallback(async () => {
-    if (!maplibreRef.current) {
-      maplibreRef.current = await loadMapLibre();
-    }
-    return maplibreRef.current;
-  }, []);
-
   // 鈹€鈹€ Effects
   useEffect(() => {
     if (!metaPopover) return;
@@ -671,103 +660,6 @@ export function GalleryPage() {
     fetchBranding();
     return () => { isMounted = false; };
   }, [supabase]);
-
-  // 地理位置弹窗内的小地图
-  useEffect(() => {
-    // 条件不满足时：销毁已有实例并退出
-    if (!geoMapContainerRef.current || !getGeoInfo || metaPopover?.tab !== 'geo') {
-      if (geoMapInstance.current) { geoMapInstance.current.remove(); geoMapInstance.current = null; }
-      return;
-    }
-
-    const { latitude: lat, longitude: lon } = getGeoInfo;
-    // cancelled 用于阻断 once('load') 回调在 cleanup 后触发
-    let cancelled = false;
-
-    const initGeoMap = async () => {
-      const maplibregl = await ensureMapLibre();
-      if (cancelled) return;
-
-      const addMarkers = (map) => {
-      if (cancelled || !map) return;
-      // 清理旧 markers
-      (map._markers || []).forEach((m) => m.remove());
-      map._markers = [];
-      if (map.getLayer('connection-line')) {
-        map.removeLayer('connection-line');
-        map.removeSource('connection-line');
-      }
-
-      const photoEl = document.createElement('div');
-      photoEl.style.cssText = 'width:30px;height:30px;background:#e74c3c;border:3px solid white;border-radius:50%;box-shadow:0 2px 8px rgba(0,0,0,0.3);cursor:pointer;';
-      const photoPopup = new maplibregl.Popup({ offset: 25 })
-        .setHTML(
-          `<strong>${escapeHtml(lightboxPhoto?.title || '照片位置')}</strong><br>${escapeHtml(getGeoInfo.place)}`
-        );
-      const pm = new maplibregl.Marker(photoEl).setLngLat([lon, lat]).setPopup(photoPopup).addTo(map);
-      pm.togglePopup();
-      map._markers.push(pm);
-
-      if (getGeoInfo.browserLocation) {
-        const bEl = document.createElement('div');
-        bEl.style.cssText = 'width:30px;height:30px;background:#3498db;border:3px solid white;border-radius:50%;box-shadow:0 2px 8px rgba(0,0,0,0.3);cursor:pointer;';
-        const bm = new maplibregl.Marker(bEl)
-          .setLngLat([getGeoInfo.browserLocation.lon, getGeoInfo.browserLocation.lat])
-          .setPopup(
-            new maplibregl.Popup({ offset: 25 }).setHTML(`<strong>${escapeHtml('当前位置')}</strong>`)
-          )
-          .addTo(map);
-        bm.togglePopup();
-        map._markers.push(bm);
-        map.addSource('connection-line', {
-          type: 'geojson',
-          data: { type: 'Feature', properties: {}, geometry: { type: 'LineString',
-            coordinates: [[lon, lat], [getGeoInfo.browserLocation.lon, getGeoInfo.browserLocation.lat]] } },
-        });
-        map.addLayer({
-          id: 'connection-line', type: 'line', source: 'connection-line',
-          layout: { 'line-join': 'round', 'line-cap': 'round' },
-          paint: { 'line-color': '#e7b17c', 'line-width': 2, 'line-opacity': 0.6, 'line-dasharray': [5, 10] },
-        });
-      }
-      };
-
-      if (geoMapInstance.current) {
-      // 实例已存在：复用，仅更新中心点和 markers
-      geoMapInstance.current.setCenter([lon, lat]);
-      if (geoMapInstance.current.loaded()) {
-        addMarkers(geoMapInstance.current);
-      } else {
-        geoMapInstance.current.once('load', () => addMarkers(geoMapInstance.current));
-      }
-      } else {
-      // 新建实例
-      const map = new maplibregl.Map({
-        container: geoMapContainerRef.current,
-        style: getDefaultMaplibreStyle(),
-        center: [lon, lat], zoom: 10, attributionControl: true,
-      });
-      map._markers = [];
-      geoMapInstance.current = map;
-      // 用 once('load') 添加 markers，并通过 cancelled 防止 cleanup 后仍执行
-      map.once('load', () => addMarkers(map));
-      }
-    };
-    initGeoMap();
-
-    return () => {
-      // 标记取消，阻断 once('load') 回调
-      cancelled = true;
-      // 注意：不在此处销毁地图实例——popover tab 切换会触发此 cleanup，
-      // 但只要 metaPopover?.tab === 'geo' 且 getGeoInfo 存在，下一次 effect 会复用实例。
-      // 仅当下一次 effect 判断条件不满足时（see top of effect）才销毁。
-    };
-  }, [getGeoInfo, metaPopover?.tab, lightboxPhoto, ensureMapLibre]);
-
-  useEffect(() => {
-    if (metaPopover?.tab === 'geo' && geoMapInstance.current)
-      setTimeout(() => geoMapInstance.current?.resize(), 100);
-  }, [metaPopover?.tab]);
 
   // ── Render
   return (
@@ -1096,11 +988,7 @@ export function GalleryPage() {
                 <div className="meta-panel-body" style={{ maxHeight: 'calc(90vh - 80px)', overflowY: 'auto' }}>
                   {getGeoInfo ? (
                     <>
-                      <div ref={geoMapContainerRef} style={{
-                        width: '100%', height: '240px', minHeight: '240px',
-                        marginBottom: '16px', borderRadius: '8px',
-                        overflow: 'hidden', border: '1px solid var(--border)',
-                      }} />
+                      <PhotoLocationMap geoInfo={getGeoInfo} title={lightboxPhoto?.title} />
                       <div style={{ marginBottom: '16px', padding: '12px',
                         background: 'rgba(255,255,255,0.7)', backdropFilter: 'blur(10px)',
                         borderRadius: '8px', border: '1px solid rgba(255,255,255,0.3)' }}>

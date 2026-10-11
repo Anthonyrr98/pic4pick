@@ -1,5 +1,5 @@
 /**
- * 地图初始化：默认 MapLibre 栅格底图；仅 VITE_MAP_USE_AMAP_SDK=true 时尝试高德 JS（远山黛）
+ * 共用地图初始化：按当前预设选择高德 JS 或 MapLibre，SDK 不可用时回退栅格底图。
  */
 
 import { useEffect, useRef, useState, useCallback } from 'react';
@@ -77,8 +77,10 @@ function ensureAMapLoaded(amapKey: string): Promise<void> {
 
 export const useGaodeMapInit = (
   containerRef: React.RefObject<HTMLDivElement>,
-  activeView: string
+  activeView: string,
+  { center = [105, 35], zoom = 3.2 }: { center?: [number, number]; zoom?: number } = {}
 ) => {
+  const [centerLongitude, centerLatitude] = center;
   const mapInstance = useRef<any>(null);
   const maplibreInstance = useRef<MapLibreMap | null>(null);
   const [isMapReady, setIsMapReady] = useState(false);
@@ -130,8 +132,8 @@ export const useGaodeMapInit = (
       const map = new maplibregl.Map({
         container: containerRef.current,
         style: getDefaultMaplibreStyle(),
-        center: [105, 35],
-        zoom: 3.2,
+        center: [centerLongitude, centerLatitude],
+        zoom,
         attributionControl: true,
       });
 
@@ -170,8 +172,8 @@ export const useGaodeMapInit = (
         const AMap = (window as any).AMap;
         const map = new AMap.Map(containerRef.current, {
           viewMode: '2D',
-          zoom: 3.2,
-          center: [105, 35],
+          zoom,
+          center: [centerLongitude, centerLatitude],
           resizeEnable: true,
           mapStyle: mapPreset.amapStyle || 'amap://styles/normal',
         });
@@ -212,7 +214,7 @@ export const useGaodeMapInit = (
       destroyAMap();
       destroyMapLibre();
     };
-  }, [activeView, mapConfigRevision, containerRef, destroyAMap, destroyMapLibre]);
+  }, [activeView, mapConfigRevision, containerRef, destroyAMap, destroyMapLibre, centerLongitude, centerLatitude, zoom]);
 
   return { mapInstance, maplibreInstance, isMapReady, mapProvider, resizeMap };
 };
