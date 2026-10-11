@@ -12,7 +12,7 @@ const photos = [
   thumbnail_url: 'https://map-test.invalid/photo.png', status: 'approved', hidden: false }));
 
 function installMockAmap() {
-  window.mapChecks = { maps: [], markers: [] };
+  window.mapChecks = { maps: [], markers: [], popups: [] };
   class Map {
     constructor(container, options) {
       this.container = container;
@@ -69,7 +69,11 @@ function installMockAmap() {
     }
   }
   window.AMap = { Map, Marker, Pixel: class {},
-    InfoWindow: class { open() {} close() {} },
+    InfoWindow: class {
+      constructor(options) { this.options = options; this.opens = 0; window.mapChecks.popups.push(this); }
+      open() { this.opens += 1; this.closed = false; }
+      close() { this.closed = true; }
+    },
     Polyline: class { setMap() {} },
   };
 }
@@ -203,8 +207,19 @@ try {
   await page.getByRole('button', { name: '地理位置', exact: true }).click();
   await page.waitForFunction(() => window.mapChecks.maps.length > 1);
   assert.equal(await page.evaluate(() => window.mapChecks.maps.at(-1).options.mapStyle), initial.map.mapStyle);
+  const detailMarker = page.locator('.photo-map-marker-target[data-kind="photo"]');
+  await detailMarker.waitFor();
+  await page.waitForFunction(() => document.querySelector('.photo-map-marker-target')?.getBoundingClientRect().width > 43.99);
+  const detailBox = await detailMarker.boundingBox();
+  assert.equal(detailBox.width, 44);
+  assert.equal(await detailMarker.locator('.photo-map-marker-dot').evaluate(el => el.getBoundingClientRect().width), 12);
+  const popupOpens = await page.evaluate(() => window.mapChecks.popups.at(-1).opens);
+  await page.mouse.click(detailBox.x + 8, detailBox.y + 22);
+  await detailMarker.press('Enter');
+  assert.equal(await page.evaluate(() => window.mapChecks.popups.at(-1).opens), popupOpens + 2);
   await page.getByRole('button', { name: '基本参数', exact: true }).click();
   assert.ok(await page.evaluate(() => window.mapChecks.maps.at(-1).destroyed), 'Closing detail map must still release its instance');
+  assert.ok(await page.evaluate(() => window.mapChecks.popups.at(-1).closed));
   await page.keyboard.press('Escape');
   await page.goto(`${baseUrl}/#/admin`);
   await page.waitForFunction(() => window.mapChecks.maps[0].destroyed);
@@ -249,6 +264,22 @@ try {
   await fallback.page.getByRole('button', { name: '关闭', exact: true }).click();
   assert.equal(await fallback.page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   if (artifacts) await fallback.page.screenshot({ path: path.join(artifacts, 'map-mobile.png') });
+  await fallback.page.setViewportSize({ width: 1146, height: 956 });
+  await fallback.page.getByRole('button', { name: '图库', exact: true }).click();
+  await fallback.page.locator('.photo-card').first().click();
+  await fallback.page.getByText('焦距', { exact: true }).click();
+  await fallback.page.getByRole('button', { name: '地理位置', exact: true }).click();
+  const fallbackDetail = fallback.page.locator('.photo-map-marker-target[data-kind="photo"]');
+  await fallbackDetail.waitFor();
+  await fallback.page.locator('.photo-location-map .maplibregl-popup-close-button').click();
+  const fallbackDetailBox = await fallbackDetail.boundingBox();
+  await fallback.page.touchscreen.tap(fallbackDetailBox.x + 8, fallbackDetailBox.y + 22);
+  await fallback.page.locator('.photo-location-map .maplibregl-popup').waitFor();
+  await fallback.page.locator('.photo-location-map .maplibregl-popup-close-button').click();
+  await fallbackDetail.press('Enter');
+  await fallback.page.locator('.photo-location-map .maplibregl-popup').waitFor();
+  await fallback.page.getByRole('button', { name: '基本参数', exact: true }).click();
+  assert.equal(await fallback.page.locator('.photo-map-marker-target').count(), 0);
   await fallback.context.close();
   assert.deepEqual(errors, []);
   console.log('Map checks passed: location search, keyboard and clear/empty states, retained search/map/camera, enlarged and overlapping marker targets, mobile touch, animation, glass restoration, reduced motion, cleanup and real MapLibre fallback.');

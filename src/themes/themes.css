@@ -192,6 +192,38 @@ html { background: var(--bg); scrollbar-color: var(--muted) var(--bg); }
 :root[data-theme] .location-panel-title { color: var(--text); font-family: var(--display-font); }
 :root[data-theme] .location-panel-close { background: var(--surface-soft); color: var(--text); }
 
+.photo-map-marker-target {
+  --marker-color: var(--accent);
+  --marker-halo: rgb(var(--accent-rgb) / 0.14);
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  margin: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.photo-map-marker-target[data-kind='current'] {
+  --marker-color: #4086bf;
+  --marker-halo: rgb(64 134 191 / 0.14);
+}
+.photo-map-marker-dot {
+  display: block;
+  width: 12px;
+  height: 12px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: var(--marker-color);
+  box-shadow: 0 0 0 5px var(--marker-halo), 0 2px 5px rgb(0 0 0 / 0.16);
+  pointer-events: none;
+}
+.photo-map-marker-target:focus-visible { outline: 2px solid var(--marker-color); outline-offset: -5px; }
+
 .discover-search {
   display: flex;
   align-items: center;

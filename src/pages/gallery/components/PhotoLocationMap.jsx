@@ -4,9 +4,16 @@ import { loadMapLibre } from '../../../utils/maplibreLoader';
 import { escapeHtml } from '../../../utils/security';
 import { handleError, ErrorType } from '../../../utils/errorHandler';
 
-const createMarkerElement = (color) => {
-  const element = document.createElement('div');
-  element.style.cssText = `width:30px;height:30px;background:${color};border:3px solid white;border-radius:50%;box-shadow:0 2px 8px rgba(0,0,0,0.3);cursor:pointer;`;
+const createMarkerElement = (kind, label) => {
+  const element = document.createElement('button');
+  element.type = 'button';
+  element.className = 'photo-map-marker-target';
+  element.dataset.kind = kind;
+  element.setAttribute('aria-label', label);
+  const dot = document.createElement('span');
+  dot.className = 'photo-map-marker-dot';
+  dot.setAttribute('aria-hidden', 'true');
+  element.appendChild(dot);
   return element;
 };
 
@@ -38,20 +45,24 @@ export function PhotoLocationMap({ geoInfo, title }) {
       if (mapProvider === 'amap' && mapInstance.current) {
         const map = mapInstance.current;
         const AMap = window.AMap;
-        const addMarker = (coordinates, color, html) => {
+        const addMarker = (coordinates, kind, html, label) => {
+          const element = createMarkerElement(kind, label);
           const marker = new AMap.Marker({
-            position: coordinates, content: createMarkerElement(color),
-            offset: new AMap.Pixel(-15, -15), map,
+            position: coordinates, content: element,
+            offset: new AMap.Pixel(-22, -22), map,
           });
-          const popup = new AMap.InfoWindow({ content: html, offset: new AMap.Pixel(0, -20) });
-          const open = () => popup.open(map, coordinates);
-          marker.on('click', open);
+          const popup = new AMap.InfoWindow({ content: html, offset: new AMap.Pixel(0, -12) });
+          const open = event => {
+            event?.stopPropagation();
+            popup.open(map, coordinates);
+          };
+          element.addEventListener('click', open);
           open();
-          cleanup.push(() => { popup.close(); marker.off('click', open); marker.setMap(null); });
+          cleanup.push(() => { popup.close(); element.removeEventListener('click', open); marker.setMap(null); });
         };
-        addMarker(position, '#e74c3c', content);
+        addMarker(position, 'photo', content, `照片拍摄地点：${title || place}`);
         if (hasBrowserLocation) {
-          addMarker(currentPosition, '#3498db', '<strong>当前位置</strong>');
+          addMarker(currentPosition, 'current', '<strong>当前位置</strong>', '当前位置');
           const line = new AMap.Polyline({
             path: [position, currentPosition], strokeColor: '#e7b17c',
             strokeWeight: 2, strokeOpacity: 0.6, strokeStyle: 'dashed', map,
@@ -65,16 +76,22 @@ export function PhotoLocationMap({ geoInfo, title }) {
       const maplibregl = await loadMapLibre();
       if (cancelled || !maplibreInstance.current) return;
       const map = maplibreInstance.current;
-      const addMarker = (coordinates, color, html) => {
-        const popup = new maplibregl.Popup({ offset: 25 }).setHTML(html);
-        const marker = new maplibregl.Marker({ element: createMarkerElement(color) })
-          .setLngLat(coordinates).setPopup(popup).addTo(map);
-        marker.togglePopup();
-        cleanup.push(() => marker.remove());
+      const addMarker = (coordinates, kind, html, label) => {
+        const element = createMarkerElement(kind, label);
+        const popup = new maplibregl.Popup({ offset: 14 }).setHTML(html);
+        const marker = new maplibregl.Marker({ element })
+          .setLngLat(coordinates).addTo(map);
+        const open = event => {
+          event?.stopPropagation();
+          popup.setLngLat(coordinates).addTo(map);
+        };
+        element.addEventListener('click', open);
+        open();
+        cleanup.push(() => { popup.remove(); element.removeEventListener('click', open); marker.remove(); });
       };
-      addMarker(position, '#e74c3c', content);
+      addMarker(position, 'photo', content, `照片拍摄地点：${title || place}`);
       if (hasBrowserLocation) {
-        addMarker(currentPosition, '#3498db', '<strong>当前位置</strong>');
+        addMarker(currentPosition, 'current', '<strong>当前位置</strong>', '当前位置');
         map.addSource('connection-line', {
           type: 'geojson',
           data: { type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: [position, currentPosition] } },
