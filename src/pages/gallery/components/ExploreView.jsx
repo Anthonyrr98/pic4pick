@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { loadMapLibre } from '../../../utils/maplibreLoader';
-import { useGaodeMapInit, useFocusMapOnCity } from '../hooks/useMapInit';
+import { useGaodeMapInit, useFocusMapOnCity, useMapMotion } from '../hooks/useMapInit';
 import { buildCityPhotoMap, buildCurationGroups, buildPhotosByLocation } from '../utils/photoDataUtils';
 import { CurationPanel } from './CurationPanel';
 
 export function ExploreView({
+  isActive,
   approvedPhotos,
   allPhotos,
   isLoading,
@@ -12,6 +13,7 @@ export function ExploreView({
   onShowLocationPanel,
 }) {
   const mapContainerRef = useRef(null);
+  const sectionRef = useRef(null);
   const maplibreRef = useRef(null);
   const exploreMarkersRef = useRef([]);
   const exploreMaplibreMarkersRef = useRef([]);
@@ -48,6 +50,7 @@ export function ExploreView({
     resizeMap,
   } = useGaodeMapInit(mapContainerRef, 'explore-view');
   const focusMapOnCity = useFocusMapOnCity(mapInstance, maplibreInstance, mapProvider, isMapReady);
+  useMapMotion(sectionRef, mapInstance, maplibreInstance, mapProvider, isMapReady, isActive);
 
   const ensureMapLibre = useCallback(async () => {
     if (!maplibreRef.current) {
@@ -80,24 +83,20 @@ export function ExploreView({
   }, [focusMapOnCity, isMapReady]);
 
   useEffect(() => {
-    const adjust = () => {
-      const wrapper = document.querySelector('.explore-fullscreen .map-wrapper');
-      if (wrapper) {
-        wrapper.style.top = '0';
-        wrapper.style.height = '100vh';
-      }
-      resizeMap();
+    if (!isActive || !isMapReady) return;
+    let frame = 0;
+    const resize = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(resizeMap);
     };
-
-    const firstResizeTimer = setTimeout(adjust, 100);
-    const secondResizeTimer = setTimeout(resizeMap, 300);
-    window.addEventListener('resize', adjust);
+    const observer = new ResizeObserver(resize);
+    observer.observe(mapContainerRef.current);
+    resize();
     return () => {
-      clearTimeout(firstResizeTimer);
-      clearTimeout(secondResizeTimer);
-      window.removeEventListener('resize', adjust);
+      cancelAnimationFrame(frame);
+      observer.disconnect();
     };
-  }, [resizeMap]);
+  }, [isActive, isMapReady, resizeMap]);
 
   useEffect(() => {
     if (!isMapReady) return;
@@ -229,7 +228,7 @@ export function ExploreView({
   }, [browserLocation, ensureMapLibre, isMapReady, mapInstance, mapProvider, maplibreInstance]);
 
   return (
-    <section id="explore-view" className="screen active">
+    <section ref={sectionRef} id="explore-view" className="screen active">
       <CurationPanel
         groups={curationGroups}
         isLoading={isLoading}

@@ -19,7 +19,7 @@ import { getShotTimeInfo } from './utils/timeUtils';
 import { filterAndSortPhotos } from './utils/photoFilterUtils';
 import { usePhotoData, useLikePhoto } from './hooks/usePhotoData';
 import { useExifData, useBrowserLocation, useAltitudeFromCoords } from './hooks/useExifAndLocation';
-import { preloadMapLibre } from '../../utils/maplibreLoader';
+import { preloadConfiguredMap } from '../../utils/amapLoader';
 import { PhotoLocationMap } from './components/PhotoLocationMap';
 import {
   getDirectMediaUrl,
@@ -180,6 +180,7 @@ export function GalleryPage() {
   // 鈹€鈹€ 瑙嗗浘 & 绛涢€夌姸鎬?
   const [activeFilter, setActiveFilter] = useState('latest');
   const [activeView, setActiveView] = useState('gallery-view');
+  const [hasVisitedExplore, setHasVisitedExplore] = useState(false);
 
   // 鈹€鈹€ Lightbox 鐘舵€?
   const [lightboxPhoto, setLightboxPhoto] = useState(null);
@@ -328,15 +329,17 @@ export function GalleryPage() {
 
   // 鈹€鈹€ 浜嬩欢澶勭悊
   const handleViewChange = useCallback((view) => {
+    if (view === 'explore-view') setHasVisitedExplore(true);
+    setLocationPanel(null);
     setActiveView(view);
   }, []);
 
   const handleExploreIntent = useCallback(() => {
-    if (activeView !== 'explore-view') {
+    if (!hasVisitedExplore) {
       preloadExploreView();
-      preloadMapLibre();
+      preloadConfiguredMap();
     }
-  }, [activeView]);
+  }, [hasVisitedExplore]);
 
   const loadMore = useCallback(() => {
     if (isLoadingMore || displayedCount >= filteredPhotos.length) return;
@@ -745,16 +748,19 @@ export function GalleryPage() {
           )}
         </section>
 
-        {activeView === 'explore-view' && (
-          <Suspense fallback={<ExploreViewPending />}>
-            <ExploreView
-              approvedPhotos={approvedPhotos}
-              allPhotos={allPhotos}
-              isLoading={isPhotoDataLoading}
-              browserLocation={browserLocation}
-              onShowLocationPanel={setLocationPanel}
-            />
-          </Suspense>
+        {hasVisitedExplore && (
+          <div hidden={activeView !== 'explore-view'}>
+            <Suspense fallback={<ExploreViewPending />}>
+              <ExploreView
+                isActive={activeView === 'explore-view'}
+                approvedPhotos={approvedPhotos}
+                allPhotos={allPhotos}
+                isLoading={isPhotoDataLoading}
+                browserLocation={browserLocation}
+                onShowLocationPanel={setLocationPanel}
+              />
+            </Suspense>
+          </div>
         )}
       </main>
 

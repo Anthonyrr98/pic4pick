@@ -7,72 +7,31 @@ import type { Map as MapLibreMap } from 'maplibre-gl';
 import { getEnvValue } from '../../../utils/envConfig';
 import { handleError, ErrorType } from '../../../utils/errorHandler';
 import { loadMapLibre } from '../../../utils/maplibreLoader';
+import { ensureAMapLoaded } from '../../../utils/amapLoader';
 import { getActiveMapStylePreset, getDefaultMaplibreStyle } from '../../../utils/gaodeMapStyle';
+import { calculateDistance } from '../utils/geoUtils';
 
 const AMAP_READY_TIMEOUT_MS = 10000;
 
-let amapLoadPromise: Promise<void> | null = null;
-
-function waitForAmapMapReady(map: { on: (event: string, cb: () => void) => void }, timeoutMs: number): Promise<void> {
+function waitForAmapMapReady(
+  map: { on: (event: string, cb: () => void) => void; off: (event: string, cb: () => void) => void },
+  signal: AbortSignal
+): Promise<void> {
   return new Promise((resolve, reject) => {
-    const timer = window.setTimeout(() => {
-      reject(new Error('高德地图初始化超时（请检查 Web Key 白名单与 securityJsCode）'));
-    }, timeoutMs);
-    map.on('complete', () => {
+    const cleanup = () => {
       window.clearTimeout(timer);
-      resolve();
-    });
-  });
-}
-
-function ensureAMapLoaded(amapKey: string): Promise<void> {
-  if ((window as any).AMap?.Map) return Promise.resolve();
-  if (amapLoadPromise) return amapLoadPromise;
-
-  amapLoadPromise = new Promise<void>((resolve, reject) => {
-    const securityJsCode = getEnvValue('VITE_AMAP_SECURITY_JS_CODE', '');
-    if (securityJsCode) {
-      (window as any)._AMapSecurityConfig = { securityJsCode };
-    }
-
-    const existing = document.querySelector('script[data-amap-sdk]');
-    if (existing) {
-      const finishExisting = () => {
-        if ((window as any).AMap?.Map) resolve();
-        else {
-          amapLoadPromise = null;
-          reject(new Error('高德地图 SDK 未就绪（请检查 Key / securityJsCode）'));
-        }
-      };
-      existing.addEventListener('load', finishExisting);
-      existing.addEventListener('error', () => {
-        amapLoadPromise = null;
-        reject(new Error('高德地图 SDK 脚本加载失败'));
-      });
-      // 脚本已加载过时不会再触发 load，需主动检查
-      queueMicrotask(finishExisting);
-      return;
-    }
-
-    const script = document.createElement('script');
-    script.src = `https://webapi.amap.com/maps?v=2.0&key=${amapKey}`;
-    script.async = true;
-    script.setAttribute('data-amap-sdk', 'true');
-    script.onload = () => {
-      if ((window as any).AMap?.Map) resolve();
-      else {
-        amapLoadPromise = null;
-        reject(new Error('高德地图 SDK 未就绪（请检查 Key / securityJsCode）'));
-      }
+      map.off('complete', onComplete);
+      signal.removeEventListener('abort', onAbort);
     };
-    script.onerror = () => {
-      amapLoadPromise = null;
-      reject(new Error('高德地图 SDK 脚本加载失败'));
-    };
-    document.head.appendChild(script);
+    const onComplete = () => { cleanup(); resolve(); };
+    const onAbort = () => { cleanup(); reject(new Error('地图初始化已取消')); };
+    const timer = window.setTimeout(() => {
+      cleanup();
+      reject(new Error('高德地图初始化超时（请检查 Web Key 白名单与 securityJsCode）'));
+    }, AMAP_READY_TIMEOUT_MS);
+    map.on('complete', onComplete);
+    signal.addEventListener('abort', onAbort, { once: true });
   });
-
-  return amapLoadPromise;
 }
 
 export const useGaodeMapInit = (
@@ -122,6 +81,7 @@ export const useGaodeMapInit = (
     if (mapInstance.current || maplibreInstance.current) return;
 
     let cancelled = false;
+    const controller = new AbortController();
 
     const initMapLibreFallback = async () => {
       if (cancelled || !containerRef.current || maplibreInstance.current) return;
@@ -181,7 +141,7 @@ export const useGaodeMapInit = (
         mapInstance.current = map;
         setMapProvider('amap');
 
-        await waitForAmapMapReady(map, AMAP_READY_TIMEOUT_MS);
+        await waitForAmapMapReady(map, controller.signal);
         if (cancelled) {
           if (mapInstance.current === map) {
             map.destroy();
@@ -192,6 +152,7 @@ export const useGaodeMapInit = (
         setIsMapReady(true);
         map.resize();
       } catch (error) {
+        if (cancelled) return;
         handleError(error, {
           context: 'useGaodeMapInit',
           type: ErrorType.NETWORK,
@@ -202,13 +163,15 @@ export const useGaodeMapInit = (
       }
     };
 
-    const timer = setTimeout(() => {
-      if (!cancelled) initMap();
-    }, 50);
+    void initMap().catch(error => {
+      if (!cancelled) handleError(error, {
+        context: 'useGaodeMapInit.fallback', type: ErrorType.NETWORK, silent: true,
+      });
+    });
 
     return () => {
       cancelled = true;
-      clearTimeout(timer);
+      controller.abort();
       setIsMapReady(false);
       setMapProvider(null);
       destroyAMap();
@@ -227,20 +190,72 @@ export const useFocusMapOnCity = (
 ) => {
   return useCallback(
     (lng: number, lat: number) => {
-      if (!isMapReady || lng == null || lat == null) return;
+      if (!isMapReady || !Number.isFinite(lng) || !Number.isFinite(lat)) return;
+
+      const map = mapProvider === 'amap' ? mapInstance.current : maplibreInstance.current;
+      if (!map) return;
+      const currentZoom = map.getZoom();
+      const center = map.getCenter();
+      const distance = calculateDistance(center.lat, center.lng, lat, lng);
+      const targetZoom = Math.min(Math.max(currentZoom, 10.2), 15.2);
+      const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      // Longer journeys and large zoom changes get more time, bounded for responsiveness.
+      const duration = reducedMotion ? 0 : Math.round(Math.min(2000,
+        700 + Math.abs(targetZoom - currentZoom) * 100 + Math.log1p(distance) * 100));
 
       if (mapProvider === 'amap' && mapInstance.current) {
-        const map = mapInstance.current;
-        const currentZoom = typeof map.getZoom === 'function' ? map.getZoom() : 5.5;
-        const targetZoom = Math.min(Math.max(currentZoom, 10.2), 15.2);
-        map.setZoomAndCenter(targetZoom, [lng, lat]);
+        map.setZoomAndCenter(targetZoom, [lng, lat], reducedMotion, duration);
         return;
       }
 
       if (mapProvider === 'maplibre' && maplibreInstance.current) {
-        maplibreInstance.current.flyTo({ center: [lng, lat], zoom: 11, speed: 1.4 });
+        maplibreInstance.current.flyTo({ center: [lng, lat], zoom: targetZoom, duration, curve: 1.35 });
       }
     },
     [isMapReady, mapProvider, mapInstance, maplibreInstance]
   );
+};
+
+export const useMapMotion = (
+  sectionRef: React.RefObject<HTMLElement>,
+  mapInstance: React.MutableRefObject<any>,
+  maplibreInstance: React.MutableRefObject<MapLibreMap | null>,
+  mapProvider: 'amap' | 'maplibre' | null,
+  isMapReady: boolean,
+  isActive: boolean
+) => {
+  useEffect(() => {
+    const section = sectionRef.current;
+    const map = mapProvider === 'amap' ? mapInstance.current : maplibreInstance.current;
+    if (!section || !map || !isMapReady || !isActive) return;
+    let restoreTimer: ReturnType<typeof setTimeout>;
+    const motions = new Set<string>();
+    const start = (motion: string) => {
+      motions.add(motion);
+      clearTimeout(restoreTimer);
+      section.classList.add('map-in-motion');
+    };
+    const end = (motion: string) => {
+      motions.delete(motion);
+      clearTimeout(restoreTimer);
+      if (motions.size === 0) {
+        restoreTimer = setTimeout(() => section.classList.remove('map-in-motion'), 180);
+      }
+    };
+    const handlers = ['move', 'zoom', 'drag'].map(motion => ({
+      motion, start: () => start(motion), end: () => end(motion),
+    }));
+    handlers.forEach(handler => {
+      map.on(`${handler.motion}start`, handler.start);
+      map.on(`${handler.motion}end`, handler.end);
+    });
+    return () => {
+      clearTimeout(restoreTimer);
+      handlers.forEach(handler => {
+        map.off(`${handler.motion}start`, handler.start);
+        map.off(`${handler.motion}end`, handler.end);
+      });
+      section.classList.remove('map-in-motion');
+    };
+  }, [sectionRef, mapInstance, maplibreInstance, mapProvider, isMapReady, isActive]);
 };
