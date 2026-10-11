@@ -274,6 +274,85 @@ try {
   assert.equal(reducedMove.duration, 0);
   await reduced.context.close();
 
+  const mobileSheet = await setup({ viewport: { width: 390, height: 844 }, hasTouch: true });
+  const mobilePhotos = [...photos, ...['开封', '安阳', '洛阳', '平顶山', '新郑', '郑州', '漯河'].map((city, index) => ({
+    ...photos[0], id: `sheet-${index}`, title: city, location: city, latitude: 34.79, longitude: 114.3,
+  }))];
+  await mobileSheet.context.route('**/rest/v1/photos?**', route => route.fulfill({ json: mobilePhotos }));
+  await mobileSheet.context.addInitScript(installMockAmap);
+  await mobileSheet.page.goto(baseUrl, { waitUntil: 'networkidle' });
+  await mobileSheet.page.getByRole('button', { name: '发现', exact: true }).click();
+  const sheet = mobileSheet.page.getByRole('complementary', { name: '探索地点' });
+  await sheet.waitFor();
+  assert.equal(await sheet.getAttribute('data-sheet-state'), 'compact');
+  const compactSheet = await sheet.boundingBox();
+  assert.ok(compactSheet.height > 350 && compactSheet.height < 390);
+  await mobileSheet.page.getByRole('button', { name: '河南', exact: true }).click();
+  const cityRow = sheet.locator('.curation-category-content');
+  assert.ok(await cityRow.evaluate(el => el.scrollWidth > el.clientWidth), 'Mobile cities must scroll horizontally');
+  assert.ok(await cityRow.locator('figure').first().evaluate(el => el.getBoundingClientRect().height <= 100));
+  const mobileInput = mobileSheet.page.getByRole('searchbox', { name: '搜索地点' });
+  const searchTop = (await mobileInput.boundingBox()).y;
+  await sheet.locator('.curation-panel-scroll').evaluate(el => { el.scrollTop = el.scrollHeight; });
+  assert.equal((await mobileInput.boundingBox()).y, searchTop, 'Scrolling places must keep search visible');
+  await mobileSheet.page.getByRole('button', { name: '展开地点列表' }).click();
+  await mobileSheet.page.waitForFunction(() => document.querySelector('.curation-panel').getBoundingClientRect().height > 640);
+  const touch = await mobileSheet.context.newCDPSession(mobileSheet.page);
+  await sheet.locator('.curation-panel-scroll').evaluate(el => { el.scrollTop = 0; });
+  const rowBounds = await cityRow.boundingBox();
+  const rowX = rowBounds.x + rowBounds.width - 30, rowY = rowBounds.y + rowBounds.height / 2;
+  await touch.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: rowX, y: rowY }] });
+  for (let step = 1; step <= 5; step++) {
+    await touch.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: rowX - step * 30, y: rowY }] });
+  }
+  await touch.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await mobileSheet.page.waitForFunction(() => document.querySelector('.curation-category-content').scrollLeft > 30);
+  assert.equal(await mobileSheet.page.evaluate(() => window.mapChecks.maps[0].calls.length), 0, 'Swiping cards must not select a city');
+  const swipeHandle = async delta => {
+    const box = await mobileSheet.page.getByRole('button', { name: /^(收起|展开)面板$/ }).boundingBox();
+    const x = box.x + box.width / 2, y = box.y + box.height / 2;
+    await touch.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y }] });
+    await touch.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x, y: y + delta }] });
+    await touch.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  };
+  await swipeHandle(65);
+  assert.equal(await sheet.getAttribute('data-sheet-state'), 'compact');
+  await mobileSheet.page.waitForFunction(() => document.querySelector('.curation-panel').getBoundingClientRect().height < 390);
+  await swipeHandle(65);
+  assert.equal(await sheet.getAttribute('data-sheet-state'), 'peek');
+  assert.equal(await mobileInput.count(), 0);
+  await mobileSheet.page.waitForFunction(() => document.querySelector('.curation-panel').getBoundingClientRect().height < 80);
+  await swipeHandle(-65);
+  assert.equal(await sheet.getAttribute('data-sheet-state'), 'compact');
+  await mobileInput.fill('开封');
+  assert.equal(await sheet.getAttribute('data-sheet-state'), 'expanded', 'Search should open enough room for results');
+  await mobileSheet.page.evaluate(() => {
+    Object.defineProperty(window.visualViewport, 'height', { configurable: true, get: () => 460 });
+    window.visualViewport.dispatchEvent(new Event('resize'));
+    document.querySelector('.discover-search input').addEventListener('blur', () => {
+      delete window.visualViewport.height;
+      window.visualViewport.dispatchEvent(new Event('resize'));
+    }, { once: true });
+  });
+  await mobileSheet.page.waitForFunction(() => Number.parseFloat(document.querySelector('.curation-panel').style.getPropertyValue('--curation-keyboard-inset')) > 300);
+  assert.ok((await mobileInput.boundingBox()).y < 400, 'Search must remain above the mobile keyboard');
+  await mobileSheet.page.locator('.discover-search-result').click();
+  await mobileSheet.page.waitForFunction(() => document.querySelector('#explore-view').classList.contains('map-in-motion'));
+  assert.equal(await sheet.getAttribute('data-sheet-state'), 'compact');
+  await mobileSheet.page.waitForFunction(() => !document.querySelector('#explore-view').classList.contains('map-in-motion'));
+  assert.equal(await mobileSheet.page.getByRole('searchbox', { name: '搜索地点' }).evaluate(el => el === document.activeElement), false);
+  await mobileSheet.page.getByRole('button', { name: '清除地点搜索' }).click();
+  await mobileSheet.page.setViewportSize({ width: 610, height: 956 });
+  assert.equal(await mobileSheet.page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  await mobileSheet.page.getByRole('button', { name: '缩小地点列表' }).click();
+  await sheet.locator('.curation-panel-scroll').evaluate(el => { el.scrollTop = 0; });
+  if (artifacts) await mobileSheet.page.screenshot({ path: path.join(artifacts, 'mobile-place-sheet.png') });
+  await mobileSheet.page.setViewportSize({ width: 1146, height: 956 });
+  await mobileSheet.page.waitForFunction(() => document.querySelector('.curation-panel').dataset.mobile === 'false');
+  assert.equal(await mobileSheet.page.locator('.curation-panel-heading').evaluate(el => getComputedStyle(el).display), 'contents');
+  assert.equal(await mobileSheet.page.locator('.curation-mobile-heading').isVisible(), false);
+  await mobileSheet.context.close();
+
   // Exercise the actual MapLibre renderer and its camera events, including SDK failure.
   const fallback = await setup({ hasTouch: true }, 'js_whitesmoke');
   await fallback.context.route('https://webapi.amap.com/**', route => route.abort());
@@ -293,6 +372,7 @@ try {
   const mobileSearch = fallback.page.getByRole('searchbox', { name: '搜索地点' });
   await mobileSearch.fill('北京');
   await fallback.page.locator('.discover-search-result').click();
+  await fallback.page.waitForFunction(() => document.querySelector('#explore-view').classList.contains('map-in-motion'));
   await fallback.page.waitForFunction(() => !document.querySelector('#explore-view').classList.contains('map-in-motion'));
   const mobileMarker = await fallback.page.getByRole('button', { name: '北京 · 1 张照片', exact: true }).boundingBox();
   await fallback.page.touchscreen.tap(mobileMarker.x + 8, mobileMarker.y + 22);
@@ -318,7 +398,7 @@ try {
   assert.equal(await fallback.page.locator('.photo-map-marker-target').count(), 0);
   await fallback.context.close();
   assert.deepEqual(errors, []);
-  console.log('Map checks passed: location search, keyboard and clear/empty states, retained search/map/camera, enlarged and overlapping marker targets, mobile touch, animation, glass restoration, reduced motion, cleanup and real MapLibre fallback.');
+  console.log('Map checks passed: location search, retained camera, enlarged marker targets, mobile sheet gestures, horizontal cards, fixed search, keyboard dismissal, animation, reduced motion, cleanup and real MapLibre fallback.');
 } finally {
   await browser.close();
 }

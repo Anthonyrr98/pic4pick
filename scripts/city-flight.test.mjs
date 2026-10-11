@@ -50,3 +50,13 @@ test('desktop sidebar and mobile sheet leave the destination in the visible map'
   const mobileCamera = createCityFlight({ ...settings, offset: mobile }).sample(1);
   assert.ok(mobileCamera.center[1] < settings.to[1]);
 });
+test('AMap and MapLibre reach the same visible city area despite different world tile sizes', () => {
+  const amap = createCityFlight({ ...settings, offset: [0, -190] });
+  const maplibre = createCityFlight({ ...settings, zoom: 9.2, targetZoom: 9.2, tileSize: 512, offset: [0, -190] });
+  assert.deepEqual(amap.destination, maplibre.destination);
+  assert.equal(amap.duration, maplibre.duration);
+  for (const t of [0.1, 0.5, 0.9, 1]) {
+    assert.ok(Math.abs(amap.sample(t).zoom - maplibre.sample(t).zoom - 1) < 1e-8);
+    assert.deepEqual(amap.sample(t).center, maplibre.sample(t).center);
+  }
+});

@@ -220,21 +220,30 @@ export const useFocusMapOnCity = (
       cancelFlightRef.current?.();
       const center = map.getCenter();
       const rect = container.getBoundingClientRect();
-      const offset = getCityFocusOffset(rect, section.querySelector('.curation-panel')?.getBoundingClientRect());
+      const panel = section.querySelector<HTMLElement>('.curation-panel');
+      const panelRect = panel?.getBoundingClientRect();
+      // During a sheet resize, aim using its settled height rather than an intermediate frame.
+      const focusHeight = Number(panel?.dataset.focusHeight);
+      const focusRect = panelRect && panel?.dataset.mobile === 'true' && focusHeight > 0
+        ? { width: panelRect.width, height: focusHeight, right: panelRect.right, top: panelRect.bottom - focusHeight }
+        : panelRect;
+      const offset = getCityFocusOffset(rect, focusRect);
+      // MapLibre's 512px world tiles use one less zoom level for the same city scale.
+      const targetZoom = mapProvider === 'amap' ? 10.2 : 9.2;
       const flight = createCityFlight({ from: [center.lng, center.lat], to: [lng, lat],
-        zoom: map.getZoom(), width: rect.width, height: rect.height, offset,
+        zoom: map.getZoom(), targetZoom, width: rect.width, height: rect.height, offset,
         tileSize: mapProvider === 'amap' ? 256 : 512 });
       const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
       const duration = reducedMotion ? 0 : flight.duration;
       if (mapProvider === 'maplibre') {
-        if (!duration) map.jumpTo({ center: flight.destination, zoom: 10.2 });
-        else map.flyTo({ center: flight.destination, zoom: 10.2, duration,
+        if (!duration) map.jumpTo({ center: flight.destination, zoom: targetZoom });
+        else map.flyTo({ center: flight.destination, zoom: targetZoom, duration,
           curve: 1.42, easing: cityFlightEasing });
         cancelFlightRef.current = () => { cancelFlightRef.current = null; map.stop(); };
         return;
       }
       if (!duration) {
-        map.setZoomAndCenter(10.2, flight.destination, true, 0);
+        map.setZoomAndCenter(targetZoom, flight.destination, true, 0);
         return;
       }
       let frame = 0;

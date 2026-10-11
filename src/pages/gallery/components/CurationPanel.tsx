@@ -4,8 +4,10 @@
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { CurationGroup, CityEntry } from '../utils/photoDataUtils';
+import './CurationPanel.css';
 
 interface CurationPanelProps {
+  isActive: boolean;
   groups: CurationGroup[];
   isLoading: boolean;
   expandedCategories: Record<string, boolean>;
@@ -16,7 +18,15 @@ interface CurationPanelProps {
   onTogglePanelCollapse: () => void;
 }
 
+const getSheetViewport = () => {
+  const visual = window.visualViewport;
+  const height = visual && visual.scale === 1 ? visual.height : window.innerHeight;
+  const inset = Math.max(0, window.innerHeight - height - (visual?.offsetTop || 0));
+  return { mobile: window.innerWidth <= 768, height, keyboard: inset > 80 ? inset : 0 };
+};
+
 export const CurationPanel: React.FC<CurationPanelProps> = ({
+  isActive,
   groups,
   isLoading,
   expandedCategories,
@@ -30,6 +40,64 @@ export const CurationPanel: React.FC<CurationPanelProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const searchInputRef = useRef<HTMLInputElement>(null);
   const firstSearchResultRef = useRef<HTMLButtonElement>(null);
+  const [sheetViewport, setSheetViewport] = useState(getSheetViewport);
+  const [isSheetExpanded, setIsSheetExpanded] = useState(false);
+  const selectionFrameRef = useRef(0);
+  const selectionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const gestureRef = useRef<{ y: number; moved: boolean } | null>(null);
+  const suppressHandleClickRef = useRef(false);
+  const sheetHeight = isPanelCollapsed ? 78 : isSheetExpanded
+    ? Math.max(180, Math.min(sheetViewport.height * 0.78, sheetViewport.height - 104))
+    : Math.min(380, sheetViewport.height * 0.46);
+  const selectedCity = groups.flatMap(group => group.items).find(city => city.id === activeCitySelection?.cityId);
+
+  useEffect(() => () => {
+    cancelAnimationFrame(selectionFrameRef.current);
+    if (selectionTimerRef.current) clearTimeout(selectionTimerRef.current);
+  }, [isActive]);
+
+  useEffect(() => {
+    let frame = 0;
+    const update = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        const next = getSheetViewport();
+        setSheetViewport(prev => prev.mobile === next.mobile && prev.height === next.height && prev.keyboard === next.keyboard ? prev : next);
+      });
+    };
+    window.addEventListener('resize', update);
+    window.visualViewport?.addEventListener('resize', update);
+    window.visualViewport?.addEventListener('scroll', update);
+    return () => {
+      cancelAnimationFrame(frame);
+      cancelAnimationFrame(selectionFrameRef.current);
+      if (selectionTimerRef.current) clearTimeout(selectionTimerRef.current);
+      window.removeEventListener('resize', update);
+      window.visualViewport?.removeEventListener('resize', update);
+      window.visualViewport?.removeEventListener('scroll', update);
+    };
+  }, []);
+
+  const selectCity = (group: CurationGroup, city: CityEntry) => {
+    if (!sheetViewport.mobile) { onCityClick(group, city); return; }
+    setIsSheetExpanded(false);
+    searchInputRef.current?.blur();
+    cancelAnimationFrame(selectionFrameRef.current);
+    if (selectionTimerRef.current) clearTimeout(selectionTimerRef.current);
+    const focus = () => {
+      selectionFrameRef.current = requestAnimationFrame(() => onCityClick(group, city));
+    };
+    // Let the keyboard dismiss before measuring the destination's visible area.
+    if (sheetViewport.keyboard) selectionTimerRef.current = setTimeout(focus, 250);
+    else focus();
+  };
+
+  const togglePanel = () => {
+    if (suppressHandleClickRef.current) { suppressHandleClickRef.current = false; return; }
+    setIsSheetExpanded(false);
+    searchInputRef.current?.blur();
+    onTogglePanelCollapse();
+  };
   const searchTerms = searchQuery.normalize('NFKC').trim().toLocaleLowerCase().split(/\s+/).filter(Boolean);
   const isSearching = searchTerms.length > 0;
   const searchResults = useMemo(() => {
@@ -56,6 +124,7 @@ export const CurationPanel: React.FC<CurationPanelProps> = ({
   }, [groups]);
 
   const handleCurationCardMouseMove = (event: React.MouseEvent<HTMLElement>) => {
+    if (sheetViewport.mobile) return;
     const card = event.currentTarget;
     const rect = card.getBoundingClientRect();
     const relativeX = (event.clientX - rect.left) / rect.width - 0.5;
@@ -87,15 +156,62 @@ export const CurationPanel: React.FC<CurationPanelProps> = ({
       className={`curation-panel ${isPanelCollapsed ? 'collapsed' : ''} ${
         isLoading ? 'loading' : groups.length === 0 ? 'empty' : ''
       }`}
+      aria-label="探索地点"
+      data-mobile={sheetViewport.mobile}
+      data-sheet-state={isPanelCollapsed ? 'peek' : isSheetExpanded ? 'expanded' : 'compact'}
+      data-focus-height={sheetViewport.mobile ? sheetHeight : undefined}
+      style={{ '--curation-sheet-height': `${sheetHeight}px`, '--curation-keyboard-inset': `${sheetViewport.keyboard}px` } as React.CSSProperties}
     >
+      <div className="curation-panel-heading">
       <button
         className="curation-panel-toggle"
-        onClick={onTogglePanelCollapse}
+        onClick={togglePanel}
         aria-label={isPanelCollapsed ? '展开面板' : '收起面板'}
+        aria-expanded={!isPanelCollapsed}
         type="button"
+        onKeyDown={event => {
+          if (event.key === 'Enter' || event.key === ' ') suppressHandleClickRef.current = false;
+        }}
+        onPointerDown={event => {
+          if (!sheetViewport.mobile) return;
+          suppressHandleClickRef.current = false;
+          gestureRef.current = { y: event.clientY, moved: false };
+          event.currentTarget.setPointerCapture(event.pointerId);
+        }}
+        onPointerMove={event => {
+          if (gestureRef.current && Math.abs(event.clientY - gestureRef.current.y) > 10) gestureRef.current.moved = true;
+        }}
+        onPointerCancel={() => { gestureRef.current = null; }}
+        onPointerUp={event => {
+          const gesture = gestureRef.current;
+          gestureRef.current = null;
+          if (!gesture?.moved) return;
+          suppressHandleClickRef.current = true;
+          const delta = event.clientY - gesture.y;
+          if (Math.abs(delta) < 35) return;
+          searchInputRef.current?.blur();
+          if (delta < 0) {
+            if (isPanelCollapsed) { setIsSheetExpanded(false); onTogglePanelCollapse(); }
+            else setIsSheetExpanded(true);
+          } else if (isSheetExpanded) setIsSheetExpanded(false);
+          else if (!isPanelCollapsed) onTogglePanelCollapse();
+        }}
       >
         <span className={`curation-panel-toggle-icon ${isPanelCollapsed ? 'collapsed' : ''}`}></span>
       </button>
+      <div className="curation-mobile-heading">
+        <strong>探索地点</strong>
+        <span>{selectedCity ? `${selectedCity.label} · ${selectedCity.photoCount} 张` : `${groups.length} 个地区`}</span>
+      </div>
+      <button className="curation-sheet-expand" type="button"
+        aria-label={isSheetExpanded && !isPanelCollapsed ? '缩小地点列表' : '展开地点列表'}
+        aria-expanded={isSheetExpanded && !isPanelCollapsed}
+        onClick={() => {
+          if (isPanelCollapsed) onTogglePanelCollapse();
+          searchInputRef.current?.blur();
+          setIsSheetExpanded(prev => isPanelCollapsed ? true : !prev);
+        }}>{isSheetExpanded && !isPanelCollapsed ? '收起' : '展开'}</button>
+      </div>
       {!isPanelCollapsed && (
         <form className="discover-search" role="search" aria-label="发现地点搜索"
           onSubmit={event => {
@@ -103,7 +219,7 @@ export const CurationPanel: React.FC<CurationPanelProps> = ({
             if (isLoading) return;
             if (searchResults.length === 1) {
               const { group, city } = searchResults[0];
-              onCityClick(group, city);
+              selectCity(group, city);
             } else {
               firstSearchResultRef.current?.focus();
             }
@@ -114,6 +230,7 @@ export const CurationPanel: React.FC<CurationPanelProps> = ({
           <input ref={searchInputRef} type="search" aria-label="搜索地点"
             placeholder="搜索省份或城市" value={searchQuery} autoComplete="off"
             onChange={event => setSearchQuery(event.target.value)}
+            onFocus={() => { if (sheetViewport.mobile) setIsSheetExpanded(true); }}
             onKeyDown={event => {
               if (event.nativeEvent.isComposing) return;
               if (event.key === 'Escape' && searchQuery) {
@@ -128,6 +245,7 @@ export const CurationPanel: React.FC<CurationPanelProps> = ({
           {searchQuery && <button type="button" aria-label="清除地点搜索" onClick={clearSearch}>×</button>}
         </form>
       )}
+      <div className="curation-panel-scroll">
       {!isPanelCollapsed && isLoading && (
         <div className="curation-panel-status" role="status" aria-live="polite">
           <div className="curation-panel-status-copy">
@@ -161,7 +279,7 @@ export const CurationPanel: React.FC<CurationPanelProps> = ({
                 <button ref={index === 0 ? firstSearchResultRef : undefined} type="button"
                   className="discover-search-result"
                   aria-pressed={activeCitySelection?.provinceId === group.id && activeCitySelection?.cityId === city.id}
-                  onClick={() => onCityClick(group, city)}>
+                  onClick={() => selectCity(group, city)}>
                   <span><strong>{city.label}</strong><small>{group.title}</small></span>
                   <span className="discover-search-count">{city.photoCount} 张<span aria-hidden="true"> ›</span></span>
                 </button>
@@ -174,6 +292,7 @@ export const CurationPanel: React.FC<CurationPanelProps> = ({
         <div key={group.id} className="curation-category">
           <button
             className="curation-category-header"
+            aria-expanded={!isPanelCollapsed && !!expandedCategories[group.id]}
             onClick={() => {
               if (!isPanelCollapsed) {
                 onToggleCategory(group.id);
@@ -181,11 +300,11 @@ export const CurationPanel: React.FC<CurationPanelProps> = ({
             }}
           >
             <h3 className="curation-category-title">{group.title}</h3>
-            <span
+            <span className="curation-category-trailing"><span className="curation-mobile-count" aria-hidden="true">{group.items.length} 个地点</span><span
               className={`curation-category-arrow ${
                 expandedCategories[group.id] ? 'expanded' : ''
               }`}
-            />
+            /></span>
           </button>
           {!isPanelCollapsed && expandedCategories[group.id] && (
             <div className="curation-category-content">
@@ -201,14 +320,14 @@ export const CurationPanel: React.FC<CurationPanelProps> = ({
                     className={`curation-card ${isActiveCity ? 'active' : ''}`}
                     onMouseMove={handleCurationCardMouseMove}
                     onMouseLeave={handleCurationCardMouseLeave}
-                    onClick={() => onCityClick(group, item)}
+                    onClick={() => selectCity(group, item)}
                     role="button"
                     tabIndex={0}
                     aria-pressed={isActiveCity}
                     onKeyDown={(event) => {
                       if (event.key === 'Enter' || event.key === ' ') {
                         event.preventDefault();
-                        onCityClick(group, item);
+                        selectCity(group, item);
                       }
                     }}
                   >
@@ -239,6 +358,7 @@ export const CurationPanel: React.FC<CurationPanelProps> = ({
           )}
         </div>
       ))}
+      </div>
     </aside>
   );
 };

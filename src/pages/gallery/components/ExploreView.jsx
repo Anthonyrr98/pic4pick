@@ -260,12 +260,15 @@ export function ExploreView({
   return (
     <section ref={sectionRef} id="explore-view" className="screen active">
       <CurationPanel
+        isActive={isActive}
         groups={curationGroups}
         isLoading={isLoading}
         expandedCategories={expandedCategories}
-        onToggleCategory={(id) =>
-          setCategoryExpansionOverrides((prev) => ({ ...prev, [id]: !(prev[id] ?? false) }))
-        }
+        onToggleCategory={(id) => setCategoryExpansionOverrides((prev) =>
+          window.matchMedia('(max-width: 768px)').matches
+            ? Object.fromEntries(curationGroups.map(group => [group.id, group.id === id && !(prev[id] ?? false)]))
+            : { ...prev, [id]: !(prev[id] ?? false) }
+        )}
         onCityClick={handleCityCardClick}
         activeCitySelection={activeCitySelection}
         isPanelCollapsed={isPanelCollapsed}
