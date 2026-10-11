@@ -36,7 +36,9 @@ export const requestAdminApi = async (path, options = {}) => {
   }
 
   if (!response.ok || payload?.success === false) {
-    throw new Error(payload?.error || payload?.message || `管理端 API 请求失败: ${response.status}`);
+    const error = new Error(payload?.error || payload?.message || `管理端 API 请求失败: ${response.status}`);
+    error.status = response.status;
+    throw error;
   }
 
   return payload;
@@ -53,10 +55,10 @@ export const fetchAdminPhoto = async (id, select) => {
   return payload.data || null;
 };
 
-export const createAdminPhoto = async (photo) => {
+export const createAdminPhoto = async (photo, uploadId) => {
   const payload = await requestAdminApi('/api/admin/photos', {
     method: 'POST',
-    body: photo,
+    body: uploadId ? { ...photo, upload_id: uploadId } : photo,
   });
   return payload.data;
 };
@@ -81,7 +83,7 @@ export const deleteAdminPhoto = async (id) => {
   const payload = await requestAdminApi(`/api/admin/photos/${encodeURIComponent(id)}`, {
     method: 'DELETE',
   });
-  return payload.data;
+  return { data: payload.data || [], cleanupPending: Boolean(payload.cleanup?.pending) };
 };
 
 export const fetchAdminSetting = async (id) => {

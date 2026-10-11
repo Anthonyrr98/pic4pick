@@ -10,6 +10,8 @@ import dotenv from 'dotenv';
 import winston from 'winston';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
+import { createPhotoDeletionService } from './photoDeletion.js';
+import { createPhotoUploadService } from './photoUploads.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -221,7 +223,7 @@ const requireAdmin = (req, res, next) => {
 
 // 健康检查
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', message: '服务器运行正常' });
+  res.json({ status: 'ok', message: '服务器运行正常', revision: process.env.RENDER_GIT_COMMIT || null });
 });
 
 // 上传本地图片
@@ -435,6 +437,26 @@ const sendSupabaseAdminError = (res, error, fallbackMessage) => {
   });
 };
 
+const photoDeletion = createPhotoDeletionService({
+  db: supabaseAdminFetch,
+  bucket: ossConfig.bucket,
+  logger,
+  deleteObject: async (key) => {
+    if (!ossClient) throw new Error('OSS 客户端未配置');
+    await ossClient.delete(key, { timeout: Math.min(ALIYUN_OSS_TIMEOUT_MS, 15000) });
+  },
+});
+
+const photoUploads = createPhotoUploadService({
+  db: supabaseAdminFetch,
+  bucket: ossConfig.bucket,
+  logger,
+  deleteObject: async (key) => {
+    if (!ossClient) throw new Error('OSS 客户端未配置');
+    await ossClient.delete(key, { timeout: Math.min(ALIYUN_OSS_TIMEOUT_MS, 15000) });
+  },
+});
+
 const getBeijingDatePrefix = (date = new Date()) => {
   const beijingOffsetMs = 8 * 60 * 60 * 1000;
   const [year, month, day] = new Date(date.getTime() + beijingOffsetMs)
@@ -504,6 +526,8 @@ app.patch('/api/photos/:id/likes', likeRateLimit, async (req, res) => {
 app.post('/api/upload/oss', authenticateToken, requireAdmin, upload.single('file'), async (req, res) => {
   // 设置较长的超时时间，避免大文件或慢速 OSS 响应被过早中断
   req.setTimeout(UPLOAD_REQUEST_TIMEOUT_MS);
+  const writtenKeys = [];
+  let trackedUpload = false;
   
   try {
     if (!ossClient) {
@@ -519,6 +543,10 @@ app.post('/api/upload/oss', authenticateToken, requireAdmin, upload.single('file
     logger.info(`开始处理 OSS 上传: ${req.file.originalname}, 大小: ${req.file.size} bytes`);
 
     const file = req.file;
+    const uploadId = req.body.uploadId;
+    if (uploadId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(uploadId)) {
+      throw Object.assign(new Error('上传 ID 无效'), { status: 400 });
+    }
     const requestedFilename = String(req.body.filename || file.filename);
     const filename = path.basename(requestedFilename).replace(/[^a-zA-Z0-9._-]/g, '_');
     if (!filename) {
@@ -551,7 +579,7 @@ app.post('/api/upload/oss', authenticateToken, requireAdmin, upload.single('file
     }
 
     // 上传原始字节；超过 20MB 也不依赖 OSS 图片处理能力。
-    const originResult = await ossClient.put(originKey, originalBuffer, {
+    const putOrigin = (key) => ossClient.put(key, originalBuffer, {
       timeout: ALIYUN_OSS_TIMEOUT_MS,
       headers: {
         'Content-Type': file.mimetype || 'application/octet-stream',
@@ -561,9 +589,7 @@ app.post('/api/upload/oss', authenticateToken, requireAdmin, upload.single('file
     });
 
     // 如果缩略图生成成功，则上传到 ore 目录
-    let thumbResult = null;
-    if (thumbBuffer) {
-      thumbResult = await ossClient.put(thumbKey, thumbBuffer, {
+    const putThumb = (key) => ossClient.put(key, thumbBuffer, {
         timeout: ALIYUN_OSS_TIMEOUT_MS,
         headers: {
           'Content-Type': 'image/jpeg',
@@ -572,16 +598,38 @@ app.post('/api/upload/oss', authenticateToken, requireAdmin, upload.single('file
           'x-oss-object-acl': 'public-read',
         },
       });
+    const objectUrl = (key) => ossClient.generateObjectUrl(key).replace(/^http:\/\//, 'https://');
+    const result = { url: objectUrl(originKey), thumbnailUrl: thumbBuffer ? objectUrl(thumbKey) : null };
+    let uploaded;
+    if (uploadId) {
+      trackedUpload = true;
+      const assets = [originKey, ...(thumbBuffer ? [thumbKey] : [])].map((key) => ({ key, url: objectUrl(key) }));
+      uploaded = await photoUploads.upload({
+        id: uploadId, fingerprint: crypto.createHash('sha256').update(originalBuffer).digest('hex'), assets, result,
+        writeObjects: async (savedAssets) => {
+          await putOrigin(savedAssets[0].key);
+          if (savedAssets[1]) {
+            if (!thumbBuffer) throw new Error('无法生成高清预览，请重试');
+            await putThumb(savedAssets[1].key);
+          }
+        },
+      });
+    } else {
+      // Compatibility for older/local clients without a tracked submission.
+      writtenKeys.push(originKey);
+      await putOrigin(originKey);
+      if (thumbBuffer) {
+        writtenKeys.push(thumbKey);
+        await putThumb(thumbKey);
+      }
+      uploaded = result;
     }
 
-    fs.unlinkSync(file.path);
-
-    logger.info(`OSS 上传成功: ${filename}, 原图: ${originResult.url}, 缩略图: ${thumbResult ? thumbResult.url : '无'}`);
+    logger.info(`OSS 上传成功: ${filename}, 原图: ${uploaded.url}, 缩略图: ${uploaded.thumbnailUrl || '无'}`);
 
     res.json({
       success: true,
-      url: originResult.url,
-      thumbnailUrl: thumbResult ? thumbResult.url : null,
+      ...uploaded,
       filename: filename,
       originalName: file.originalname,
       size: file.size,
@@ -589,22 +637,24 @@ app.post('/api/upload/oss', authenticateToken, requireAdmin, upload.single('file
     });
   } catch (error) {
     logger.error('OSS 上传错误:', error);
-    // 清理临时文件
-    if (req.file && fs.existsSync(req.file.path)) {
-      try {
-        fs.unlinkSync(req.file.path);
-      } catch (unlinkError) {
-        logger.warn('清理临时文件失败:', unlinkError);
-      }
+    if (!trackedUpload) {
+      const cleanupResults = await Promise.allSettled(writtenKeys.map((key) => ossClient.delete(key)));
+      if (cleanupResults.some((result) => result.status === 'rejected')) logger.warn('旧版上传失败后的 OSS 清理未完成');
     }
     
     // 返回详细的错误信息
     const errorMessage = error.message || 'OSS 上传失败';
     logger.error(`OSS 上传失败: ${errorMessage}`);
-    res.status(500).json({ 
+    res.status(error.status || 500).json({
       error: errorMessage,
       details: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
+  } finally {
+    if (req.file && fs.existsSync(req.file.path)) {
+      try { fs.unlinkSync(req.file.path); } catch (error) {
+        logger.warn('清理上传临时文件失败:', error.message);
+      }
+    }
   }
 });
 
@@ -790,11 +840,8 @@ app.get('/api/admin/photos/:id', authenticateToken, requireAdmin, async (req, re
 
 app.post('/api/admin/photos', authenticateToken, requireAdmin, async (req, res) => {
   try {
-    const data = await supabaseAdminFetch('photos', new URLSearchParams({ select: PHOTO_SELECT_FIELDS }), {
-      method: 'POST',
-      body: req.body,
-      prefer: 'return=representation',
-    });
+    const { upload_id: uploadId, ...photo } = req.body;
+    const data = await photoUploads.createPhoto(photo, uploadId);
     res.status(201).json({ success: true, data });
   } catch (error) {
     sendSupabaseAdminError(res, error, '管理端照片创建失败');
@@ -835,14 +882,8 @@ app.patch('/api/admin/photos/:id', authenticateToken, requireAdmin, async (req, 
 
 app.delete('/api/admin/photos/:id', authenticateToken, requireAdmin, async (req, res) => {
   try {
-    const data = await supabaseAdminFetch('photos', new URLSearchParams({
-      id: `eq.${req.params.id}`,
-      select: 'id',
-    }), {
-      method: 'DELETE',
-      prefer: 'return=representation',
-    });
-    res.json({ success: true, data });
+    const result = await photoDeletion.removePhoto(req.params.id);
+    res.json({ success: true, ...result });
   } catch (error) {
     sendSupabaseAdminError(res, error, '管理端照片删除失败');
   }
@@ -977,6 +1018,12 @@ app.use((error, req, res, _next) => {
 const HOST = process.env.HOST || (process.env.NODE_ENV === 'production' ? '0.0.0.0' : 'localhost');
 
 app.listen(PORT, HOST, () => {
+  if (isSupabaseAdminConfigured()) {
+    void photoDeletion.retryPending();
+    setInterval(() => { void photoDeletion.retryPending(); }, 5 * 60 * 1000).unref();
+    void photoUploads.retryPending();
+    setInterval(() => { void photoUploads.retryPending(); }, 5 * 60 * 1000).unref();
+  }
   logger.info(`🚀 服务器运行在 http://${HOST}:${PORT}`);
   console.log(`📁 上传目录: ${UPLOAD_DIR}`);
   console.log(`🌐 静态文件: http://${HOST}:${PORT}/uploads/pic4pick/`);

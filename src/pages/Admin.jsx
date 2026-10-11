@@ -10,18 +10,17 @@ import { UploadProgress } from '../components/UploadProgress';
 import { getEnvValue } from '../utils/envConfig';
 import { Storage, STORAGE_KEYS } from '../utils/storage';
 import { handleError, formatErrorMessage, ErrorType } from '../utils/errorHandler';
-import { mapSupabaseRowToPhoto, buildSupabasePayloadFromPhoto, getUploadTypeName, deleteOSSFile, getAmapApiUrl } from '../utils/adminUtils';
+import { mapSupabaseRowToPhoto, buildSupabasePayloadFromPhoto, getUploadTypeName, getAmapApiUrl } from '../utils/adminUtils';
 import { ensureHttps } from '../utils/urlUtils';
 import { login as loginWithApi, verifyToken } from '../utils/auth';
 import { ThemeSwitcher } from '../themes/ThemeSwitcher';
 import {
   createAdminPhoto,
-  deleteAdminPhoto,
-  fetchAdminPhoto,
   fetchAdminPhotos,
   updateAdminPhoto,
 } from '../utils/adminApi';
 import { usePhotoManagement } from '../hooks/usePhotoManagement';
+import { createPhotoSubmission } from '../utils/photoSubmission';
 import { useGearOptions } from '../hooks/useGearOptions';
 import { useBrandConfig } from '../hooks/useBrandConfig';
 import { useFileUpload } from '../hooks/useFileUpload';
@@ -56,6 +55,10 @@ const OPTIMIZE_UPLOAD_THRESHOLD = 6 * 1024 * 1024;
 const UPLOAD_OPTIMIZE_OPTIONS = { maxWidth: 2560, maxHeight: 2560, quality: 0.88 };
 const SUPPORTED_UPLOAD_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const SUPPORTED_UPLOAD_EXTENSIONS = new Set(['jpg', 'jpeg', 'png', 'webp']);
+const EMPTY_PHOTO_METADATA = {
+  location: '', country: '', shotDate: '', focal: '', aperture: '', shutter: '',
+  iso: '', camera: '', lens: '', latitude: null, longitude: null, altitude: null,
+};
 
 const BACKEND_WAKE_HINT = '正在连接后台服务。Render 免费实例冷启动可能需要 30 秒左右，请稍等。';
 const BATCH_DELETE_CONFIRM_TEXT = 'DELETE';
@@ -239,6 +242,13 @@ export function AdminPage() {
     lens: '',
     filmStock: '',
   });
+  const fileSelectionVersionRef = useRef(0);
+  const fileReadInProgressRef = useRef(false);
+  const photoSubmissionRef = useRef(null);
+  if (photoSubmissionRef.current == null) {
+    photoSubmissionRef.current = createPhotoSubmission({ uploadImage, createPhoto: createAdminPhoto, storage: Storage });
+  }
+  const [isDraggingFile, setIsDraggingFile] = useState(false);
 
   const [showEditCameraDropdown, setShowEditCameraDropdown] = useState(false);
   const [showEditLensDropdown, setShowEditLensDropdown] = useState(false);
@@ -410,6 +420,7 @@ export function AdminPage() {
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [deleteConfirmInput, setDeleteConfirmInput] = useState('');
   const [isDeletingPhoto, setIsDeletingPhoto] = useState(false);
+  const editFeedbackRef = useRef(null);
   const [editForm, setEditForm] = useState({
     title: '',
     location: '',
@@ -465,7 +476,7 @@ export function AdminPage() {
 
     // 搜索筛选
     if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
+      const query = searchQuery.trim().toLowerCase();
       filtered = filtered.filter((item) => 
         item.title?.toLowerCase().includes(query) ||
         item.location?.toLowerCase().includes(query) ||
@@ -509,6 +520,17 @@ export function AdminPage() {
   useEffect(() => {
     setCurrentPage(1);
   }, [searchQuery, filterCategory]);
+
+  useEffect(() => {
+    setCurrentPage((page) => Math.min(page, Math.max(1, totalPages)));
+  }, [totalPages]);
+
+  useEffect(() => {
+    if (editingPhotoId && submitMessage.type === 'error' && editFeedbackRef.current) {
+      editFeedbackRef.current.focus();
+      editFeedbackRef.current.scrollIntoView({ block: 'nearest' });
+    }
+  }, [editingPhotoId, submitMessage]);
 
   useEffect(() => {
     setSelectedPhotoIds(new Set());
@@ -1108,27 +1130,38 @@ export function AdminPage() {
     }
   };
 
-  const handleFileChange = async (event) => {
-    const file = event.target.files?.[0];
+  const clearUploadFile = () => {
+    fileSelectionVersionRef.current += 1;
+    fileReadInProgressRef.current = false;
+    setSelectedLocation(null);
+    setUploadForm((prev) => ({ ...prev, ...EMPTY_PHOTO_METADATA, file: null, fileMeta: null, preview: '' }));
+    const fileInput = document.getElementById('file-upload');
+    if (fileInput) fileInput.value = '';
+  };
+
+  const handleSelectedFile = async (file) => {
+    if (isUploading) return;
+    clearUploadFile();
     if (!file) {
-      setUploadForm((prev) => ({ ...prev, file: null, fileMeta: null, preview: '', latitude: null, longitude: null, altitude: null }));
       return;
     }
+    const selectionVersion = fileSelectionVersionRef.current;
+    const isCurrentSelection = () => selectionVersion === fileSelectionVersionRef.current;
 
     const validationError = getUploadFileValidationError(file);
     if (validationError) {
-      setUploadForm((prev) => ({ ...prev, file: null, fileMeta: null, preview: '' }));
-      event.target.value = '';
       setSubmitMessage({ type: 'error', text: validationError });
       return;
     }
 
+    fileReadInProgressRef.current = true;
     setSubmitMessage({ type: 'info', text: '正在检查照片...' });
     // OSS keeps the byte-for-byte original; its backend creates the 2000px lightbox preview.
     const shouldPreserveOriginal = uploadType === UPLOAD_TYPES.ALIYUN_OSS;
     const { file: uploadFile, optimized } = shouldPreserveOriginal
       ? { file, optimized: false }
       : await maybeOptimizeUploadFile(file);
+    if (!isCurrentSelection()) return;
     const fileMeta = {
       name: file.name,
       originalSize: file.size,
@@ -1139,6 +1172,7 @@ export function AdminPage() {
 
     const reader = new FileReader();
     reader.onload = async () => {
+      if (!isCurrentSelection()) return;
       const preview = reader.result?.toString() || '';
       setUploadForm((prev) => ({ ...prev, file: uploadFile, fileMeta, preview }));
       
@@ -1166,6 +1200,7 @@ export function AdminPage() {
             'GPSLatitude', 'GPSLongitude', 'GPSAltitude'
           ],
         });
+        if (!isCurrentSelection()) return;
         
         // 调试：在控制台输出读取到的EXIF数据
         console.log('读取到的EXIF数据 (translateKeys=true):', exif);
@@ -1183,25 +1218,25 @@ export function AdminPage() {
         
         // 尝试从 translateKeys=false 的结果中获取（原始字段名）
         if (exifWithGPS) {
-          latitude = exifWithGPS.latitude || exifWithGPS.Latitude || exifWithGPS.GPSLatitude || exifWithGPS.gpsLatitude;
-          longitude = exifWithGPS.longitude || exifWithGPS.Longitude || exifWithGPS.GPSLongitude || exifWithGPS.gpsLongitude;
-          altitude = exifWithGPS.altitude || exifWithGPS.Altitude || exifWithGPS.GPSAltitude || exifWithGPS.gpsAltitude;
+          latitude = exifWithGPS.latitude ?? exifWithGPS.Latitude ?? exifWithGPS.GPSLatitude ?? exifWithGPS.gpsLatitude;
+          longitude = exifWithGPS.longitude ?? exifWithGPS.Longitude ?? exifWithGPS.GPSLongitude ?? exifWithGPS.gpsLongitude;
+          altitude = exifWithGPS.altitude ?? exifWithGPS.Altitude ?? exifWithGPS.GPSAltitude ?? exifWithGPS.gpsAltitude;
         }
         
         // 如果上面没找到，尝试从 translateKeys=true 的结果中获取
-        if (!latitude || !longitude) {
-          latitude = exif?.latitude || exif?.Latitude || exif?.GPSLatitude || exif?.gpsLatitude;
-          longitude = exif?.longitude || exif?.Longitude || exif?.GPSLongitude || exif?.gpsLongitude;
-          altitude = altitude || exif?.altitude || exif?.Altitude || exif?.GPSAltitude || exif?.gpsAltitude;
+        if (latitude == null || longitude == null) {
+          latitude = latitude ?? exif?.latitude ?? exif?.Latitude ?? exif?.GPSLatitude ?? exif?.gpsLatitude;
+          longitude = longitude ?? exif?.longitude ?? exif?.Longitude ?? exif?.GPSLongitude ?? exif?.gpsLongitude;
+          altitude = altitude ?? exif?.altitude ?? exif?.Altitude ?? exif?.GPSAltitude ?? exif?.gpsAltitude;
         }
         
         // 如果还是没找到，尝试从 exifWithGPS 的其他可能字段获取
-        if (!latitude || !longitude) {
+        if (latitude == null || longitude == null) {
           // exifr 可能返回的字段名
           const gpsData = exifWithGPS?.gps || exifWithGPS?.GPS || {};
-          latitude = latitude || gpsData.latitude || gpsData.Latitude || gpsData.GPSLatitude;
-          longitude = longitude || gpsData.longitude || gpsData.Longitude || gpsData.GPSLongitude;
-          altitude = altitude || gpsData.altitude || gpsData.Altitude || gpsData.GPSAltitude;
+          latitude = latitude ?? gpsData.latitude ?? gpsData.Latitude ?? gpsData.GPSLatitude;
+          longitude = longitude ?? gpsData.longitude ?? gpsData.Longitude ?? gpsData.GPSLongitude;
+          altitude = altitude ?? gpsData.altitude ?? gpsData.Altitude ?? gpsData.GPSAltitude;
         }
         
         console.log('提取的GPS数据:', { latitude, longitude, altitude });
@@ -1402,9 +1437,10 @@ export function AdminPage() {
           }
         }
         
-        // 更新表单
+        if (!isCurrentSelection()) return;
+        // Update only the current file; missing fields were cleared at selection time.
+        setUploadForm((prev) => ({ ...prev, ...updates }));
         if (hasUpdates) {
-          setUploadForm((prev) => ({ ...prev, ...updates }));
           const messages = [];
           if (successMessages.length > 0) {
             messages.push(...successMessages);
@@ -1412,6 +1448,7 @@ export function AdminPage() {
           if (updates.focal || updates.aperture || updates.shutter || updates.iso || updates.camera || updates.lens) {
             messages.push('相机参数');
           }
+          if (updates.shotDate) messages.push('拍摄日期');
           setSubmitMessage({ 
             type: 'success', 
             text: `已从照片EXIF数据中读取：${messages.join('、')}` 
@@ -1420,6 +1457,7 @@ export function AdminPage() {
           setSubmitMessage({ type: 'info', text: '照片中未找到EXIF数据，请手动填写参数' });
         }
       } catch (error) {
+        if (!isCurrentSelection()) return;
         console.log('无法读取EXIF数据:', error);
         setUploadForm((prev) => ({
           ...prev,
@@ -1431,19 +1469,38 @@ export function AdminPage() {
         setSubmitMessage({ type: 'info', text: '无法读取照片EXIF数据，请手动填写参数' });
       }
       
-      if (submitMessage.type === 'error') {
-        setSubmitMessage({ type: '', text: '' });
-      }
+      if (isCurrentSelection()) fileReadInProgressRef.current = false;
     };
     reader.onerror = () => {
+      if (!isCurrentSelection()) return;
+      fileReadInProgressRef.current = false;
       setUploadForm((prev) => ({ ...prev, file: null, fileMeta: null, preview: '' }));
       setSubmitMessage({ type: 'error', text: '无法读取图片，请换一张照片重试。' });
     };
     reader.readAsDataURL(file);
   };
 
+  const handleFileChange = (event) => handleSelectedFile(event.target.files?.[0]);
+
+  const handleFileDrop = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setIsDraggingFile(false);
+    if (isUploading) return;
+    const files = event.dataTransfer.files;
+    if (files.length !== 1) {
+      setSubmitMessage({ type: 'error', text: '请一次拖入一张照片。' });
+      return;
+    }
+    void handleSelectedFile(files[0]);
+  };
+
   const handleUpload = async (event) => {
     event.preventDefault();
+    if (fileReadInProgressRef.current) {
+      setSubmitMessage({ type: 'info', text: '正在读取照片信息，请稍后提交。' });
+      return;
+    }
     
     // 验证必填字段
     if (!uploadForm.title?.trim()) {
@@ -1477,20 +1534,17 @@ export function AdminPage() {
     try {
       let imageURL = '';
       let thumbnailURL = '';
+      let uploadAttempt;
       
       {
-        const fileExtension = uploadForm.file.name.split('.').pop();
-        const filename = `${crypto.randomUUID()}.${fileExtension}`;
-        
         // 使用通用上传函数
         imageURL = uploadForm.preview; // 默认使用预览（base64）
         thumbnailURL = uploadForm.preview;
         
         try {
-          console.log('开始上传，上传类型:', uploadType, '文件名:', filename);
-          const { url, thumbnailUrl: returnedThumb } = await uploadImage(
+          uploadAttempt = await photoSubmissionRef.current.getUpload(
             uploadForm.file, 
-            filename,
+            uploadType,
             (progress, uploaded, total, status) => {
               setUploadProgress(status?.stage === 'complete' ? 98 : progress);
               if (status?.label) {
@@ -1502,8 +1556,9 @@ export function AdminPage() {
                 setUploadBytes({ uploaded, total });
               }
             },
-            uploadType
+            Boolean(supabase) && uploadType === UPLOAD_TYPES.ALIYUN_OSS
           );
+          const { url, thumbnailUrl: returnedThumb } = uploadAttempt.result;
           imageURL = url || imageURL;
           // 如果后端返回了缩略图（例如 OSS 的 ore 目录），优先使用
           if (returnedThumb) {
@@ -1520,19 +1575,12 @@ export function AdminPage() {
             context: 'handleSubmit.upload',
             type: ErrorType.NETWORK,
           });
-          if (uploadType !== UPLOAD_TYPES.BASE64) {
-            setSubmitMessage({
-              type: 'error',
-              text: getFriendlyAdminErrorMessage(appError, '上传失败，请稍后重试'),
-            });
-            throw appError;
-          }
-          // 继续使用 base64 预览
+          throw appError;
         }
       }
 
     const newUpload = {
-      id: crypto.randomUUID(),
+      id: uploadAttempt.id,
         title: uploadForm.title.trim(),
         location: uploadForm.location.trim(),
         country: uploadForm.country.trim(),
@@ -1557,7 +1605,7 @@ export function AdminPage() {
       status: 'pending',
     };
 
-    setAdminUploads((prev) => [newUpload, ...prev]);
+    setAdminUploads((prev) => [newUpload, ...prev.filter((item) => item.id !== newUpload.id)]);
     setUploadProgress(99);
     setUploadStatus(supabase ? '正在同步作品信息...' : '正在完成提交...');
 
@@ -1599,7 +1647,7 @@ export function AdminPage() {
         console.log('payload 中的相机信息:', payload.camera);
         console.log('payload 中的镜头信息:', payload.lens);
         
-        await createAdminPhoto(payload);
+        await photoSubmissionRef.current.commit(uploadAttempt, payload);
         await refreshSupabaseData();
       } catch (error) {
         const appError = handleError(error, {
@@ -1614,6 +1662,7 @@ export function AdminPage() {
         throw appError;
       }
     }
+      if (!supabase) photoSubmissionRef.current.complete(uploadAttempt);
       setUploadProgress(100);
       setUploadStatus('提交完成');
       setSubmitMessage({ type: 'success', text: '提交成功！作品已添加到待审核列表' });
@@ -1742,6 +1791,7 @@ export function AdminPage() {
 
     try {
       const completedIds = [];
+      let pendingCleanupCount = 0;
 
       for (const id of ids) {
         let didComplete = false;
@@ -1758,6 +1808,7 @@ export function AdminPage() {
 
         if (didComplete) {
           completedIds.push(id);
+          if (didComplete.cleanupPending) pendingCleanupCount += 1;
         }
       }
 
@@ -1785,10 +1836,15 @@ export function AdminPage() {
         setActiveTab('pending');
         setSubmitMessage({ type: 'success', text: `已重新提交 ${completedCount} 个作品` });
       } else {
-        setSubmitMessage({ type: 'success', text: `已删除 ${completedCount} 个作品` });
+        setSubmitMessage({
+          type: pendingCleanupCount ? 'info' : 'success',
+          text: pendingCleanupCount
+            ? `已删除 ${completedCount} 个作品，${pendingCleanupCount} 个作品的云端图片清理暂未完成。${supabase ? '后台会自动重试。' : '请检查云端存储。'}`
+            : `已删除 ${completedCount} 个作品，图片清理完成。`,
+        });
       }
 
-      setTimeout(() => {
+      if (!pendingCleanupCount) setTimeout(() => {
         setSubmitMessage({ type: '', text: '' });
       }, 3000);
     } catch (error) {
@@ -1921,6 +1977,7 @@ export function AdminPage() {
 
   // 打开编辑表单
   const handleEdit = (photo) => {
+    setSubmitMessage({ type: '', text: '' });
     setEditingPhotoId(photo.id);
     setIsDeleteConfirmOpen(false);
     setDeleteConfirmInput('');
@@ -1931,16 +1988,16 @@ export function AdminPage() {
       country: photo.country || '',
       category: photo.category || 'featured',
       tags: photo.tags || '',
-      latitude: photo.latitude || null,
-      longitude: photo.longitude || null,
-      altitude: photo.altitude || null,
-      focal: photo.focal || '50mm',
-      aperture: photo.aperture || 'f/2.8',
-      shutter: photo.shutter || '1/125s',
-      iso: photo.iso || '200',
-      camera: photo.camera || 'Unknown',
-      lens: photo.lens || 'Unknown',
-      filmStock: extractFilmStockFromTags(photo.tags || ''),
+      latitude: photo.latitude ?? null,
+      longitude: photo.longitude ?? null,
+      altitude: photo.altitude ?? null,
+      focal: photo.focal || '',
+      aperture: photo.aperture || '',
+      shutter: photo.shutter || '',
+      iso: photo.iso || '',
+      camera: photo.camera || '',
+      lens: photo.lens || '',
+      filmStock: photo.filmStock || extractFilmStockFromTags(photo.tags || ''),
       shotDate: photo.shotDate || '',
       rating: typeof photo.rating === 'number' ? photo.rating : (photo.rating ? Number(photo.rating) : 7),
       hidden: !!photo.hidden,
@@ -2097,6 +2154,7 @@ export function AdminPage() {
 
   // 取消编辑
   const handleCancelEdit = () => {
+    setSubmitMessage({ type: '', text: '' });
     setEditingPhotoId(null);
     setIsDeleteConfirmOpen(false);
     setDeleteConfirmInput('');
@@ -2123,104 +2181,17 @@ export function AdminPage() {
     setEditSelectedLocation(null);
   };
 
-  // extractOSSFileInfo 和 deleteOSSFile 已移至 adminUtils.js
-
-  // 删除作品（从编辑表单）
+  // Single and batch deletion share the same server-coordinated flow.
   const handleDeleteFromEdit = async () => {
     if (!editingPhotoId || !isDeleteConfirmMatched || isDeletingPhoto) return;
-
     setIsDeletingPhoto(true);
-
     try {
-      let photoToDelete = editingPhoto;
-
-      if (supabase) {
-        try {
-          const data = await fetchAdminPhoto(editingPhotoId, 'image_url,thumbnail_url');
-          if (data) {
-            photoToDelete = data;
-          }
-        } catch (error) {
-          handleError(error, {
-            context: 'handleDelete.fetchPhoto',
-            type: ErrorType.NETWORK,
-            silent: true,
-          });
-        }
-      }
-
-      if (photoToDelete) {
-        const imageUrl = photoToDelete.image_url || photoToDelete.image || photoToDelete.preview;
-        const thumbnailUrl = photoToDelete.thumbnail_url || photoToDelete.thumbnail;
-
-        if (imageUrl) {
-          await deleteOSSFile(imageUrl);
-        }
-
-        if (thumbnailUrl && thumbnailUrl !== imageUrl) {
-          await deleteOSSFile(thumbnailUrl);
-        }
-      }
-
-      if (supabase) {
-        try {
-          await deleteAdminPhoto(editingPhotoId);
-          await refreshSupabaseData();
-          setEditingPhotoId(null);
-          setIsDeleteConfirmOpen(false);
-          setDeleteConfirmInput('');
-          setSubmitMessage({ type: 'success', text: '删除成功，作品记录和云端图片已清理。' });
-          setTimeout(() => {
-            setSubmitMessage({ type: '', text: '' });
-          }, 2500);
-          return;
-        } catch (error) {
-          handleError(error, {
-            context: 'handleDelete.supabase',
-            type: ErrorType.NETWORK,
-          });
-          setSubmitMessage({ type: 'error', text: getFriendlyAdminErrorMessage(error, '删除失败，请重试') });
-          return;
-        }
-      }
-
-      try {
-        const pending = Storage.get(STORAGE_KEY, []);
-        const pendingFiltered = pending.filter((p) => p.id !== editingPhotoId);
-        if (pendingFiltered.length !== pending.length) {
-          Storage.set(STORAGE_KEY, pendingFiltered);
-          setAdminUploads([...pendingFiltered]);
-        }
-
-        const approved = loadApprovedPhotos();
-        const approvedFiltered = approved.filter((p) => p.id !== editingPhotoId);
-        if (approvedFiltered.length !== approved.length) {
-          Storage.set(APPROVED_STORAGE_KEY, approvedFiltered);
-          setApprovedPhotos([...approvedFiltered]);
-        }
-
-        const rejected = loadRejectedPhotos();
-        const rejectedFiltered = rejected.filter((p) => p.id !== editingPhotoId);
-        if (rejectedFiltered.length !== rejected.length) {
-          Storage.set(REJECTED_STORAGE_KEY, rejectedFiltered);
-          setRejectedPhotos([...rejectedFiltered]);
-        }
-
-        setEditingPhotoId(null);
-        setIsDeleteConfirmOpen(false);
-        setDeleteConfirmInput('');
-        setSubmitMessage({ type: 'success', text: '删除成功，作品记录和云端图片已清理。' });
-        setTimeout(() => {
-          setSubmitMessage({ type: '', text: '' });
-        }, 2500);
-      } catch (error) {
-        handleError(error, {
-          context: 'handleDelete.localStorage',
-          type: ErrorType.STORAGE,
-          silent: true,
-        });
-        setSubmitMessage({ type: 'error', text: '删除失败，请重试' });
-      }
+      const source = editingPhoto?.status || activeTab;
+      const result = await handleDelete(editingPhotoId, source);
+      if (!result) return;
+      setEditingPhotoId(null);
+      setIsDeleteConfirmOpen(false);
+      setDeleteConfirmInput('');
     } finally {
       setIsDeletingPhoto(false);
     }
@@ -2534,7 +2505,7 @@ export function AdminPage() {
         )}
 
         {/* 消息提示 */}
-        {submitMessage.text && (
+        {submitMessage.text && !editingPhotoId && (
           <div className={`admin-message ${submitMessage.type}`}>
             {submitMessage.text}
                 </div>
@@ -2691,7 +2662,19 @@ export function AdminPage() {
                   </div>
               </div>
 
-                <div className="upload-dropzone-new">
+                <div
+                  className={`upload-dropzone-new${isDraggingFile ? ' is-dragging' : ''}`}
+                  onDragOver={(event) => {
+                    if (!event.dataTransfer.types.includes('Files')) return;
+                    event.preventDefault();
+                    event.dataTransfer.dropEffect = isUploading ? 'none' : 'copy';
+                    setIsDraggingFile(!isUploading);
+                  }}
+                  onDragLeave={(event) => {
+                    if (!event.currentTarget.contains(event.relatedTarget)) setIsDraggingFile(false);
+                  }}
+                  onDrop={handleFileDrop}
+                >
                     <input type="file" accept="image/jpeg,image/png,image/webp" onChange={handleFileChange} id="file-upload" />
                     <label htmlFor="file-upload" className="dropzone-label">
                       {uploadForm.preview ? (
@@ -2702,9 +2685,7 @@ export function AdminPage() {
                             className="remove-preview"
                             onClick={(e) => {
                               e.preventDefault();
-                              setUploadForm((prev) => ({ ...prev, file: null, fileMeta: null, preview: '' }));
-                              const fileInput = document.getElementById('file-upload');
-                              if (fileInput) fileInput.value = '';
+                              if (!isUploading) clearUploadFile();
                             }}
                           >
                             ✕
@@ -3189,6 +3170,7 @@ export function AdminPage() {
                   type="button"
                   className="btn-secondary"
                   onClick={() => {
+                    clearUploadFile();
                     setUploadForm({
                       title: '',
                       location: '',
@@ -3729,10 +3711,10 @@ export function AdminPage() {
                         )}
                         <div style={{ fontSize: '0.8rem', color: 'var(--muted)', marginBottom: '12px' }}>
                           <div style={{ marginBottom: '4px' }}>
-                            {item.focal || '50mm'} · {item.aperture || 'f/2.8'} · {item.shutter || '1/125s'} · ISO {item.iso || '200'}
+                            {item.focal || '—'} · {item.aperture || '—'} · {item.shutter || '—'} · ISO {item.iso || '—'}
                           </div>
                           <div style={{ fontSize: '0.75rem', opacity: 0.8 }}>
-                            {item.camera || 'Unknown'} · {item.lens || 'Unknown'}
+                            {item.camera || '未填写相机'} · {item.lens || '未填写镜头'}
                           </div>
                           {item.createdAt && (
                             <div style={{ fontSize: '0.75rem', opacity: 0.7, marginTop: '4px' }}>
@@ -3974,16 +3956,16 @@ export function AdminPage() {
                         </p>
                         <div style={{ fontSize: '0.7rem', color: 'var(--muted)', lineHeight: '1.4', marginBottom: '8px' }}>
                           <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '4px' }}>
-                            <span>{item.focal || '50mm'}</span>
+                            <span>{item.focal || '—'}</span>
                             <span>·</span>
-                            <span>{item.aperture || 'f/2.8'}</span>
+                            <span>{item.aperture || '—'}</span>
                             <span>·</span>
-                            <span>{item.shutter || '1/125s'}</span>
+                            <span>{item.shutter || '—'}</span>
                             <span>·</span>
-                            <span>ISO {item.iso || '200'}</span>
+                            <span>ISO {item.iso || '—'}</span>
                           </div>
                           <div style={{ fontSize: '0.65rem', opacity: 0.8, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {item.camera || 'Unknown'} · {item.lens || 'Unknown'}
+                            {item.camera || '未填写相机'} · {item.lens || '未填写镜头'}
                           </div>
                         </div>
                 {item.hidden && (
@@ -4150,6 +4132,16 @@ export function AdminPage() {
                 }}>
                   编辑作品信息
                 </h2>
+                {submitMessage.text && (
+                  <div
+                    ref={editFeedbackRef}
+                    className={`admin-message ${submitMessage.type}`}
+                    role={submitMessage.type === 'error' ? 'alert' : 'status'}
+                    tabIndex={-1}
+                  >
+                    {submitMessage.text}
+                  </div>
+                )}
                 
                 <div style={{ marginBottom: '24px' }}>
                   <h3 style={{ 
@@ -4341,7 +4333,7 @@ export function AdminPage() {
                   </h3>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
                   <div className="form-group">
-                    <label>焦距 <span className="required">*</span></label>
+                    <label>焦距</label>
                     <input
                       type="text"
                       placeholder="例如: 50mm"
@@ -4359,7 +4351,7 @@ export function AdminPage() {
                   </div>
                   
                   <div className="form-group">
-                    <label>光圈 <span className="required">*</span></label>
+                    <label>光圈</label>
                     <input
                       type="text"
                       placeholder="例如: f/2.8"
@@ -4377,7 +4369,7 @@ export function AdminPage() {
                   </div>
                   
                   <div className="form-group">
-                    <label>快门 <span className="required">*</span></label>
+                    <label>快门</label>
                     <input
                       type="text"
                       placeholder="例如: 1/125s"
@@ -4395,7 +4387,7 @@ export function AdminPage() {
                   </div>
                   
                   <div className="form-group">
-                    <label>ISO <span className="required">*</span></label>
+                    <label>ISO</label>
                     <input
                       type="text"
                       placeholder="例如: 200"

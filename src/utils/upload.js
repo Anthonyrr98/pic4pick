@@ -105,7 +105,7 @@ export const setUploadType = (type) => {
 };
 
 // 通用上传函数
-export const uploadImage = async (file, filename, onProgress, uploadTypeOverride) => {
+export const uploadImage = async (file, filename, onProgress, uploadTypeOverride, options = {}) => {
   const uploadType = uploadTypeOverride || getUploadType();
   const normalizeResult = (result) => {
     if (!result) {
@@ -118,6 +118,7 @@ export const uploadImage = async (file, filename, onProgress, uploadTypeOverride
     return {
       url: ensureHttps(result.url || result.imageUrl || result.fileUrl || ''),
       thumbnailUrl: result.thumbnailUrl ?? result.thumbnail_url ? ensureHttps(result.thumbnailUrl ?? result.thumbnail_url) : null,
+      uploadId: result.uploadId || null,
     };
   };
 
@@ -138,7 +139,7 @@ export const uploadImage = async (file, filename, onProgress, uploadTypeOverride
     
     case UPLOAD_TYPES.ALIYUN_OSS:
       console.log('[uploadImage] 使用阿里云 OSS 上传');
-      rawResult = await uploadToAliyunOSS(file, filename, onProgress);
+      rawResult = await uploadToAliyunOSS(file, filename, onProgress, options);
       break;
     
     case UPLOAD_TYPES.BASE64:
@@ -459,7 +460,7 @@ const isSupabaseEdgeUploadUrl = (apiUrl) => {
 };
 
 // 阿里云 OSS 上传
-const uploadToAliyunOSS = async (file, filename, onProgress) => {
+const uploadToAliyunOSS = async (file, filename, onProgress, options) => {
   // 安全策略：OSS 上传只允许走后端（浏览器永远不持有 AccessKey）
   // 同时清理历史遗留的前端 OSS 长期密钥（如果用户曾经配置过）。
   safeSync(() => {
@@ -491,6 +492,8 @@ const uploadToAliyunOSS = async (file, filename, onProgress) => {
   formData.append('file', file);
   formData.append('filename', filename);
 
+  if (options.uploadId) formData.append('uploadId', options.uploadId);
+
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     const progressReporter = createXhrProgressReporter(file, onProgress);
@@ -511,6 +514,7 @@ const uploadToAliyunOSS = async (file, filename, onProgress) => {
           resolve({
             url: data.url || data.imageUrl || data.fileUrl || '',
             thumbnailUrl: data.thumbnailUrl || data.thumbnail_url || null,
+            uploadId: data.uploadId || null,
           });
         } catch (error) {
           reject(

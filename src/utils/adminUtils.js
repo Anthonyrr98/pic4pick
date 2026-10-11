@@ -136,7 +136,8 @@ export const extractOSSFileInfo = (url) => {
   
   try {
     const urlObj = new URL(url);
-    const pathname = urlObj.pathname;
+    const pathname = decodeURIComponent(urlObj.pathname);
+    if (pathname.includes('\\') || pathname.split('/').includes('..')) return null;
     
     // 先尝试匹配 pic4pick/ 前缀的路径
     let match = pathname.match(/pic4pick\/(.+)$/);
@@ -145,7 +146,7 @@ export const extractOSSFileInfo = (url) => {
       const parts = fullPath.split('/');
       const filename = parts[parts.length - 1];
       const subDir = parts.length > 1 ? parts[0] : null;
-      return { filename, subDir, fullPath };
+      return { filename, subDir, fullPath: pathname.replace(/^\/+/, '') };
     }
     
     // 如果没有 pic4pick 前缀，直接匹配路径（服务器端上传的格式）
@@ -185,8 +186,10 @@ export const deleteOSSFile = async (url) => {
   if (!url || typeof url !== 'string') return;
   
   // 检查是否是 OSS URL
-  if (!url.includes('.aliyuncs.com')) {
-    return; // 不是 OSS URL，跳过
+  try {
+    if (!new URL(url).hostname.endsWith('.aliyuncs.com')) return;
+  } catch {
+    return;
   }
   
   const fileInfo = extractOSSFileInfo(url);
@@ -221,52 +224,16 @@ export const deleteOSSFile = async (url) => {
     return 'http://localhost:3002';
   };
   
-  try {
-    const baseUrl = getBackendBaseUrl();
-    const token = getAuthToken();
-    if (!token) return;
-
-    // 尝试删除多个可能的路径
-    const pathsToTry = [...new Set([
-      fileInfo.fullPath, // 完整路径
-      `origin/${fileInfo.filename}`,
-      `ore/${fileInfo.filename}`,
-      `pic4pick/${fileInfo.fullPath}`,
-      `pic4pick/origin/${fileInfo.filename}`,
-      `pic4pick/ore/${fileInfo.filename}`,
-    ].filter(Boolean))];
-    
-    for (const pathToDelete of pathsToTry) {
-      try {
-        const deleteUrl = `${baseUrl}/api/upload/oss/${encodeURIComponent(pathToDelete)}`;
-        const resp = await fetch(deleteUrl, {
-          method: 'DELETE',
-          headers: { 'Authorization': `Bearer ${token}` },
-        });
-
-        if (resp.ok) {
-          continue; // 删除成功，尝试下一个可能的副本
-        }
-        if (resp.status === 404) {
-          continue; // 不存在，尝试下一个
-        }
-
-        const errorText = await resp.text().catch(() => '');
-        handleError(new Error(`OSS文件删除失败: ${resp.status} - ${errorText}`), {
-          context: 'deleteOSSFile',
-          type: ErrorType.NETWORK,
-          silent: true,
-        });
-      } catch {
-        // 单个路径失败，尝试下一种路径
-        continue;
-      }
-    }
-  } catch (error) {
-    handleError(error, {
-      context: 'deleteOSSFile',
-      type: ErrorType.NETWORK,
-      silent: true,
-    });
+  const token = getAuthToken();
+  if (!token) throw new Error('未登录：无法清理云端图片');
+  const baseUrl = getBackendBaseUrl();
+  // Delete only the object referenced by the record; guessed sibling paths may
+  // belong to another photo. Cloud photo deletion uses the durable server queue.
+  const response = await fetch(`${baseUrl}/api/upload/oss/${encodeURIComponent(fileInfo.fullPath)}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok && response.status !== 404) {
+    throw new Error(`OSS 图片清理失败：${response.status}`);
   }
 };

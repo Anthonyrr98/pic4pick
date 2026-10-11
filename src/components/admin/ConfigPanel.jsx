@@ -177,11 +177,11 @@ export const ConfigPanel = ({
       VITE_AMAP_WEB_SERVICE_KEY: envConfigForm.amapServiceKey || '',
       ...mapStylePresetToEnvUpdates(envConfigForm.mapStylePreset || 'street'),
     };
-    updateEnvOverrides(updates);
     try {
       if (supabase) {
         await upsertAdminSetting('env_config', updates);
       }
+      updateEnvOverrides(updates);
       setEnvConfigMessage({
         type: 'success',
         text: supabase
@@ -190,33 +190,31 @@ export const ConfigPanel = ({
       });
     } catch (e) {
       const appError = handleError(e, { context: 'handleSaveEnvConfig', type: ErrorType.NETWORK });
-      setEnvConfigMessage({ type: 'error', text: `已保存到本地，但同步数据库失败：${formatErrorMessage(appError)}` });
+      setEnvConfigMessage({ type: 'error', text: `保存失败，当前配置保持不变：${formatErrorMessage(appError)}` });
     }
-    setTimeout(() => setEnvConfigMessage({ type: '', text: '' }), 3000);
   };
 
   const handleResetEnvConfig = async () => {
-    resetEnvOverrides(ENV_OVERRIDE_KEYS);
-    setEnvConfigForm({
-      supabaseUrl: getEnvValue('VITE_SUPABASE_URL', ''),
-      supabaseAnonKey: getEnvValue('VITE_SUPABASE_ANON_KEY', ''),
-      apiBaseUrl: getEnvValue('VITE_API_BASE_URL', ''),
-      ossBackendUrl: getEnvValue('VITE_ALIYUN_OSS_BACKEND_URL', ''),
-      amapWebKey: getEnvValue('VITE_AMAP_WEB_KEY', getEnvValue('VITE_AMAP_KEY', '')),
-      amapSecurityJsCode: getEnvValue('VITE_AMAP_SECURITY_JS_CODE', ''),
-      amapServiceKey: getEnvValue('VITE_AMAP_WEB_SERVICE_KEY', getEnvValue('VITE_AMAP_KEY', '')),
-      mapStylePreset: getMapStylePresetFromEnv(),
-    });
     try {
       if (supabase) {
         await upsertAdminSetting('env_config', {});
       }
+      resetEnvOverrides(ENV_OVERRIDE_KEYS);
+      setEnvConfigForm({
+        supabaseUrl: getEnvValue('VITE_SUPABASE_URL', ''),
+        supabaseAnonKey: getEnvValue('VITE_SUPABASE_ANON_KEY', ''),
+        apiBaseUrl: getEnvValue('VITE_API_BASE_URL', ''),
+        ossBackendUrl: getEnvValue('VITE_ALIYUN_OSS_BACKEND_URL', ''),
+        amapWebKey: getEnvValue('VITE_AMAP_WEB_KEY', getEnvValue('VITE_AMAP_KEY', '')),
+        amapSecurityJsCode: getEnvValue('VITE_AMAP_SECURITY_JS_CODE', ''),
+        amapServiceKey: getEnvValue('VITE_AMAP_WEB_SERVICE_KEY', getEnvValue('VITE_AMAP_KEY', '')),
+        mapStylePreset: getMapStylePresetFromEnv(),
+      });
       setEnvConfigMessage({ type: 'info', text: supabase ? '配置已重置并同步到数据库，请刷新页面生效' : '环境变量配置已重置为默认值，请刷新页面生效' });
     } catch (e) {
       handleError(e, { context: 'handleResetEnvConfig', type: ErrorType.NETWORK, silent: true });
-      setEnvConfigMessage({ type: 'info', text: '已重置本地配置，但同步数据库失败，请稍后重试' });
+      setEnvConfigMessage({ type: 'error', text: '重置失败，当前配置保持不变，请稍后重试' });
     }
-    setTimeout(() => setEnvConfigMessage({ type: '', text: '' }), 3000);
   };
 
   const handleSaveBrandText = async () => {
@@ -260,6 +258,11 @@ export const ConfigPanel = ({
       </aside>
       <main className="admin-settings-main">
         <div className="admin-settings-main-inner">
+      {['env', 'map-style'].includes(activeSection) && envConfigMessage.text && (
+        <div className={`admin-message ${envConfigMessage.type}`} role={envConfigMessage.type === 'error' ? 'alert' : 'status'}>
+          {envConfigMessage.text}
+        </div>
+      )}
       {activeSection === 'env' && (
       <section className="admin-settings-card">
         <div className="admin-settings-card-header">
@@ -270,13 +273,6 @@ export const ConfigPanel = ({
             </p>
           </div>
         </div>
-
-        {envConfigMessage.text && (
-          <div className={`admin-message ${envConfigMessage.type}`} style={{ marginBottom: '12px' }}>
-            {envConfigMessage.text}
-          </div>
-        )}
-
         <div className="form-grid">
           <div className="form-group">
             <label>Supabase URL</label>
@@ -382,8 +378,13 @@ export const ConfigPanel = ({
         </p>
 
         <p style={{ marginTop: '8px', fontSize: '0.85rem', color: 'var(--muted)' }}>
-          与上方 API Key 一并点击「保存配置」生效。栅格缩略图为真实瓦片预览；JS 主题为示意配色。
+          点击「保存地图样式」生效，同时保存环境变量页中的配置。栅格缩略图为真实瓦片预览；JS 主题为示意配色。
         </p>
+        <div className="admin-settings-actions-row" style={{ marginTop: '16px' }}>
+          <button type="button" className="btn-primary" onClick={handleSaveEnvConfig}>
+            保存地图样式
+          </button>
+        </div>
       </section>
       )}
 

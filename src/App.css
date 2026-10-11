@@ -4563,6 +4563,13 @@ main {
   background: rgba(207, 165, 106, 0.05);
 }
 
+.upload-dropzone-new.is-dragging .dropzone-label {
+  border-color: var(--accent);
+  background: var(--surface);
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
 .dropzone-placeholder {
   display: flex;
   flex-direction: column;

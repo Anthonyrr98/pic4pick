@@ -3,7 +3,7 @@
  * 处理照片的增删改查、审核等操作
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { Storage, STORAGE_KEYS } from '../utils/storage';
 import { buildSupabasePayloadFromPhoto, deleteOSSFile } from '../utils/adminUtils';
 import { handleError, formatErrorMessage, ErrorType } from '../utils/errorHandler';
@@ -15,6 +15,7 @@ const APPROVED_STORAGE_KEY = STORAGE_KEYS.APPROVED_PHOTOS;
 const REJECTED_STORAGE_KEY = STORAGE_KEYS.REJECTED_PHOTOS;
 
 export const usePhotoManagement = (supabase, refreshSupabaseData, setSubmitMessage) => {
+  const resubmittingIds = useRef(new Set());
   const [adminUploads, setAdminUploads] = useState(() => {
     const photos = Storage.get(STORAGE_KEY, []);
     // 确保所有 URL 都使用 HTTPS
@@ -213,12 +214,22 @@ export const usePhotoManagement = (supabase, refreshSupabaseData, setSubmitMessa
     if (!itemToDelete) return false;
 
     try {
-      // 删除 OSS 文件
-      if (itemToDelete.image) {
-        await deleteOSSFile(itemToDelete.image);
-      }
-      if (itemToDelete.thumbnail) {
-        await deleteOSSFile(itemToDelete.thumbnail);
+      let cleanupPending = false;
+      if (supabase) {
+        // The server persists cleanup intent and removes the record before OSS.
+        const result = await deleteAdminPhoto(id);
+        cleanupPending = result.cleanupPending;
+      } else {
+        // Persist the record removal first; retain it if local storage is full/unavailable.
+        const entries = source === 'approved' ? approvedPhotos : source === 'rejected' ? rejectedPhotos : adminUploads;
+        const key = source === 'approved' ? APPROVED_STORAGE_KEY : source === 'rejected' ? REJECTED_STORAGE_KEY : STORAGE_KEY;
+        const storedEntries = Storage.get(key, entries);
+        if (!Storage.set(key, storedEntries.filter((item) => item.id !== id))) {
+          throw new Error('无法保存本地删除结果');
+        }
+        const urls = [...new Set([itemToDelete.image, itemToDelete.thumbnail].filter(Boolean))];
+        const results = await Promise.allSettled(urls.map(deleteOSSFile));
+        cleanupPending = results.some((result) => result.status === 'rejected');
       }
 
       // 从对应列表移除
@@ -272,14 +283,17 @@ export const usePhotoManagement = (supabase, refreshSupabaseData, setSubmitMessa
         });
       }
 
-      // 从 Supabase 删除
       if (supabase) {
-        await deleteAdminPhoto(id);
         await refreshSupabaseData();
       }
 
-      setSubmitMessage({ type: 'success', text: '删除成功！' });
-      return true;
+      setSubmitMessage({
+        type: cleanupPending ? 'info' : 'success',
+        text: cleanupPending
+          ? (supabase ? '作品已删除，云端图片清理暂未完成，后台会自动重试。' : '作品已从本地删除，但云端图片清理失败。')
+          : '作品已删除，图片清理完成。',
+      });
+      return { deleted: true, cleanupPending };
     } catch (error) {
       handleError(error, {
         context: 'handleDelete',
@@ -295,7 +309,8 @@ export const usePhotoManagement = (supabase, refreshSupabaseData, setSubmitMessa
    */
   const handleResubmit = useCallback(async (id) => {
     const itemToResubmit = rejectedPhotos.find((item) => item.id === id);
-    if (!itemToResubmit) return false;
+    if (!itemToResubmit || resubmittingIds.current.has(id)) return false;
+    resubmittingIds.current.add(id);
 
     // 从已拒绝列表移除
     setRejectedPhotos((prev) => {
@@ -320,20 +335,36 @@ export const usePhotoManagement = (supabase, refreshSupabaseData, setSubmitMessa
 
     if (supabase) {
       try {
-        // 更新状态为 pending，不包含 reject_reason（如果数据库没有该字段）
+        // Keep a failed write separate from a failed refresh of a committed write.
         await updateAdminPhoto(id, { status: 'pending' });
-        await refreshSupabaseData();
       } catch (error) {
+        setAdminUploads((prev) => prev.filter((item) => item.id !== id));
+        setRejectedPhotos((prev) => {
+          if (prev.some((item) => item.id === id)) return prev;
+          const restored = [...prev];
+          restored.splice(Math.min(rejectedPhotos.findIndex((item) => item.id === id), restored.length), 0, itemToResubmit);
+          return restored;
+        });
         handleError(error, {
           context: 'handleResubmit',
           type: ErrorType.NETWORK,
         });
         setSubmitMessage({ type: 'error', text: `重新提交失败：${formatErrorMessage(error)}` });
+        resubmittingIds.current.delete(id);
         return false;
+      }
+      try {
+        await refreshSupabaseData();
+      } catch (error) {
+        handleError(error, { context: 'handleResubmit.refresh', type: ErrorType.NETWORK });
+        setSubmitMessage({ type: 'info', text: '作品已重新提交，但列表刷新失败，请刷新页面。' });
+        resubmittingIds.current.delete(id);
+        return true;
       }
     }
 
     setSubmitMessage({ type: 'success', text: '作品已重新提交审核' });
+    resubmittingIds.current.delete(id);
     return true;
   }, [rejectedPhotos, supabase, refreshSupabaseData, setSubmitMessage]);
 
