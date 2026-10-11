@@ -869,6 +869,11 @@ export function GalleryPage() {
               ) : (
                 <div className="lightbox-media-fallback">预览图暂不可用</div>
               )}
+              {lightboxPhoto && lightboxVisualSrc && !lightboxPreviewFailed && (
+                <span className="lightbox-watermark-frame" aria-hidden="true">
+                  <span className="lightbox-watermark" />
+                </span>
+              )}
             </div>
             {lightboxPhoto && (
               <div className={`lightbox-meta ${showMobileMeta ? 'mobile-visible' : ''}`}>

@@ -2822,6 +2822,7 @@ main {
 }
 
 .lightbox-media {
+  position: relative;
   border-radius: 24px;
   overflow: hidden;
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.35), 0 4px 16px rgba(0, 0, 0, 0.2);
@@ -2865,6 +2866,38 @@ main {
   font-weight: 700;
   line-height: 1.4;
   text-align: center;
+}
+
+.lightbox-watermark-frame {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  user-select: none;
+}
+
+.lightbox-watermark {
+  position: absolute;
+  left: clamp(14px, 4%, 24px);
+  bottom: clamp(14px, 3%, 24px);
+  width: clamp(88px, 28%, 180px);
+  aspect-ratio: 1496 / 520;
+  background: rgba(255, 255, 255, 0.78);
+  -webkit-mask: url('/loa-cropped.png') center / contain no-repeat;
+  mask: url('/loa-cropped.png') center / contain no-repeat;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.55));
+  pointer-events: none;
+  user-select: none;
+}
+
+@media (max-width: 768px) {
+  .lightbox-watermark-frame {
+    inset: auto;
+    left: 50%;
+    top: 50%;
+    width: min(100%, calc(100dvh * var(--lightbox-aspect-ratio, 1.5)));
+    aspect-ratio: var(--lightbox-aspect-ratio, 1.5);
+    transform: translate(-50%, -50%);
+  }
 }
 
 .lightbox-media.aspect-fit img {
