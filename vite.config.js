@@ -1,8 +1,23 @@
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 
 // https://vite.dev/config/
-export default defineConfig({
+export default defineConfig(({ command, mode }) => {
+  if (command === 'build') {
+    const env = loadEnv(mode, process.cwd(), 'VITE_')
+    let apiUrl
+    try {
+      apiUrl = new URL(env.VITE_API_BASE_URL)
+    } catch {
+      throw new Error('Production builds require VITE_API_BASE_URL to be an absolute HTTPS backend URL.')
+    }
+    const hostname = apiUrl.hostname.toLowerCase()
+    if (apiUrl.protocol !== 'https:' || hostname === 'localhost' || hostname.endsWith('.localhost') || /^127\./.test(hostname) || ['0.0.0.0', '[::1]'].includes(hostname)) {
+      throw new Error('Production builds cannot use a local or non-HTTPS VITE_API_BASE_URL.')
+    }
+  }
+
+  return {
   // 自定义域名使用根路径，GitHub Pages 子路径使用 '/pic4pick/'
   base: '/',
   plugins: [react()],
@@ -63,4 +78,5 @@ export default defineConfig({
       },
     },
   },
+  }
 })

@@ -40,6 +40,8 @@ VITE_AMAP_MAP_STYLE=amap://styles/whitesmoke
 
 ## GitHub Actions（默认关闭）
 
+正式构建使用 `.env.production` 中的公开后台地址 `https://pic4pick-backend.onrender.com`，覆盖 `.env.local` 的本地开发地址。构建会拒绝缺失、非 HTTPS 或回环地址的 `VITE_API_BASE_URL`；CI 仍可通过环境变量覆盖为另一个正式 HTTPS 后端。发布检查需包含 `/api/health` 以及登录接口的 CORS 预检。
+
 `.github/workflows/deploy-oss.yml` 已准备，只有仓库变量 `OSS_FRONTEND_ENABLED=true` 才会执行。启用前配置：
 
 - Variables：`OSS_FRONTEND_BUCKET=pic4pick-web-rlzhao`。
