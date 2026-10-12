@@ -411,6 +411,9 @@ export function AdminPage() {
   
   // 编辑状态
   const [editingPhotoId, setEditingPhotoId] = useState(null);
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const editSaveInProgressRef = useRef(false);
+  const editSessionRef = useRef(0);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [deleteConfirmInput, setDeleteConfirmInput] = useState('');
   const [isDeletingPhoto, setIsDeletingPhoto] = useState(false);
@@ -458,15 +461,31 @@ export function AdminPage() {
     return maplibreRef.current;
   }, []);
 
-  // 分页和搜索状态
-  const [currentPage, setCurrentPage] = useState(1);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [filterCategory, setFilterCategory] = useState('');
+  // Each list keeps its own filters and page while reviewing photos.
+  const [listControls, setListControls] = useState({
+    pending: { page: 1, query: '', category: '' },
+    approved: { page: 1, query: '', category: '' },
+    rejected: { page: 1, query: '', category: '' },
+  });
+  const listTab = ['pending', 'approved', 'rejected'].includes(activeTab) ? activeTab : 'approved';
+  const { page: currentPage, query: searchQuery, category: filterCategory } = listControls[listTab];
+  const setCurrentPage = useCallback((value) => {
+    setListControls((prev) => ({
+      ...prev,
+      [listTab]: { ...prev[listTab], page: typeof value === 'function' ? value(prev[listTab].page) : value },
+    }));
+  }, [listTab]);
+  const setSearchQuery = (query) => setListControls((prev) => ({
+    ...prev, [listTab]: { ...prev[listTab], query, page: 1 },
+  }));
+  const setFilterCategory = (category) => setListControls((prev) => ({
+    ...prev, [listTab]: { ...prev[listTab], category, page: 1 },
+  }));
   const itemsPerPage = 20; // 每页显示20条
 
   // 筛选和搜索后的照片列表
   const filteredPhotos = useMemo(() => {
-    let filtered = [...approvedPhotos];
+    let filtered = [...({ pending: adminUploads, approved: approvedPhotos, rejected: rejectedPhotos }[listTab])];
 
     // 搜索筛选
     if (searchQuery.trim()) {
@@ -486,21 +505,16 @@ export function AdminPage() {
     }
 
     return filtered;
-  }, [approvedPhotos, searchQuery, filterCategory]);
+  }, [adminUploads, approvedPhotos, rejectedPhotos, listTab, searchQuery, filterCategory]);
 
   // 分页计算
   const totalPages = Math.ceil(filteredPhotos.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
   const paginatedPhotos = filteredPhotos.slice(startIndex, endIndex);
-  const visiblePhotoIdsByTab = useMemo(() => ({
-    pending: adminUploads.map((item) => item.id),
-    approved: paginatedPhotos.map((item) => item.id),
-    rejected: rejectedPhotos.map((item) => item.id),
-  }), [adminUploads, paginatedPhotos, rejectedPhotos]);
   const activeVisiblePhotoIds = useMemo(
-    () => visiblePhotoIdsByTab[activeTab] || [],
-    [visiblePhotoIdsByTab, activeTab]
+    () => ['pending', 'approved', 'rejected'].includes(activeTab) ? paginatedPhotos.map((item) => item.id) : [],
+    [paginatedPhotos, activeTab]
   );
   const selectedActivePhotoIds = useMemo(
     () => activeVisiblePhotoIds.filter((id) => selectedPhotoIds.has(id)),
@@ -510,14 +524,9 @@ export function AdminPage() {
   const isAllActiveVisibleSelected = activeVisiblePhotoIds.length > 0 && selectedActiveCount === activeVisiblePhotoIds.length;
   const isBatchDeleteConfirmMatched = batchDeleteConfirmInput.trim().toUpperCase() === BATCH_DELETE_CONFIRM_TEXT;
 
-  // 当筛选条件改变时，重置到第一页
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchQuery, filterCategory]);
-
   useEffect(() => {
     setCurrentPage((page) => Math.min(page, Math.max(1, totalPages)));
-  }, [totalPages]);
+  }, [totalPages, setCurrentPage]);
 
   useEffect(() => {
     if (editingPhotoId && submitMessage.type === 'error' && editFeedbackRef.current) {
@@ -527,6 +536,7 @@ export function AdminPage() {
   }, [editingPhotoId, submitMessage]);
 
   useEffect(() => {
+    setShowFilterCategoryDropdown(false);
     setSelectedPhotoIds(new Set());
     setBatchDeleteConfirmOpen(false);
     setBatchDeleteConfirmInput('');
@@ -1722,19 +1732,18 @@ export function AdminPage() {
     });
   };
 
-  // 包装函数：添加切换标签页的功能
-  const handleApproveWithTabSwitch = async (id) => {
+  // Keep the review list open so the next photo can be reviewed immediately.
+  const handleApproveAndClearSelection = async (id) => {
     const didApprove = await handleApprove(id);
     if (!didApprove) return;
     clearSelectedPhotoIds([id]);
-    setActiveTab('approved'); // 切换到已审核标签
   };
 
-  const handleRejectWithTabSwitch = async (id) => {
+  const handleRejectAndClearSelection = async (id) => {
     const didReject = await handleReject(id);
     if (!didReject) return;
     clearSelectedPhotoIds([id]);
-    setActiveTab('rejected'); // 切换到已拒绝标签
+    setSubmitMessage({ type: 'success', text: '作品已拒绝' });
   };
 
   const togglePhotoSelection = (id) => {
@@ -1821,10 +1830,8 @@ export function AdminPage() {
       }
 
       if (action === 'approve') {
-        setActiveTab('approved');
         setSubmitMessage({ type: 'success', text: `已通过 ${completedCount} 个作品` });
       } else if (action === 'reject') {
-        setActiveTab('rejected');
         setSubmitMessage({ type: 'success', text: `已拒绝 ${completedCount} 个作品` });
       } else if (action === 'resubmit') {
         setActiveTab('pending');
@@ -1971,6 +1978,8 @@ export function AdminPage() {
 
   // 打开编辑表单
   const handleEdit = (photo) => {
+    if (editSaveInProgressRef.current) return;
+    editSessionRef.current += 1;
     setSubmitMessage({ type: '', text: '' });
     setEditingPhotoId(photo.id);
     setIsDeleteConfirmOpen(false);
@@ -2001,7 +2010,7 @@ export function AdminPage() {
 
   // 保存编辑
   const handleSaveEdit = async () => {
-    if (!editingPhotoId) return;
+    if (!editingPhotoId || editSaveInProgressRef.current || isDeletingPhoto) return;
 
     if (!editForm.title?.trim()) {
       setSubmitMessage({ type: 'error', text: '请填写标题' });
@@ -2016,9 +2025,62 @@ export function AdminPage() {
       return;
     }
 
-    if (supabase) {
+    const session = editSessionRef.current;
+    const isCurrentEdit = () => editSessionRef.current === session;
+    editSaveInProgressRef.current = true;
+    setIsSavingEdit(true);
+    try {
+      if (supabase) {
+        try {
+          const updatePayload = {
+            title: editForm.title.trim(),
+            location: editForm.location.trim(),
+            country: editForm.country.trim(),
+            category: editForm.category,
+            latitude: editForm.latitude,
+            longitude: editForm.longitude,
+            altitude: editForm.altitude,
+            focal: editForm.focal.trim(),
+            aperture: editForm.aperture.trim(),
+            shutter: editForm.shutter.trim(),
+            iso: editForm.iso.trim(),
+            camera: editForm.camera.trim(),
+            lens: editForm.lens.trim(),
+            film_stock: editForm.category === 'film' ? (editForm.filmStock || '').trim() || null : null,
+            tags: mergeTagsWithFilmStock(
+              editForm.tags || '',
+              editForm.category,
+              editForm.filmStock || ''
+            ),
+            rating: typeof editForm.rating === 'number' ? editForm.rating : Number(editForm.rating) || 7,
+            shot_date: editForm.shotDate || null,
+            hidden: !!editForm.hidden,
+          };
+
+          await updateAdminPhoto(editingPhotoId, updatePayload);
+          await refreshSupabaseData();
+          if (!isCurrentEdit()) return;
+          setEditingPhotoId(null);
+          setSubmitMessage({ type: 'success', text: '编辑成功！' });
+          setTimeout(() => {
+            if (isCurrentEdit()) setSubmitMessage((message) => (
+              message.type === 'success' && message.text === '编辑成功！' ? { type: '', text: '' } : message
+            ));
+          }, 2000);
+          return;
+        } catch (error) {
+          handleError(error, {
+            context: 'handleSaveEdit',
+            type: ErrorType.NETWORK,
+          });
+          if (isCurrentEdit()) setSubmitMessage({ type: 'error', text: `保存失败：${error.message}` });
+          return;
+        }
+      }
+
       try {
-        const updatePayload = {
+        const buildEditedLocalPhoto = (photo) => ({
+          ...photo,
           title: editForm.title.trim(),
           location: editForm.location.trim(),
           country: editForm.country.trim(),
@@ -2032,122 +2094,89 @@ export function AdminPage() {
           iso: editForm.iso.trim(),
           camera: editForm.camera.trim(),
           lens: editForm.lens.trim(),
-          film_stock: editForm.category === 'film' ? (editForm.filmStock || '').trim() || null : null,
+          filmStock: editForm.category === 'film' ? (editForm.filmStock || '').trim() : '',
           tags: mergeTagsWithFilmStock(
             editForm.tags || '',
             editForm.category,
             editForm.filmStock || ''
           ),
           rating: typeof editForm.rating === 'number' ? editForm.rating : Number(editForm.rating) || 7,
-          shot_date: editForm.shotDate || null,
+          shotDate: editForm.shotDate || null,
           hidden: !!editForm.hidden,
-        };
+        });
 
-        await updateAdminPhoto(editingPhotoId, updatePayload);
-        await refreshSupabaseData();
-        setEditingPhotoId(null);
-        setSubmitMessage({ type: 'success', text: '编辑成功！' });
-        setTimeout(() => {
-          setSubmitMessage({ type: '', text: '' });
-        }, 2000);
-        return;
+        const pending = Storage.get(STORAGE_KEY, []);
+        const pendingIndex = pending.findIndex((p) => p.id === editingPhotoId);
+
+        if (pendingIndex !== -1) {
+          pending[pendingIndex] = buildEditedLocalPhoto(pending[pendingIndex]);
+          Storage.set(STORAGE_KEY, pending);
+          setAdminUploads([...pending]);
+          setEditingPhotoId(null);
+          setSubmitMessage({ type: 'success', text: '编辑成功！' });
+          setTimeout(() => {
+            if (isCurrentEdit()) setSubmitMessage((message) => (
+              message.type === 'success' && message.text === '编辑成功！' ? { type: '', text: '' } : message
+            ));
+          }, 2000);
+          return;
+        }
+
+        // 检查是否在已审核列表中
+        const approved = loadApprovedPhotos();
+        const approvedIndex = approved.findIndex((p) => p.id === editingPhotoId);
+
+        if (approvedIndex !== -1) {
+          approved[approvedIndex] = buildEditedLocalPhoto(approved[approvedIndex]);
+
+          Storage.set(APPROVED_STORAGE_KEY, approved);
+          setApprovedPhotos([...approved]);
+          setEditingPhotoId(null);
+          setSubmitMessage({ type: 'success', text: '编辑成功！' });
+          setTimeout(() => {
+            if (isCurrentEdit()) setSubmitMessage((message) => (
+              message.type === 'success' && message.text === '编辑成功！' ? { type: '', text: '' } : message
+            ));
+          }, 2000);
+          return;
+        }
+
+        // 检查是否在已拒绝列表中
+        const rejected = loadRejectedPhotos();
+        const rejectedIndex = rejected.findIndex((p) => p.id === editingPhotoId);
+
+        if (rejectedIndex !== -1) {
+          rejected[rejectedIndex] = buildEditedLocalPhoto(rejected[rejectedIndex]);
+
+          Storage.set(REJECTED_STORAGE_KEY, rejected);
+          setRejectedPhotos([...rejected]);
+          setEditingPhotoId(null);
+          setSubmitMessage({ type: 'success', text: '编辑成功！' });
+          setTimeout(() => {
+            if (isCurrentEdit()) setSubmitMessage((message) => (
+              message.type === 'success' && message.text === '编辑成功！' ? { type: '', text: '' } : message
+            ));
+          }, 2000);
+          return;
+        }
       } catch (error) {
         handleError(error, {
           context: 'handleSaveEdit',
-          type: ErrorType.NETWORK,
+          type: ErrorType.STORAGE,
+          silent: true,
         });
-        setSubmitMessage({ type: 'error', text: `保存失败：${error.message}` });
-        return;
+        if (isCurrentEdit()) setSubmitMessage({ type: 'error', text: '保存失败，请重试' });
       }
-    }
-
-    try {
-      const buildEditedLocalPhoto = (photo) => ({
-        ...photo,
-        title: editForm.title.trim(),
-        location: editForm.location.trim(),
-        country: editForm.country.trim(),
-        category: editForm.category,
-        latitude: editForm.latitude,
-        longitude: editForm.longitude,
-        altitude: editForm.altitude,
-        focal: editForm.focal.trim(),
-        aperture: editForm.aperture.trim(),
-        shutter: editForm.shutter.trim(),
-        iso: editForm.iso.trim(),
-        camera: editForm.camera.trim(),
-        lens: editForm.lens.trim(),
-        filmStock: editForm.category === 'film' ? (editForm.filmStock || '').trim() : '',
-        tags: mergeTagsWithFilmStock(
-          editForm.tags || '',
-          editForm.category,
-          editForm.filmStock || ''
-        ),
-        rating: typeof editForm.rating === 'number' ? editForm.rating : Number(editForm.rating) || 7,
-        shotDate: editForm.shotDate || null,
-        hidden: !!editForm.hidden,
-      });
-
-      const pending = Storage.get(STORAGE_KEY, []);
-      const pendingIndex = pending.findIndex((p) => p.id === editingPhotoId);
-
-      if (pendingIndex !== -1) {
-        pending[pendingIndex] = buildEditedLocalPhoto(pending[pendingIndex]);
-        Storage.set(STORAGE_KEY, pending);
-        setAdminUploads([...pending]);
-        setEditingPhotoId(null);
-        setSubmitMessage({ type: 'success', text: '编辑成功！' });
-        setTimeout(() => {
-          setSubmitMessage({ type: '', text: '' });
-        }, 2000);
-        return;
-      }
-
-      // 检查是否在已审核列表中
-      const approved = loadApprovedPhotos();
-      const approvedIndex = approved.findIndex((p) => p.id === editingPhotoId);
-      
-      if (approvedIndex !== -1) {
-        approved[approvedIndex] = buildEditedLocalPhoto(approved[approvedIndex]);
-        
-        Storage.set(APPROVED_STORAGE_KEY, approved);
-        setApprovedPhotos([...approved]);
-        setEditingPhotoId(null);
-        setSubmitMessage({ type: 'success', text: '编辑成功！' });
-        setTimeout(() => {
-          setSubmitMessage({ type: '', text: '' });
-        }, 2000);
-        return;
-      }
-
-      // 检查是否在已拒绝列表中
-      const rejected = loadRejectedPhotos();
-      const rejectedIndex = rejected.findIndex((p) => p.id === editingPhotoId);
-      
-      if (rejectedIndex !== -1) {
-        rejected[rejectedIndex] = buildEditedLocalPhoto(rejected[rejectedIndex]);
-        
-        Storage.set(REJECTED_STORAGE_KEY, rejected);
-        setRejectedPhotos([...rejected]);
-        setEditingPhotoId(null);
-        setSubmitMessage({ type: 'success', text: '编辑成功！' });
-        setTimeout(() => {
-          setSubmitMessage({ type: '', text: '' });
-        }, 2000);
-        return;
-      }
-    } catch (error) {
-      handleError(error, {
-        context: 'handleSaveEdit',
-        type: ErrorType.STORAGE,
-        silent: true,
-      });
-      setSubmitMessage({ type: 'error', text: '保存失败，请重试' });
+    } finally {
+      editSaveInProgressRef.current = false;
+      setIsSavingEdit(false);
     }
   };
 
   // 取消编辑
   const handleCancelEdit = () => {
+    if (editSaveInProgressRef.current || isDeletingPhoto) return;
+    editSessionRef.current += 1;
     setSubmitMessage({ type: '', text: '' });
     setEditingPhotoId(null);
     setIsDeleteConfirmOpen(false);
@@ -2177,7 +2206,7 @@ export function AdminPage() {
 
   // Single and batch deletion share the same server-coordinated flow.
   const handleDeleteFromEdit = async () => {
-    if (!editingPhotoId || !isDeleteConfirmMatched || isDeletingPhoto) return;
+    if (!editingPhotoId || !isDeleteConfirmMatched || isDeletingPhoto || editSaveInProgressRef.current) return;
     setIsDeletingPhoto(true);
     try {
       const source = editingPhoto?.status || activeTab;
@@ -2190,6 +2219,231 @@ export function AdminPage() {
       setIsDeletingPhoto(false);
     }
   };
+
+  const renderListFilters = () => (
+    <div style={{
+      display: 'flex',
+      gap: '12px',
+      marginBottom: '16px',
+      flexWrap: 'wrap',
+      alignItems: 'center'
+    }}>
+      <div style={{ flex: 1, minWidth: '200px', maxWidth: '400px' }}>
+        <input
+          type="search"
+          aria-label="搜索作品"
+          placeholder="搜索标题、地点、相机、镜头..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          style={{
+            width: '100%',
+            padding: '10px 16px',
+            background: 'rgba(255, 255, 255, 0.05)',
+            border: '1px solid var(--border)',
+            borderRadius: '8px',
+            color: 'var(--text)',
+            fontSize: '0.9rem'
+          }}
+        />
+      </div>
+      <div style={{ minWidth: '150px' }}>
+        <div
+          style={{ position: 'relative' }}
+          tabIndex={-1}
+          onBlur={() => setShowFilterCategoryDropdown(false)}
+        >
+          <button
+            type="button"
+            onClick={() => setShowFilterCategoryDropdown((v) => !v)}
+            className="category-select-display"
+            style={{
+              width: '100%',
+              border: '1px solid var(--border)',
+              background: 'rgba(255, 255, 255, 0.05)',
+              color: 'var(--text)',
+              minHeight: '39px',
+              height: '39px',
+              borderRadius: '8px',
+              padding: '10px 40px 10px 16px',
+              boxShadow: 'none',
+              fontSize: '0.9rem',
+            }}
+          >
+            <span className="category-select-text">
+              {filterCategory
+                ? tabs.find((tab) => tab.id === filterCategory)?.label || '全部分类'
+                : '全部分类'}
+            </span>
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 12 12"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+              className="category-select-arrow"
+              style={{
+                transform: showFilterCategoryDropdown
+                  ? 'translateY(-50%) rotate(180deg)'
+                  : undefined,
+                color: 'currentColor',
+                opacity: 0.7,
+              }}
+            >
+              <path
+                d="M3 4.5L6 7.5L9 4.5"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </button>
+
+          {showFilterCategoryDropdown && (
+            <div className="admin-dropdown-panel" style={{ maxHeight: 220, overflowY: 'auto' }}>
+              <button
+                type="button"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  setFilterCategory('');
+                  setShowFilterCategoryDropdown(false);
+                }}
+                className={`admin-dropdown-item ${!filterCategory ? 'is-active' : ''}`}
+              >
+                全部分类
+              </button>
+              {tabs.map((tab) => {
+                const active = tab.id === filterCategory;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      setFilterCategory(tab.id);
+                      setShowFilterCategoryDropdown(false);
+                    }}
+                    className={`admin-dropdown-item ${active ? 'is-active' : ''}`}
+                  >
+                    {tab.label}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+      {(searchQuery || filterCategory) && (
+        <button
+          type="button"
+          onClick={() => {
+            setSearchQuery('');
+            setFilterCategory('');
+          }}
+          style={{
+            padding: '10px 16px',
+            background: 'transparent',
+            border: '1px solid var(--border)',
+            borderRadius: '8px',
+            color: 'var(--text)',
+            cursor: 'pointer',
+            fontSize: '0.9rem'
+          }}
+        >
+          清除筛选
+        </button>
+      )}
+    </div>
+  );
+
+  const renderListPagination = () => (
+    totalPages > 1 && (
+      <nav className="admin-pagination" aria-label="作品分页">
+        <button
+          type="button"
+          onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+          disabled={currentPage === 1}
+          style={{
+            padding: '8px 16px',
+            background: currentPage === 1 ? 'transparent' : 'rgba(255, 255, 255, 0.05)',
+            border: '1px solid var(--border)',
+            borderRadius: '8px',
+            color: currentPage === 1 ? 'var(--muted)' : 'var(--text)',
+            cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
+            fontSize: '0.9rem',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          上一页
+        </button>
+        <div
+          className="admin-pagination-pages"
+          style={{
+            display: 'flex',
+            gap: '4px',
+            alignItems: 'center',
+          }}
+        >
+          {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+            let pageNum;
+            if (totalPages <= 5) {
+              pageNum = i + 1;
+            } else if (currentPage <= 3) {
+              pageNum = i + 1;
+            } else if (currentPage >= totalPages - 2) {
+              pageNum = totalPages - 4 + i;
+            } else {
+              pageNum = currentPage - 2 + i;
+            }
+            return (
+              <button
+                key={pageNum}
+                type="button"
+                aria-current={currentPage === pageNum ? 'page' : undefined}
+                onClick={() => setCurrentPage(pageNum)}
+                style={{
+                  minWidth: '36px',
+                  padding: '8px 12px',
+                  background:
+                    currentPage === pageNum ? 'var(--accent)' : 'rgba(255, 255, 255, 0.05)',
+                  border: '1px solid var(--border)',
+                  borderRadius: '8px',
+                  color: currentPage === pageNum ? 'var(--bg)' : 'var(--text)',
+                  cursor: 'pointer',
+                  fontSize: '0.9rem',
+                  fontWeight: currentPage === pageNum ? '600' : '400',
+                }}
+              >
+                {pageNum}
+              </button>
+            );
+          })}
+        </div>
+        <span style={{ color: 'var(--muted)', fontSize: '0.9rem', whiteSpace: 'nowrap' }}>
+          第 {currentPage} / {totalPages} 页
+        </span>
+        <button
+          type="button"
+          onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+          disabled={currentPage === totalPages}
+          style={{
+            padding: '8px 16px',
+            background:
+              currentPage === totalPages ? 'transparent' : 'rgba(255, 255, 255, 0.05)',
+            border: '1px solid var(--border)',
+            borderRadius: '8px',
+            color: currentPage === totalPages ? 'var(--muted)' : 'var(--text)',
+            cursor: currentPage === totalPages ? 'not-allowed' : 'pointer',
+            fontSize: '0.9rem',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          下一页
+        </button>
+      </nav>
+    )
+  );
+
 
   // 总作品数 = 已审核通过的作品 + 待审核的作品（不包括内置示例）
   const totalPhotos = approvedCount + pendingReviewCount;
@@ -3427,11 +3681,12 @@ export function AdminPage() {
             <div className="admin-list-section">
               <div className="list-header">
                 <h2>待审核作品</h2>
-                <span className="list-count">{pendingReviewCount} 条</span>
+                <span className="list-count">{filteredPhotos.length} / {pendingReviewCount} 条</span>
               </div>
-              {renderBatchToolbar(adminUploads, 'pending')}
+              {renderListFilters()}
+              {renderBatchToolbar(paginatedPhotos, 'pending')}
               <div className="admin-list">
-                {adminUploads.length === 0 ? (
+                {paginatedPhotos.length === 0 ? (
                   <div className="empty-state">
                     <div className="empty-icon">
                       <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" width="64" height="64">
@@ -3440,11 +3695,11 @@ export function AdminPage() {
                         <path d="M3 7V19C3 19.5304 3.21071 20.0391 3.58579 20.4142C3.96086 20.7893 4.46957 21 5 21H19C19.5304 21 20.0391 20.7893 20.4142 20.4142C20.7893 20.0391 21 19.5304 21 19V7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                       </svg>
                     </div>
-                    <p className="empty-text">暂无待审核作品</p>
-                    <p className="empty-hint">提交作品后将显示在此</p>
+                    <p className="empty-text">{adminUploads.length === 0 ? '暂无待审核作品' : '没有找到匹配的作品'}</p>
+                    <p className="empty-hint">{adminUploads.length === 0 ? '提交作品后将显示在此' : '请尝试其他搜索关键词或筛选条件'}</p>
                   </div>
                 ) : (
-                  adminUploads.map((item) => (
+                  paginatedPhotos.map((item) => (
                     <article key={item.id} className={`admin-list-item pending compact ${selectedPhotoIds.has(item.id) ? 'is-selected' : ''}`}>
                       <label className="admin-item-select" aria-label={`选择 ${item.title || '作品'}`}>
                         <input
@@ -3566,7 +3821,7 @@ export function AdminPage() {
                         </button>
                         <button
                           className="btn-approve"
-                          onClick={() => handleApproveWithTabSwitch(item.id)}
+                          onClick={() => handleApproveAndClearSelection(item.id)}
                           style={{ 
                             width: '100%',
                             fontSize: '0.85rem', 
@@ -3578,7 +3833,7 @@ export function AdminPage() {
                         </button>
                         <button
                           className="btn-reject"
-                          onClick={() => handleRejectWithTabSwitch(item.id)}
+                          onClick={() => handleRejectAndClearSelection(item.id)}
                           style={{ 
                             width: '100%',
                             fontSize: '0.85rem', 
@@ -3593,6 +3848,7 @@ export function AdminPage() {
                   ))
                 )}
               </div>
+              {renderListPagination()}
             </div>
           )}
 
@@ -3600,12 +3856,13 @@ export function AdminPage() {
             <div className="admin-list-section">
               <div className="list-header">
                 <h2>已拒绝作品</h2>
-                <span className="list-count">{rejectedCount} 条</span>
+                <span className="list-count">{filteredPhotos.length} / {rejectedCount} 条</span>
               </div>
-              {renderBatchToolbar(rejectedPhotos, 'rejected')}
+              {renderListFilters()}
+              {renderBatchToolbar(paginatedPhotos, 'rejected')}
 
               <div className="admin-list">
-                {rejectedPhotos.length === 0 ? (
+                {paginatedPhotos.length === 0 ? (
                   <div className="empty-state">
                     <div className="empty-icon">
                       <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" width="64" height="64">
@@ -3614,11 +3871,11 @@ export function AdminPage() {
                         <path d="M9 9L15 15" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
                       </svg>
                     </div>
-                    <p className="empty-text">暂无已拒绝作品</p>
-                    <p className="empty-hint">被拒绝的作品将显示在此</p>
+                    <p className="empty-text">{rejectedPhotos.length === 0 ? '暂无已拒绝作品' : '没有找到匹配的作品'}</p>
+                    <p className="empty-hint">{rejectedPhotos.length === 0 ? '被拒绝的作品将显示在此' : '请尝试其他搜索关键词或筛选条件'}</p>
                   </div>
                 ) : (
-                  rejectedPhotos.map((item) => (
+                  paginatedPhotos.map((item) => (
                     <article key={item.id} className={`admin-list-item rejected compact ${selectedPhotoIds.has(item.id) ? 'is-selected' : ''}`}>
                       <label className="admin-item-select" aria-label={`选择 ${item.title || '作品'}`}>
                         <input
@@ -3748,6 +4005,7 @@ export function AdminPage() {
                   ))
                 )}
               </div>
+              {renderListPagination()}
             </div>
           )}
 
@@ -3758,139 +4016,7 @@ export function AdminPage() {
                 <span className="list-count">{filteredPhotos.length} / {approvedCount} 条</span>
               </div>
 
-              {/* 搜索和筛选栏 */}
-              <div style={{
-                display: 'flex',
-                gap: '12px',
-                marginBottom: '16px',
-                flexWrap: 'wrap',
-                alignItems: 'center'
-              }}>
-                <div style={{ flex: 1, minWidth: '200px', maxWidth: '400px' }}>
-                  <input
-                    type="text"
-                    placeholder="搜索标题、地点、相机、镜头..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    style={{
-                      width: '100%',
-                      padding: '10px 16px',
-                      background: 'rgba(255, 255, 255, 0.05)',
-                      border: '1px solid var(--border)',
-                      borderRadius: '8px',
-                      color: 'var(--text)',
-                      fontSize: '0.9rem'
-                    }}
-                  />
-                </div>
-                <div style={{ minWidth: '150px' }}>
-                  <div
-                    style={{ position: 'relative' }}
-                    tabIndex={-1}
-                    onBlur={() => setShowFilterCategoryDropdown(false)}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => setShowFilterCategoryDropdown((v) => !v)}
-                      className="category-select-display"
-                      style={{
-                        width: '100%',
-                        border: '1px solid var(--border)',
-                        background: 'rgba(255, 255, 255, 0.05)',
-                        color: 'var(--text)',
-                        minHeight: '39px',
-                        height: '39px',
-                        borderRadius: '8px',
-                        padding: '10px 40px 10px 16px',
-                        boxShadow: 'none',
-                        fontSize: '0.9rem',
-                      }}
-                    >
-                      <span className="category-select-text">
-                        {filterCategory
-                          ? tabs.find((tab) => tab.id === filterCategory)?.label || '全部分类'
-                          : '全部分类'}
-                      </span>
-                      <svg
-                        width="12"
-                        height="12"
-                        viewBox="0 0 12 12"
-                        fill="none"
-                        xmlns="http://www.w3.org/2000/svg"
-                        className="category-select-arrow"
-                        style={{
-                          transform: showFilterCategoryDropdown
-                            ? 'translateY(-50%) rotate(180deg)'
-                            : undefined,
-                          color: 'currentColor',
-                          opacity: 0.7,
-                        }}
-                      >
-                        <path
-                          d="M3 4.5L6 7.5L9 4.5"
-                          stroke="currentColor"
-                          strokeWidth="1.5"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                      </svg>
-                    </button>
-
-                    {showFilterCategoryDropdown && (
-                      <div className="admin-dropdown-panel" style={{ maxHeight: 220, overflowY: 'auto' }}>
-                        <button
-                          type="button"
-                          onMouseDown={(e) => {
-                            e.preventDefault();
-                            setFilterCategory('');
-                            setShowFilterCategoryDropdown(false);
-                          }}
-                          className={`admin-dropdown-item ${!filterCategory ? 'is-active' : ''}`}
-                        >
-                          全部分类
-                        </button>
-                        {tabs.map((tab) => {
-                          const active = tab.id === filterCategory;
-                          return (
-                            <button
-                              key={tab.id}
-                              type="button"
-                              onMouseDown={(e) => {
-                                e.preventDefault();
-                                setFilterCategory(tab.id);
-                                setShowFilterCategoryDropdown(false);
-                              }}
-                              className={`admin-dropdown-item ${active ? 'is-active' : ''}`}
-                            >
-                              {tab.label}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                </div>
-                {(searchQuery || filterCategory) && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSearchQuery('');
-                      setFilterCategory('');
-                    }}
-                    style={{
-                      padding: '10px 16px',
-                      background: 'transparent',
-                      border: '1px solid var(--border)',
-                      borderRadius: '8px',
-                      color: 'var(--text)',
-                      cursor: 'pointer',
-                      fontSize: '0.9rem'
-                    }}
-                  >
-                    清除筛选
-                  </button>
-                )}
-              </div>
+              {renderListFilters()}
 
               {renderBatchToolbar(paginatedPhotos, 'approved')}
 
@@ -3985,92 +4111,7 @@ export function AdminPage() {
                 )}
               </div>
 
-                {/* 分页控件 */}
-                {totalPages > 1 && (
-                  <nav className="admin-pagination" aria-label="作品分页">
-                    <button
-                      type="button"
-                      onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
-                      disabled={currentPage === 1}
-                      style={{
-                        padding: '8px 16px',
-                        background: currentPage === 1 ? 'transparent' : 'rgba(255, 255, 255, 0.05)',
-                        border: '1px solid var(--border)',
-                        borderRadius: '8px',
-                        color: currentPage === 1 ? 'var(--muted)' : 'var(--text)',
-                        cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
-                        fontSize: '0.9rem',
-                        whiteSpace: 'nowrap',
-                      }}
-                    >
-                      上一页
-                    </button>
-                    <div
-                      className="admin-pagination-pages"
-                      style={{
-                        display: 'flex',
-                        gap: '4px',
-                        alignItems: 'center',
-                      }}
-                    >
-                      {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                        let pageNum;
-                        if (totalPages <= 5) {
-                          pageNum = i + 1;
-                        } else if (currentPage <= 3) {
-                          pageNum = i + 1;
-                        } else if (currentPage >= totalPages - 2) {
-                          pageNum = totalPages - 4 + i;
-                        } else {
-                          pageNum = currentPage - 2 + i;
-                        }
-                        return (
-                          <button
-                            key={pageNum}
-                            type="button"
-                            aria-current={currentPage === pageNum ? 'page' : undefined}
-                            onClick={() => setCurrentPage(pageNum)}
-                            style={{
-                              minWidth: '36px',
-                              padding: '8px 12px',
-                              background:
-                                currentPage === pageNum ? 'var(--accent)' : 'rgba(255, 255, 255, 0.05)',
-                              border: '1px solid var(--border)',
-                              borderRadius: '8px',
-                              color: currentPage === pageNum ? 'var(--bg)' : 'var(--text)',
-                              cursor: 'pointer',
-                              fontSize: '0.9rem',
-                              fontWeight: currentPage === pageNum ? '600' : '400',
-                            }}
-                          >
-                            {pageNum}
-                          </button>
-                        );
-                      })}
-                    </div>
-                    <span style={{ color: 'var(--muted)', fontSize: '0.9rem', whiteSpace: 'nowrap' }}>
-                      第 {currentPage} / {totalPages} 页
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
-                      disabled={currentPage === totalPages}
-                      style={{
-                        padding: '8px 16px',
-                        background:
-                          currentPage === totalPages ? 'transparent' : 'rgba(255, 255, 255, 0.05)',
-                        border: '1px solid var(--border)',
-                        borderRadius: '8px',
-                        color: currentPage === totalPages ? 'var(--muted)' : 'var(--text)',
-                        cursor: currentPage === totalPages ? 'not-allowed' : 'pointer',
-                        fontSize: '0.9rem',
-                        whiteSpace: 'nowrap',
-                      }}
-                    >
-                      下一页
-                    </button>
-                  </nav>
-                )}
+              {renderListPagination()}
             </div>
           )}
 
@@ -4094,6 +4135,7 @@ export function AdminPage() {
             >
               <div 
                 className="edit-modal-content"
+                aria-busy={isSavingEdit}
                 style={{
                   background: 'var(--bg)',
                   borderRadius: '16px',
@@ -4109,6 +4151,7 @@ export function AdminPage() {
                 }}
                 onClick={(e) => e.stopPropagation()}
               >
+                <fieldset disabled={isSavingEdit || isDeletingPhoto} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
                 <h2 style={{ 
                   marginBottom: '24px', 
                   fontSize: '1.5rem',
@@ -4717,6 +4760,7 @@ export function AdminPage() {
                       type="button"
                       className="btn-secondary"
                       onClick={handleCancelEdit}
+                      disabled={isSavingEdit || isDeletingPhoto}
                       style={{ padding: '10px 20px' }}
                     >
                       取消
@@ -4725,12 +4769,14 @@ export function AdminPage() {
                       type="button"
                       className="btn-primary"
                       onClick={handleSaveEdit}
+                      disabled={isSavingEdit || isDeletingPhoto}
                       style={{ padding: '10px 20px' }}
                     >
-                      保存
+                      {isSavingEdit ? '正在保存...' : '保存'}
                     </button>
                   </div>
               </div>
+                </fieldset>
             </div>
           </div>
           )}

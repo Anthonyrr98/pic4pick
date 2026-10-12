@@ -1990,6 +1990,13 @@ main {
   box-shadow: var(--shadow-soft);
 }
 
+.admin-header .header-actions .primary-menu {
+  position: static;
+  margin: 0;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
 .admin-main {
   padding: 32px clamp(32px, 4vw, 80px);
   max-width: 1400px;
