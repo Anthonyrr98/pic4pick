@@ -57,11 +57,11 @@ async function openFixture(options = {}) {
   if (!realModel || options.error || options.pending) {
     await page.route(workerPattern, (route) => route.fulfill({
       contentType: 'application/javascript', body: options.pending ? 'self.onmessage = () => {};' : options.error
-        ? 'self.onmessage = () => self.postMessage({ type: "error", message: "模型下载失败，请重试。" });'
-        : `self.onmessage = ({ data: { width, height } }) => {
+        ? 'self.onmessage = ({ data: { requestId } }) => self.postMessage({ type: "error", requestId, message: "模型下载失败，请重试。" });'
+        : `self.onmessage = ({ data: { width, height, requestId } }) => {
           const values = new Uint8Array(width * height);
           for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) values[y * width + x] = Math.round(255 * x / width);
-          self.postMessage({ type: 'result', values, width, height }, [values.buffer]);
+          self.postMessage({ type: 'result', requestId, values, width, height }, [values.buffer]);
         };`,
     }));
   }
@@ -109,6 +109,9 @@ try {
   await desktop.page.keyboard.press('ArrowRight');
   assert.equal(await desktop.button.getAttribute('aria-pressed'), 'false');
   assert.equal(await desktop.page.locator('.spatial-scene-canvas.is-ready').count(), 0);
+  await desktop.button.click();
+  await waitReady(desktop.page);
+  assert.equal(desktop.workerRequests(), 1, 'A different photo should reuse the warm inference Worker');
   await desktop.page.keyboard.press('Escape');
   await desktop.page.getByRole('dialog').waitFor({ state: 'hidden' });
   await desktop.context.close();

@@ -10,7 +10,7 @@
     "deploy:oss": "node --env-file-if-exists=.env.oss.local scripts/deploy-oss.mjs",
     "lint": "eslint .",
     "test:ui": "node scripts/ui-smoke.mjs",
-    "test:spatial": "node --test scripts/spatial-input.test.mjs && node scripts/spatial-smoke.mjs",
+    "test:spatial": "node --test scripts/spatial-input.test.mjs scripts/spatial-depth-client.test.mjs && node scripts/spatial-smoke.mjs",
     "test:themes": "node scripts/theme-smoke.mjs",
     "test:maps": "node --test scripts/city-flight.test.mjs && node scripts/map-smoke.mjs",
     "test:admin": "node --test server/photoDeletion.test.js server/photoUploads.test.js scripts/photoSubmission.test.js scripts/adminResubmit.test.js",

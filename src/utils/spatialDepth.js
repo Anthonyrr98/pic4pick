@@ -1,6 +1,14 @@
+import { getEnvValue } from './envConfig';
+import { getDirectMediaUrl } from './urlUtils';
+import { createSpatialDepthClient } from './spatialDepthClient';
+
 const MODEL = 'onnx-community/depth-anything-v2-small';
 const REVISION = '0d8d94ea44f483e26c9c33dad1a97c453ef9b80c';
 const depthCache = new Map();
+const depthClient = createSpatialDepthClient({
+  createWorker: () => new Worker(new URL('./spatialDepth.worker.js', import.meta.url), { type: 'module' }),
+});
+if (typeof window !== 'undefined') window.addEventListener('pagehide', () => depthClient.release());
 
 function readSpatialImage(src, signal) {
   return new Promise((resolve, reject) => {
@@ -63,38 +71,10 @@ export function estimateSpatialDepth(image, key, onProgress, signal) {
   context.drawImage(image, 0, 0, input.width, input.height);
   const pixels = context.getImageData(0, 0, input.width, input.height).data;
 
-  return new Promise((resolve, reject) => {
-    const worker = new Worker(new URL('./spatialDepth.worker.js', import.meta.url), { type: 'module' });
-    const clean = () => {
-      clearTimeout(timeout);
-      signal.removeEventListener('abort', abort);
-      worker.terminate();
-    };
-    const abort = () => {
-      clean();
-      reject(new DOMException('Cancelled', 'AbortError'));
-    };
-    const timeout = setTimeout(() => {
-      clean();
-      reject(new Error('空间场景生成超时，请检查网络连接后重试。'));
-    }, 120_000);
-    signal.addEventListener('abort', abort, { once: true });
-    worker.onmessage = ({ data }) => {
-      if (data.type === 'progress') return onProgress(data);
-      clean();
-      if (data.type !== 'result') return reject(new Error(data.message || '空间场景生成失败，请重试。'));
-      depthCache.set(key, data);
-      if (depthCache.size > 3) depthCache.delete(depthCache.keys().next().value);
-      resolve(data);
-    };
-    worker.onerror = () => {
-      clean();
-      reject(new Error('空间场景组件加载失败，请检查网络连接后重试。'));
-    };
-    onProgress({ stage: 'loading' });
-    worker.postMessage({ pixels: pixels.buffer, width: input.width, height: input.height, model: MODEL, revision: REVISION }, [pixels.buffer]);
+  return depthClient.request({ pixels: pixels.buffer, width: input.width, height: input.height, model: MODEL, revision: REVISION }, onProgress, signal).then((data) => {
+    depthCache.set(key, data);
+    if (depthCache.size > 3) depthCache.delete(depthCache.keys().next().value);
+    return data;
   });
 }
-import { getEnvValue } from './envConfig';
-import { getDirectMediaUrl } from './urlUtils';
 

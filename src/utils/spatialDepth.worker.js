@@ -22,34 +22,58 @@ class SpatialImage extends RawImage {
   }
 }
 
-self.onmessage = async ({ data: { pixels, width, height, model, revision } }) => {
-  try {
-    // Load the pinned components directly: the generic v4 pipeline's file
-    // discovery probes the mutable main revision even when revision is supplied.
+let estimatorPromise = null;
+let progressRequestId = null;
+
+async function getEstimator(model, revision) {
+  if (estimatorPromise) return estimatorPromise;
+  estimatorPromise = (async () => {
     const options = {
       revision,
       device: 'wasm',
       dtype: 'q8',
       progress_callback: (progress) => {
         if (progress.status === 'progress' && progress.file?.endsWith('.onnx')) {
-          self.postMessage({ type: 'progress', progress: Math.round(progress.progress) });
+          self.postMessage({ type: 'progress', requestId: progressRequestId, progress: Math.round(progress.progress) });
         }
       },
     };
     const [depthModel, processor] = await Promise.all([
-      AutoModelForDepthEstimation.from_pretrained(model, options),
-      AutoProcessor.from_pretrained(model, options),
+      AutoModelForDepthEstimation.from_pretrained(model, { ...options }),
+      AutoProcessor.from_pretrained(model, { ...options }),
     ]);
-    const estimator = new DepthEstimationPipeline({ task: 'depth-estimation', model: depthModel, processor });
-    self.postMessage({ type: 'progress', stage: 'estimating' });
+    // Depth is used for subtle parallax, while the photograph stays high-res.
+    // The default DPT resize can grow the long edge far beyond its target.
+    // Bound both orientations to 392px and align dimensions to 14px patches.
+    processor.image_processor.size = { longest_edge: 392 };
+    processor.image_processor.size_divisibility = 14;
+    const resizeDimensions = processor.image_processor.get_resize_output_image_size.bind(processor.image_processor);
+    processor.image_processor.get_resize_output_image_size = (image, size) => resizeDimensions(image, size).map((dimension) => Math.max(14, dimension));
+    return new DepthEstimationPipeline({ task: 'depth-estimation', model: depthModel, processor });
+  })();
+  return estimatorPromise;
+}
+
+self.onmessage = async ({ data: { pixels, width, height, model, revision, requestId } }) => {
+  try {
+    // Load the pinned components directly: the generic v4 pipeline's file
+    // discovery probes the mutable main revision even when revision is supplied.
+    progressRequestId = requestId;
+    const started = performance.now();
+    const estimator = await getEstimator(model, revision);
+    const initialized = performance.now();
+    self.postMessage({ type: 'progress', requestId, stage: 'estimating' });
     const image = new SpatialImage(new Uint8ClampedArray(pixels), width, height, 4);
+    const [inputWidth, inputHeight] = estimator.processor.image_processor.get_resize_output_image_size(image, estimator.processor.image_processor.size);
     const { depth } = await estimator(image);
     const values = new Uint8Array(depth.width * depth.height);
     for (let i = 0; i < values.length; i += 1) values[i] = depth.data[i * depth.channels];
-    self.postMessage({ type: 'result', values, width: depth.width, height: depth.height }, [values.buffer]);
-    await estimator.dispose();
+    self.postMessage({ type: 'result', requestId, values, width: depth.width, height: depth.height,
+      modelInput: { width: inputWidth, height: inputHeight },
+      timings: { initializationMs: Math.round(initialized - started), inferenceMs: Math.round(performance.now() - initialized) },
+    }, [values.buffer]);
   } catch (error) {
     console.warn('Spatial depth estimation failed:', error);
-    self.postMessage({ type: 'error', message: '空间场景生成失败，请检查模型下载连接后重试。' });
+    self.postMessage({ type: 'error', requestId, message: '空间场景生成失败，请检查模型下载连接后重试。' });
   }
 };

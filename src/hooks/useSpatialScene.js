@@ -55,6 +55,11 @@ export function useSpatialScene(photoId, imageRef, mediaRef, canvasRef) {
         setStatus({ phase: 'ready', message: '' });
       } catch (error) {
         if (controller.signal.aborted) return;
+        if (error.name === 'AbortError') {
+          setStatus({ phase: 'idle', message: '' });
+          setEnabledId(null);
+          return;
+        }
         setStatus({ phase: 'error', message: error.message || '空间场景暂不可用，请重试。' });
         setEnabledId(null);
       }
