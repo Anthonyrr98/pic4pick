@@ -16,6 +16,35 @@
 
 ## 功能特性
 
+### 点赞邮件通知（163 邮箱）
+
+成功调用 `PATCH /api/photos/:id/likes` 新增点赞（`delta: 1`）后，后端异步发送邮件，包含照片标题、当前点赞数、北京时间和照片原图链接。配置 `PUBLIC_SITE_URL` 时也会提供图库链接。取消点赞、无效请求、数据库更新失败及不可公开的作品不发通知。无需数据库迁移或前端修改。
+
+在 163 邮箱网页版的“设置 → POP3/SMTP/IMAP”中开启 SMTP 服务并获取客户端授权码，参见 [163 邮箱授权码操作说明](https://consumer.huawei.com/cn/support/content/zh-cn15872099/)。把以下配置放入 `server/.env`；线上部署则设置在**实际处理点赞接口的后端**环境变量中：
+
+```dotenv
+LIKE_EMAIL_ENABLED=true
+SMTP_HOST=smtp.163.com
+SMTP_PORT=465
+SMTP_SECURE=true
+SMTP_USER=你的邮箱@163.com
+SMTP_PASS=你的SMTP授权码
+# 可留空，默认发给 SMTP_USER，也可填写另一个接收邮箱
+LIKE_NOTIFICATION_TO=
+# 可选：实际图库网址
+PUBLIC_SITE_URL=
+```
+
+后端需 Node.js 20 或以上，仓库 Dockerfile 已使用 Node.js 22。在 `server` 目录安装新依赖（`npm ci`）并重启后端。授权码只放后端环境变量，不放 `VITE_*` 或提交到 Git。SMTP 使用 TLS 加密连接。缺少配置时关闭邮件通知，已启用但配置无效时记录告警，点赞仍可用。
+
+在 `server` 目录运行 `npm run mail:test` 检查 SMTP 连接和认证；运行 `npm run mail:test -- --send` 向配置的接收邮箱发送一封测试通知。仓库根目录运行 `npm run test:likes` 验证点赞通知行为。
+
+Render 免费实例限制出站 SMTP 端口 25、465、587（[官方说明](https://render.com/docs/free)）。163 的加密 SMTP 994 端口已在本地通过连接和认证测试，`render.yaml` 使用 `SMTP_PORT=994`、`SMTP_SECURE=true`；实际从 Render 发信仍需上线验证。发件地址、收件地址和授权码需配置到 Render 环境变量，不能仅保存在本地 `.env`。
+
+线上可用管理员 Bearer token 调用 `POST /api/admin/notifications/likes/test`，从实际后端验证 SMTP 并发送测试通知，不修改照片或点赞数。此接口只向后端配置的收件邮箱发信，不接受自定义收件地址，每个 IP 每小时最多 5 次。
+
+这版按每次成功新增点赞发送一封通知，访客身份沿用现有匿名点赞机制，不提供跨设备去重。发信失败只记后端日志（`点赞邮件发送失败`），没有持久化队列或自动补发，进程重启可能丢失尚未发送的通知。部署服务器需允许出站 SMTP 连接，测试通知收到后再验证一次真实点赞。
+
 - ✅ 图片上传（支持 JPG、PNG、GIF、WebP）
 - ✅ 文件大小限制（默认 10MB）
 - ✅ 图片优化和压缩（使用 Sharp）

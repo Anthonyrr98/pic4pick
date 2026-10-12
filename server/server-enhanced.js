@@ -12,6 +12,8 @@ import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { createPhotoDeletionService } from './photoDeletion.js';
 import { createPhotoUploadService } from './photoUploads.js';
+import { createLikeNotificationService } from './likeNotifications.js';
+import { createPhotoLikeHandler } from './photoLikes.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -501,26 +503,22 @@ app.get('/api/media/proxy', async (req, res) => {
   }
 });
 
-app.patch('/api/photos/:id/likes', likeRateLimit, async (req, res) => {
+const likeNotifications = createLikeNotificationService({ db: supabaseAdminFetch, logger });
+const mailTestRateLimit = createMemoryRateLimiter({ windowMs: 60 * 60 * 1000, max: 5 });
+app.post('/api/admin/notifications/likes/test', authenticateToken, requireAdmin, mailTestRateLimit, async (_req, res) => {
   try {
-    const delta = Number(req.body?.delta);
-    if (![-1, 1].includes(delta)) {
-      return res.status(400).json({ error: 'delta 只能是 1 或 -1' });
-    }
-
-    const updated = await supabaseAdminFetch('rpc/update_public_photo_likes', new URLSearchParams(), {
-      method: 'POST',
-      body: { photo_id: req.params.id, like_delta: delta },
-    });
-    const result = Array.isArray(updated) ? updated[0] || null : updated;
-    if (!result) {
-      return res.status(404).json({ error: '照片不存在或不可公开点赞' });
-    }
-    res.json({ success: true, data: result });
+    await likeNotifications.sendTest();
+    res.json({ success: true, message: '测试邮件已提交给邮件服务器' });
   } catch (error) {
-    sendSupabaseAdminError(res, error, '点赞更新失败');
+    sendSupabaseAdminError(res, error, '测试邮件发送失败');
   }
 });
+app.patch('/api/photos/:id/likes', likeRateLimit, createPhotoLikeHandler({
+  db: supabaseAdminFetch,
+  notifications: likeNotifications,
+  logger,
+  sendError: sendSupabaseAdminError,
+}));
 
 // 上传到阿里云 OSS
 app.post('/api/upload/oss', authenticateToken, requireAdmin, upload.single('file'), async (req, res) => {

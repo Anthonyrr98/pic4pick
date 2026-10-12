@@ -41,3 +41,19 @@ services:
         value: "300000"
       - key: UPLOAD_REQUEST_TIMEOUT_MS
         value: "600000"
+      - key: LIKE_EMAIL_ENABLED
+        value: "true"
+      - key: SMTP_HOST
+        value: smtp.163.com
+      - key: SMTP_PORT
+        value: "994"
+      - key: SMTP_SECURE
+        value: "true"
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: LIKE_NOTIFICATION_TO
+        sync: false
+      - key: PUBLIC_SITE_URL
+        value: https://pic.rlzhao.com
