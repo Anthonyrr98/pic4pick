@@ -758,6 +758,7 @@ export function GalleryPage() {
                 isLoading={isPhotoDataLoading}
                 browserLocation={browserLocation}
                 onShowLocationPanel={setLocationPanel}
+                onPhotoClick={openLightboxPhoto}
               />
             </Suspense>
           </div>

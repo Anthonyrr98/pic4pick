@@ -11,6 +11,7 @@ export function ExploreView({
   isLoading,
   browserLocation,
   onShowLocationPanel,
+  onPhotoClick,
 }) {
   const mapContainerRef = useRef(null);
   const sectionRef = useRef(null);
@@ -270,6 +271,7 @@ export function ExploreView({
             : { ...prev, [id]: !(prev[id] ?? false) }
         )}
         onCityClick={handleCityCardClick}
+        onPhotoClick={onPhotoClick}
         activeCitySelection={activeCitySelection}
         isPanelCollapsed={isPanelCollapsed}
         onTogglePanelCollapse={() => setIsPanelCollapsed((prev) => !prev)}

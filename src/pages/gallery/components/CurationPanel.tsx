@@ -1,9 +1,9 @@
 /**
- * 精选面板组件 - 显示省份和城市的精选卡片
+ * 地点面板组件 - 显示省份、城市卡片和地点照片
  */
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { CurationGroup, CityEntry } from '../utils/photoDataUtils';
+import { CurationGroup, CityEntry, GalleryPhoto } from '../utils/photoDataUtils';
 import './CurationPanel.css';
 
 interface CurationPanelProps {
@@ -13,6 +13,7 @@ interface CurationPanelProps {
   expandedCategories: Record<string, boolean>;
   onToggleCategory: (categoryId: string) => void;
   onCityClick: (province: CurationGroup, city: CityEntry) => void;
+  onPhotoClick: (photo: GalleryPhoto) => void;
   activeCitySelection: { provinceId: string; cityId: string } | null;
   isPanelCollapsed: boolean;
   onTogglePanelCollapse: () => void;
@@ -32,12 +33,19 @@ export const CurationPanel: React.FC<CurationPanelProps> = ({
   expandedCategories,
   onToggleCategory,
   onCityClick,
+  onPhotoClick,
   activeCitySelection,
   isPanelCollapsed,
   onTogglePanelCollapse,
 }) => {
   const [loadedImageIds, setLoadedImageIds] = useState<Record<string, boolean>>({});
   const [searchQuery, setSearchQuery] = useState('');
+  const [galleryCityId, setGalleryCityId] = useState<string | null>(null);
+  const panelRef = useRef<HTMLElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const galleryBackRef = useRef<HTMLButtonElement>(null);
+  const listScrollTopRef = useRef(0);
+  const returnCityIdRef = useRef<string | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const firstSearchResultRef = useRef<HTMLButtonElement>(null);
   const [sheetViewport, setSheetViewport] = useState(getSheetViewport);
@@ -50,6 +58,19 @@ export const CurationPanel: React.FC<CurationPanelProps> = ({
     ? Math.max(180, Math.min(sheetViewport.height * 0.78, sheetViewport.height - 104))
     : Math.min(380, sheetViewport.height * 0.46);
   const selectedCity = groups.flatMap(group => group.items).find(city => city.id === activeCitySelection?.cityId);
+  const galleryCity = groups.flatMap(group => group.items).find(city => city.id === galleryCityId);
+
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => {
+      const scroller = window.innerWidth <= 768 ? scrollRef.current : panelRef.current;
+      if (scroller) scroller.scrollTop = galleryCityId ? 0 : listScrollTopRef.current;
+      if (galleryCityId) galleryBackRef.current?.focus({ preventScroll: true });
+      else if (returnCityIdRef.current) {
+        panelRef.current?.querySelector<HTMLElement>(`[data-city-id="${CSS.escape(returnCityIdRef.current)}"]`)?.focus({ preventScroll: true });
+      }
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [galleryCityId]);
 
   useEffect(() => () => {
     cancelAnimationFrame(selectionFrameRef.current);
@@ -79,6 +100,10 @@ export const CurationPanel: React.FC<CurationPanelProps> = ({
   }, []);
 
   const selectCity = (group: CurationGroup, city: CityEntry) => {
+    const scroller = sheetViewport.mobile ? scrollRef.current : panelRef.current;
+    listScrollTopRef.current = scroller?.scrollTop || 0;
+    returnCityIdRef.current = city.id;
+    setGalleryCityId(city.id);
     if (!sheetViewport.mobile) { onCityClick(group, city); return; }
     setIsSheetExpanded(false);
     searchInputRef.current?.blur();
@@ -153,7 +178,8 @@ export const CurationPanel: React.FC<CurationPanelProps> = ({
 
   return (
     <aside
-      className={`curation-panel ${isPanelCollapsed ? 'collapsed' : ''} ${
+      ref={panelRef}
+      className={`curation-panel ${galleryCity ? 'showing-photos' : ''} ${isPanelCollapsed ? 'collapsed' : ''} ${
         isLoading ? 'loading' : groups.length === 0 ? 'empty' : ''
       }`}
       aria-label="探索地点"
@@ -200,8 +226,8 @@ export const CurationPanel: React.FC<CurationPanelProps> = ({
         <span className={`curation-panel-toggle-icon ${isPanelCollapsed ? 'collapsed' : ''}`}></span>
       </button>
       <div className="curation-mobile-heading">
-        <strong>探索地点</strong>
-        <span>{selectedCity ? `${selectedCity.label} · ${selectedCity.photoCount} 张` : `${groups.length} 个地区`}</span>
+        <strong>{galleryCity ? '地点照片' : '探索地点'}</strong>
+        <span>{galleryCity ? `${galleryCity.photos.length} 张` : selectedCity ? `${selectedCity.label} · ${selectedCity.photoCount} 张` : `${groups.length} 个地区`}</span>
       </div>
       <button className="curation-sheet-expand" type="button"
         aria-label={isSheetExpanded && !isPanelCollapsed ? '缩小地点列表' : '展开地点列表'}
@@ -212,7 +238,20 @@ export const CurationPanel: React.FC<CurationPanelProps> = ({
           setIsSheetExpanded(prev => isPanelCollapsed ? true : !prev);
         }}>{isSheetExpanded && !isPanelCollapsed ? '收起' : '展开'}</button>
       </div>
-      {!isPanelCollapsed && (
+      {galleryCity && !isPanelCollapsed && (
+        <div className="curation-gallery-header">
+          <button ref={galleryBackRef} className="curation-gallery-back" type="button"
+            aria-label="返回地点列表" onClick={() => setGalleryCityId(null)}>
+            <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+              <path d="m12 5-7 7 7 7M5 12h14" />
+            </svg>
+          </button>
+          <h3 id="curation-gallery-title">{galleryCity.label}</h3>
+          <span>{galleryCity.photos.length} 张</span>
+        </div>
+      )}
+      {galleryCity && isPanelCollapsed && <div className="curation-gallery-peek">{galleryCity.label} · {galleryCity.photos.length} 张</div>}
+      {!galleryCity && !isPanelCollapsed && (
         <form className="discover-search" role="search" aria-label="发现地点搜索"
           onSubmit={event => {
             event.preventDefault();
@@ -245,7 +284,30 @@ export const CurationPanel: React.FC<CurationPanelProps> = ({
           {searchQuery && <button type="button" aria-label="清除地点搜索" onClick={clearSearch}>×</button>}
         </form>
       )}
-      <div className="curation-panel-scroll">
+      <div ref={scrollRef} className="curation-panel-scroll">
+      {galleryCity && !isPanelCollapsed && (
+        <div className="curation-photo-grid" role="group" aria-labelledby="curation-gallery-title">
+          {galleryCity.photos.map((photo, index) => (
+            <button key={photo.id} className="curation-photo-thumb" type="button"
+              aria-label={`查看照片：${photo.title || `${galleryCity.label}照片 ${index + 1}`}`}
+              onClick={() => onPhotoClick(photo)}>
+              <img src={photo.thumbnail || photo.preview || photo.image}
+                alt={photo.title || `${galleryCity.label}照片 ${index + 1}`}
+                loading="lazy" decoding="async" referrerPolicy="no-referrer"
+                onError={event => {
+                  const image = event.currentTarget;
+                  if (!image.dataset.fallback && image.getAttribute('src') !== photo.image) {
+                    image.dataset.fallback = 'true';
+                    image.src = photo.image;
+                  } else {
+                    image.hidden = true;
+                  }
+                }} />
+              <span className="curation-photo-fallback" aria-hidden="true">{photo.title || '查看照片'}</span>
+            </button>
+          ))}
+        </div>
+      )}
       {!isPanelCollapsed && isLoading && (
         <div className="curation-panel-status" role="status" aria-live="polite">
           <div className="curation-panel-status-copy">
@@ -267,7 +329,7 @@ export const CurationPanel: React.FC<CurationPanelProps> = ({
           </div>
         </div>
       )}
-      {!isPanelCollapsed && !isLoading && isSearching && (
+      {!galleryCity && !isPanelCollapsed && !isLoading && isSearching && (
         <div className="discover-search-results">
           <p className="discover-search-status" role="status">
             {searchResults.length ? `找到 ${searchResults.length} 个地点` : '未找到相关地点'}
@@ -277,6 +339,7 @@ export const CurationPanel: React.FC<CurationPanelProps> = ({
             {searchResults.map(({ group, city }, index) => (
               <li key={city.id}>
                 <button ref={index === 0 ? firstSearchResultRef : undefined} type="button"
+                  data-city-id={city.id}
                   className="discover-search-result"
                   aria-pressed={activeCitySelection?.provinceId === group.id && activeCitySelection?.cityId === city.id}
                   onClick={() => selectCity(group, city)}>
@@ -288,7 +351,7 @@ export const CurationPanel: React.FC<CurationPanelProps> = ({
           </ul>
         </div>
       )}
-      {!isLoading && (!isSearching || isPanelCollapsed) && groups.map((group) => (
+      {!galleryCity && !isLoading && (!isSearching || isPanelCollapsed) && groups.map((group) => (
         <div key={group.id} className="curation-category">
           <button
             className="curation-category-header"
@@ -317,6 +380,7 @@ export const CurationPanel: React.FC<CurationPanelProps> = ({
                 return (
                   <article
                     key={item.id}
+                    data-city-id={item.id}
                     className={`curation-card ${isActiveCity ? 'active' : ''}`}
                     onMouseMove={handleCurationCardMouseMove}
                     onMouseLeave={handleCurationCardMouseLeave}

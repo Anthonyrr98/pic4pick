@@ -47,6 +47,7 @@ export interface CityEntry {
   label: string;
   image: string;
   photoCount: number;
+  photos: GalleryPhoto[];
   lat: number | null;
   lng: number | null;
   provinceId: string;
@@ -250,6 +251,7 @@ export const buildCurationGroups = (cityPhotoMap: Map<string, any>): CurationGro
         label: cityName,
         image: photos[0].thumbnail || photos[0].image,
         photoCount: photos.length,
+        photos,
         lat: coords.lat ?? null,
         lng: coords.lng ?? null,
         provinceId,
@@ -257,6 +259,7 @@ export const buildCurationGroups = (cityPhotoMap: Map<string, any>): CurationGro
     } else {
       const cityEntry = provinceData.cities.get(cityName);
       cityEntry.photoCount += photos.length;
+      cityEntry.photos = [...cityEntry.photos, ...photos];
     }
   });
 

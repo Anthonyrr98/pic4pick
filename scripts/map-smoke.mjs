@@ -129,18 +129,26 @@ try {
   assert.equal(moves.at(-1).zoom, 10.2);
   const glass = await page.locator('.curation-panel').evaluate(el => getComputedStyle(el).backdropFilter);
   assert.equal(glass, 'blur(20px)');
+  const returnToPlaces = async () => page.getByRole('button', { name: '返回地点列表' }).click();
+  assert.equal(await page.locator('#curation-gallery-title').innerText(), '北京');
+  assert.equal(await page.locator('.curation-photo-thumb').count(), 1);
+  await returnToPlaces();
+  await page.waitForFunction(() => document.querySelector('.curation-card.active') === document.activeElement);
 
   const search = page.getByRole('searchbox', { name: '搜索地点' });
   await search.fill(' 北京　北京 ');
   assert.equal(await page.locator('.discover-search-result').count(), 1);
   assert.match(await page.locator('.discover-search-result').innerText(), /北京[\s\S]*1 张/);
   await search.press('Enter');
+  assert.equal(await page.locator('#curation-gallery-title').innerText(), '北京');
+  await returnToPlaces();
   assert.equal(await page.locator('.discover-search-result').getAttribute('aria-pressed'), 'true');
   // City-to-city travel should pull back, rather than sliding across at street scale.
   await page.waitForFunction(() => !document.querySelector('#explore-view').classList.contains('map-in-motion'));
   const cityFlightStart = await page.evaluate(() => window.mapChecks.maps[0].calls.length);
   await search.fill('上海');
   await search.press('Enter');
+  await returnToPlaces();
   await page.waitForFunction(() => !document.querySelector('#explore-view').classList.contains('map-in-motion'));
   const cityMoves = await page.evaluate(start => window.mapChecks.maps[0].calls.slice(start), cityFlightStart);
   assert.ok(Math.min(...cityMoves.map(move => move.zoom)) < 8, 'Distant city flight must zoom out along its arc');
@@ -149,14 +157,17 @@ try {
   await search.fill('北京');
   await search.press('Enter');
   await page.waitForFunction(() => document.querySelector('#explore-view').classList.contains('map-in-motion'));
+  await returnToPlaces();
   await search.fill('上海');
   await search.press('Enter');
+  await returnToPlaces();
   await page.waitForFunction(() => !document.querySelector('#explore-view').classList.contains('map-in-motion'));
   assert.ok(await page.evaluate(() => window.mapChecks.maps[0].getCenter().lng > 120));
   // Touch/wheel control cancels the scheduled flight and keeps the current camera.
   await search.fill('北京');
   await search.press('Enter');
   await page.waitForFunction(() => document.querySelector('#explore-view').classList.contains('map-in-motion'));
+  await returnToPlaces();
   await page.locator('#mapCanvas').dispatchEvent('pointerdown');
   const interruptedCalls = await page.evaluate(() => window.mapChecks.maps[0].calls.length);
   await page.waitForTimeout(250);
@@ -165,6 +176,7 @@ try {
   await search.fill('北京');
   await search.press('Enter');
   await page.waitForFunction(() => document.querySelector('#explore-view').classList.contains('map-in-motion'));
+  await returnToPlaces();
   await page.getByRole('button', { name: '图库', exact: true }).click();
   const hiddenCalls = await page.evaluate(() => window.mapChecks.maps[0].calls.length);
   await page.waitForTimeout(250);
@@ -178,6 +190,7 @@ try {
   await search.press('ArrowDown');
   assert.ok(await page.locator('.discover-search-result').evaluate(el => el === document.activeElement));
   await page.keyboard.press('Enter');
+  await returnToPlaces();
   assert.equal(await page.locator('.discover-search-result').getAttribute('aria-pressed'), 'true');
   await page.getByRole('button', { name: '收起面板' }).click();
   assert.equal(await search.count(), 0);
@@ -189,6 +202,7 @@ try {
   await page.getByRole('button', { name: '清除地点搜索' }).click();
   await search.fill('北京');
   await search.press('Enter');
+  await returnToPlaces();
   await page.getByRole('button', { name: '清除地点搜索' }).click();
   await page.waitForFunction(() => !document.querySelector('#explore-view').classList.contains('map-in-motion'));
 
@@ -261,6 +275,71 @@ try {
   await page.waitForFunction(() => window.mapChecks.maps[0].destroyed);
   assert.equal(await page.evaluate(() => [...window.mapChecks.maps[0].events.values()].reduce((n, callbacks) => n + callbacks.size, 0)), 0);
   await context.close();
+
+  // A city detail shows the entire city, including photos without map coordinates.
+  const cityGallery = await setup({ reducedMotion: 'reduce' });
+  const cityPhotos = Array.from({ length: 30 }, (_, index) => ({
+    ...photos[0], id: `city-photo-${index}`, title: `北京作品 ${index + 1}`,
+    created_at: new Date(Date.UTC(2026, 0, index + 1)).toISOString(),
+    latitude: index === 0 ? null : photos[0].latitude,
+    longitude: index === 0 ? null : photos[0].longitude,
+  }));
+  await cityGallery.context.route('**/rest/v1/photos?**', route => route.fulfill({
+    json: [...cityPhotos, { ...photos[0], id: 'hidden-city-photo', hidden: true }, photos[1]],
+  }));
+  await cityGallery.context.addInitScript(installMockAmap);
+  const cityPage = cityGallery.page;
+  await cityPage.goto(baseUrl, { waitUntil: 'networkidle' });
+  await cityPage.getByRole('button', { name: '发现', exact: true }).click();
+  await cityPage.getByRole('button', { name: '北京', exact: true }).click();
+  await cityPage.locator('.curation-card').press('Enter');
+  const thumbnails = cityPage.locator('.curation-photo-thumb');
+  const cityScroller = cityPage.locator('.curation-panel-scroll');
+  assert.equal(await thumbnails.count(), 30, 'Render every visible city photo without gallery pagination');
+  assert.equal(await cityPage.locator('.curation-gallery-header > span').innerText(), '30 张');
+  assert.equal(await thumbnails.first().getAttribute('aria-label'), '查看照片：北京作品 30');
+  assert.equal(await thumbnails.last().getAttribute('aria-label'), '查看照片：北京作品 1');
+  const dimensions = await thumbnails.first().evaluate(el => {
+    const bounds = el.getBoundingClientRect();
+    return { width: bounds.width, height: bounds.height, columns: getComputedStyle(el.parentElement).gridTemplateColumns.split(' ').length };
+  });
+  assert.equal(dimensions.columns, 3);
+  assert.ok(Math.abs(dimensions.width - dimensions.height) < 1, 'Thumbnails must be square');
+  assert.ok(await cityScroller.evaluate(el => el.scrollHeight > el.clientHeight), 'Long city galleries must scroll');
+  const headerTop = (await cityPage.locator('.curation-gallery-header').boundingBox()).y;
+  await thumbnails.last().scrollIntoViewIfNeeded();
+  const cityScrollTop = await cityScroller.evaluate(el => el.scrollTop);
+  assert.ok(cityScrollTop > 0);
+  assert.equal((await cityPage.locator('.curation-gallery-header').boundingBox()).y, headerTop, 'City header stays visible while photos scroll');
+  await thumbnails.last().press('Enter');
+  await cityPage.getByRole('dialog').waitFor({ state: 'visible' });
+  assert.equal(await cityPage.locator('#lightbox-title').innerText(), '北京作品 1');
+  await cityPage.keyboard.press('Escape');
+  await cityPage.getByRole('dialog').waitFor({ state: 'hidden' });
+  await cityPage.waitForFunction(() => document.activeElement?.getAttribute('aria-label') === '查看照片：北京作品 1');
+  assert.equal(await cityScroller.evaluate(el => el.scrollTop), cityScrollTop, 'Closing a photo preserves the grid scroll position');
+  await cityPage.getByRole('button', { name: '收起面板' }).click();
+  assert.equal(await thumbnails.count(), 0);
+  assert.equal(await cityPage.locator('.curation-gallery-peek').innerText(), '北京 · 30 张');
+  await cityPage.getByRole('button', { name: '展开面板' }).click();
+  assert.equal(await thumbnails.count(), 30);
+  await cityPage.getByRole('button', { name: '返回地点列表' }).click();
+  const citySearch = cityPage.getByRole('searchbox', { name: '搜索地点' });
+  await citySearch.fill('北京');
+  await citySearch.press('Enter');
+  await cityPage.getByRole('button', { name: '图库', exact: true }).click();
+  await cityPage.getByRole('button', { name: '发现', exact: true }).click();
+  assert.equal(await thumbnails.count(), 30, 'Returning to Discover preserves the open city');
+  if (artifacts) await cityPage.screenshot({ path: path.join(artifacts, 'discover-city-desktop.png') });
+  await cityPage.setViewportSize({ width: 390, height: 844 });
+  await cityPage.waitForFunction(() => document.querySelector('.curation-panel').dataset.mobile === 'true');
+  assert.equal(await thumbnails.count(), 30);
+  assert.equal(await thumbnails.first().evaluate(el => getComputedStyle(el.parentElement).gridTemplateColumns.split(' ').length), 3);
+  assert.equal(await cityPage.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  if (artifacts) await cityPage.screenshot({ path: path.join(artifacts, 'discover-city-mobile.png') });
+  await cityPage.getByRole('button', { name: '返回地点列表' }).click();
+  assert.equal(await citySearch.inputValue(), '北京', 'Back restores the previous search');
+  await cityGallery.context.close();
 
   const reduced = await setup({ reducedMotion: 'reduce' });
   await reduced.context.addInitScript(installMockAmap);
@@ -340,7 +419,9 @@ try {
   await mobileSheet.page.waitForFunction(() => document.querySelector('#explore-view').classList.contains('map-in-motion'));
   assert.equal(await sheet.getAttribute('data-sheet-state'), 'compact');
   await mobileSheet.page.waitForFunction(() => !document.querySelector('#explore-view').classList.contains('map-in-motion'));
-  assert.equal(await mobileSheet.page.getByRole('searchbox', { name: '搜索地点' }).evaluate(el => el === document.activeElement), false);
+  assert.equal(await mobileSheet.page.getByRole('searchbox', { name: '搜索地点' }).count(), 0);
+  assert.equal(await mobileSheet.page.locator('#curation-gallery-title').innerText(), '开封');
+  await mobileSheet.page.getByRole('button', { name: '返回地点列表' }).click();
   await mobileSheet.page.getByRole('button', { name: '清除地点搜索' }).click();
   await mobileSheet.page.setViewportSize({ width: 610, height: 956 });
   assert.equal(await mobileSheet.page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
@@ -369,6 +450,7 @@ try {
   assert.ok(await canvas.evaluate(el => el === document.querySelector('#mapCanvas canvas')));
   await fallback.page.setViewportSize({ width: 390, height: 844 });
   await fallback.page.waitForFunction(() => Math.abs(document.querySelector('#mapCanvas canvas').getBoundingClientRect().width - innerWidth) < 2);
+  await fallback.page.getByRole('button', { name: '返回地点列表' }).click();
   const mobileSearch = fallback.page.getByRole('searchbox', { name: '搜索地点' });
   await mobileSearch.fill('北京');
   await fallback.page.locator('.discover-search-result').click();
@@ -398,7 +480,7 @@ try {
   assert.equal(await fallback.page.locator('.photo-map-marker-target').count(), 0);
   await fallback.context.close();
   assert.deepEqual(errors, []);
-  console.log('Map checks passed: location search, retained camera, enlarged marker targets, mobile sheet gestures, horizontal cards, fixed search, keyboard dismissal, animation, reduced motion, cleanup and real MapLibre fallback.');
+  console.log('Map checks passed: complete city photo grids, lightbox and return navigation, location search, retained camera, enlarged marker targets, mobile sheet gestures, horizontal cards, fixed search, keyboard dismissal, animation, reduced motion, cleanup and real MapLibre fallback.');
 } finally {
   await browser.close();
 }
