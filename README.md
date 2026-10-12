@@ -22,6 +22,7 @@ separated.
 - Responsive photography gallery for desktop, iPad, and mobile
 - Featured, chronological, distance-based, and film-based filters
 - High-resolution lightbox that preserves each photograph's aspect ratio
+- Optional spatial scenes with local depth estimation, mouse parallax, phone tilt, and drag controls ([details](./docs/spatial-scenes.md))
 - Keyboard navigation, touch gestures, and accessible modal behavior
 - Map-based geographic exploration
 - EXIF, capture date, camera, lens, and film stock presentation

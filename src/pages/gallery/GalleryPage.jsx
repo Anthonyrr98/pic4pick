@@ -32,6 +32,8 @@ import { TabStrip } from './components/TabStrip';
 import { PhotoGrid } from './components/PhotoGrid';
 import { LocationPanel } from './components/LocationPanel';
 import { ThemeSwitcher } from '../../themes/ThemeSwitcher';
+import { SpatialSceneControls, SpatialSceneStatus } from '../../components/SpatialSceneControls';
+import { useSpatialScene } from '../../hooks/useSpatialScene';
 
 let exploreViewModulePromise = null;
 
@@ -193,6 +195,10 @@ export function GalleryPage() {
   const lightboxPointerRef = useRef(null);
   const lightboxRef = useRef(null);
   const lightboxReturnFocusRef = useRef(null);
+  const lightboxImageRef = useRef(null);
+  const lightboxMediaRef = useRef(null);
+  const spatialCanvasRef = useRef(null);
+  const spatialScene = useSpatialScene(lightboxPhoto?.id, lightboxImageRef, lightboxMediaRef, spatialCanvasRef);
 
   // 鈹€鈹€ 鍝佺墝鐘舵€?
   const [brandLogo, setBrandLogo] = useState(() => getStoredBrandLogo());
@@ -397,6 +403,7 @@ export function GalleryPage() {
     const elapsed = Date.now() - start.at;
 
     if (absX > 56 && absX > absY * 1.2 && elapsed < 800) {
+      if (spatialScene.ready) return;
       event.preventDefault();
       goToAdjacentLightboxPhoto(dx < 0 ? 1 : -1);
       return;
@@ -405,7 +412,7 @@ export function GalleryPage() {
     if (window.innerWidth <= 768 && absX < 14 && absY < 14 && elapsed < 500) {
       setShowMobileMeta((prev) => !prev);
     }
-  }, [goToAdjacentLightboxPhoto]);
+  }, [goToAdjacentLightboxPhoto, spatialScene.ready]);
 
   const handleLightboxPointerCancel = useCallback(() => {
     lightboxPointerRef.current = null;
@@ -791,6 +798,9 @@ export function GalleryPage() {
         >
           <div className="lightbox-actions">
             {lightboxPhoto && (
+              <SpatialSceneControls scene={spatialScene} disabled={lightboxPreviewFailed || !lightboxAspectRatio} />
+            )}
+            {lightboxPhoto && (
               <button className="lightbox-download" aria-label="下载原图" onClick={handleDownloadOriginal}>
                 下载原图
               </button>
@@ -826,13 +836,14 @@ export function GalleryPage() {
             </>
           )}
           <div className={`lightbox-content-wrapper ${showMobileMeta ? 'meta-visible' : ''}`}>
-            <div className={`lightbox-media ${isLightboxPortrait ? 'portrait-fit' : ''} ${lightboxAspectRatio ? 'aspect-fit' : ''}`}
+            <div ref={lightboxMediaRef} className={`lightbox-media ${isLightboxPortrait ? 'portrait-fit' : ''} ${lightboxAspectRatio ? 'aspect-fit' : ''} ${spatialScene.ready ? 'spatial-scene-active' : ''}`}
               style={lightboxAspectRatio ? { '--lightbox-aspect-ratio': lightboxAspectRatio } : undefined}
               onPointerDown={handleLightboxPointerDown}
               onPointerUp={handleLightboxPointerUp}
               onPointerCancel={handleLightboxPointerCancel}>
               {lightboxPhoto && lightboxVisualSrc && !lightboxPreviewFailed ? (
                 <img
+                  ref={lightboxImageRef}
                   key={lightboxPhoto.id}
                   src={lightboxVisualSrc}
                   srcSet={lightboxVisualSrcSet || undefined}
@@ -876,6 +887,10 @@ export function GalleryPage() {
               ) : (
                 <div className="lightbox-media-fallback">预览图暂不可用</div>
               )}
+              {lightboxPhoto && (
+                <canvas ref={spatialCanvasRef} className={`spatial-scene-canvas ${spatialScene.ready ? 'is-ready' : ''}`} aria-hidden="true" />
+              )}
+              {lightboxPhoto && <SpatialSceneStatus scene={spatialScene} />}
               {lightboxPhoto && lightboxVisualSrc && !lightboxPreviewFailed && (
                 <span className="lightbox-watermark-frame" aria-hidden="true">
                   <span className="lightbox-watermark" />

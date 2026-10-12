@@ -1,0 +1,75 @@
+.spatial-scene-control { position: relative; line-height: 1.4; }
+.spatial-scene-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 40px;
+  padding: 0 13px;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 999px;
+  background: rgb(var(--panel-rgb) / 0.72);
+  color: rgb(var(--ink-rgb) / 0.9);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  backdrop-filter: blur(16px);
+  transition: background 180ms ease, border-color 180ms ease;
+}
+.spatial-scene-toggle svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linejoin: round; }
+.spatial-scene-toggle:hover { background: rgb(var(--panel-rgb) / 0.9); }
+.spatial-scene-toggle.is-active { background: #e9f1dd; color: #263921; border-color: #9cbb80; }
+.spatial-scene-toggle:focus-visible { outline: 3px solid #a8c68a; outline-offset: 4px; }
+.spatial-scene-toggle:disabled { opacity: 0.5; cursor: default; }
+.spatial-scene-status {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 5;
+  width: max-content;
+  max-width: min(280px, calc(100% - 40px));
+  box-sizing: border-box;
+  margin: 0;
+  padding: 10px 13px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 13px;
+  background: rgba(20, 24, 19, 0.94);
+  color: #f3f5ef;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.65;
+  white-space: normal;
+  pointer-events: none;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.2);
+}
+.spatial-scene-status.is-error { color: #f9d8ba; }
+.spatial-scene-spinner { width: 12px; height: 12px; border: 1.5px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spatial-spin 1s linear infinite; }
+@keyframes spatial-spin { to { transform: rotate(360deg); } }
+.lightbox-media .spatial-scene-canvas {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  display: block;
+  border-radius: inherit;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 300ms ease;
+}
+.lightbox-media .spatial-scene-canvas.is-ready { opacity: 1; }
+.lightbox-media.spatial-scene-active { touch-action: none; }
+@media (max-width: 768px) {
+  .spatial-scene-toggle { color: #171c14; }
+  .spatial-scene-status { top: calc(70px + env(safe-area-inset-top, 0px)); }
+  .lightbox-actions { flex-wrap: wrap; max-width: calc(100vw - 24px); }
+}
+@media (min-width: 1025px) {
+  .lightbox-meta { padding-top: 48px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .spatial-scene-spinner { animation: none; }
+  .lightbox-media .spatial-scene-canvas { transition: none; }
+}

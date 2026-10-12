@@ -23,6 +23,9 @@ if (!/^oss-cn-[a-z0-9-]+$/.test(region)) {
 const mimeTypes = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'application/javascript; charset=utf-8',
+  '.mjs': 'application/javascript; charset=utf-8',
+  '.wasm': 'application/wasm',
+  '.onnx': 'application/octet-stream',
   '.css': 'text/css; charset=utf-8',
   '.json': 'application/json; charset=utf-8',
   '.svg': 'image/svg+xml',
@@ -64,7 +67,8 @@ for (const match of html.matchAll(/(?:src|href)="\/(assets\/[^"?#]+)"/g)) {
 
 function headersFor(key) {
   // Vite hashes assets; keep old assets so open tabs survive a release.
-  const immutable = /^assets\/.*-[\w-]{8,}\.[a-z0-9]+$/.test(key);
+  const immutable = /^assets\/.*-[\w-]{8,}\.[a-z0-9]+$/.test(key)
+    || /^spatial-models\/onnx-community\/depth-anything-v2-small\/resolve\/[a-f0-9]{40}\//.test(key);
   return {
     'Content-Type': mimeTypes[path.extname(key)],
     'Cache-Control': immutable ? 'public, max-age=31536000, immutable' : 'no-cache',
