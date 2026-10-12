@@ -96,6 +96,13 @@ test('photo deleted or hidden before delivery is skipped', async () => {
   assert.equal(f.messages.length, 0);
 });
 
+test('a like email contains the server-derived visitor IP in both bodies', async () => {
+  const f = fixture();
+  await f.service.notify({ id: photo.id, likes: 2, clientIp: '2001:db8::42' });
+  assert.match(f.messages[0].text, /点赞 IP：2001:db8::42/);
+  assert.match(f.messages[0].html, /点赞 IP：2001:db8::42/);
+});
+
 test('database and SMTP failures are contained and logged without private SMTP responses', async () => {
   const f = fixture({
     createTransport: () => ({ sendMail: async () => {

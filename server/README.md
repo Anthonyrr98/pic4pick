@@ -18,7 +18,7 @@
 
 ### 点赞邮件通知（163 邮箱）
 
-成功调用 `PATCH /api/photos/:id/likes` 新增点赞（`delta: 1`）后，后端异步发送邮件，包含照片标题、当前点赞数、北京时间和照片原图链接。配置 `PUBLIC_SITE_URL` 时也会提供图库链接。取消点赞、无效请求、数据库更新失败及不可公开的作品不发通知。无需数据库迁移或前端修改。
+成功调用 `PATCH /api/photos/:id/likes` 新增点赞（`delta: 1`）后，后端异步发送邮件，包含照片标题、当前点赞数、北京时间、点赞 IP 和照片原图链接。配置 `PUBLIC_SITE_URL` 时也会提供图库链接。取消点赞、无效请求、数据库更新失败及不可公开的作品不发通知。邮件发送无需前端修改；IP 记录需应用下方数据库迁移。
 
 在 163 邮箱网页版的“设置 → POP3/SMTP/IMAP”中开启 SMTP 服务并获取客户端授权码，参见 [163 邮箱授权码操作说明](https://consumer.huawei.com/cn/support/content/zh-cn15872099/)。把以下配置放入 `server/.env`；线上部署则设置在**实际处理点赞接口的后端**环境变量中：
 
@@ -42,6 +42,14 @@ PUBLIC_SITE_URL=
 Render 免费实例限制出站 SMTP 端口 25、465、587（[官方说明](https://render.com/docs/free)）。163 的加密 SMTP 994 端口已在本地通过连接和认证测试，`render.yaml` 使用 `SMTP_PORT=994`、`SMTP_SECURE=true`；实际从 Render 发信仍需上线验证。发件地址、收件地址和授权码需配置到 Render 环境变量，不能仅保存在本地 `.env`。
 
 线上可用管理员 Bearer token 调用 `POST /api/admin/notifications/likes/test`，从实际后端验证 SMTP 并发送测试通知，不修改照片或点赞数。此接口只向后端配置的收件邮箱发信，不接受自定义收件地址，每个 IP 每小时最多 5 次。
+
+### 点赞 IP 记录
+
+部署前先应用 `20261012072633_record_photo_like_ips.sql`。每次成功新增点赞时，新的 `update_public_photo_likes_with_ip` RPC 在同一事务内更新计数并写入 `photo_like_events`，保存照片 ID、点赞时间和 IP。记录保存失败则整个点赞回滚；取消点赞不会增加记录，也不会删除此前的点赞事件。部署前已有的点赞无法补录 IP。
+
+IP 来自 Express 的 `req.ip`，支持 IPv4 / IPv6；IPv4 映射地址会去掉 `::ffff:` 前缀，不读取请求正文中的 IP。线上沿用 Render 单层代理的 `trust proxy=1`，通过代理追加的地址判断来源；本地直接部署或改变代理层数时必须相应配置可信代理（[Express 官方说明](https://expressjs.com/en/guide/behind-proxies/)）。IP 标识的是网络出口，共用网络、代理或 VPN 下不能据此唯一识别个人。这版只记录，不增加按 IP 去重点赞限制。
+
+邮件通知会包含点赞 IP。数据表启用 RLS，匿名及普通登录数据库角色无权限；只有后端 service role 能读写，公开点赞响应不包含 IP。管理员可通过 Bearer token 调用 `GET /api/admin/like-events?photoId=<可选照片UUID>&limit=50&offset=0`，按时间倒序查询；`limit` 上限 100。删除照片时关联记录随之删除，目前没有自动过期清理。
 
 这版按每次成功新增点赞发送一封通知，访客身份沿用现有匿名点赞机制，不提供跨设备去重。发信失败只记后端日志（`点赞邮件发送失败`），没有持久化队列或自动补发，进程重启可能丢失尚未发送的通知。部署服务器需允许出站 SMTP 连接，测试通知收到后再验证一次真实点赞。
 

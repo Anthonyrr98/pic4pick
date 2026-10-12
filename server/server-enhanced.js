@@ -13,7 +13,7 @@ import crypto from 'crypto';
 import { createPhotoDeletionService } from './photoDeletion.js';
 import { createPhotoUploadService } from './photoUploads.js';
 import { createLikeNotificationService } from './likeNotifications.js';
-import { createPhotoLikeHandler } from './photoLikes.js';
+import { createPhotoLikeHandler, createLikeEventsHandler } from './photoLikes.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -504,6 +504,10 @@ app.get('/api/media/proxy', async (req, res) => {
 });
 
 const likeNotifications = createLikeNotificationService({ db: supabaseAdminFetch, logger });
+app.get('/api/admin/like-events', authenticateToken, requireAdmin, createLikeEventsHandler({
+  db: supabaseAdminFetch,
+  sendError: sendSupabaseAdminError,
+}));
 const mailTestRateLimit = createMemoryRateLimiter({ windowMs: 60 * 60 * 1000, max: 5 });
 app.post('/api/admin/notifications/likes/test', authenticateToken, requireAdmin, mailTestRateLimit, async (_req, res) => {
   try {
