@@ -20,7 +20,6 @@
 ```powershell
 npm ci
 npm run build
-npm run prepare:spatial-model
 npm run deploy:oss -- --dry-run
 npm run deploy:oss
 ```
@@ -37,7 +36,7 @@ VITE_AMAP_MAP_STYLE=amap://styles/whitesmoke
 
 上传脚本明确拒绝照片 Bucket，先上传资源，再上传 HTML，最后发布并校验首页。不会删除旧文件，已有浏览器标签页仍能请求上一版资源。带哈希的资源设置一年不可变缓存，其他文件设置 `no-cache`；字体也随构建发布，避免依赖 Google Fonts。
 
-空间场景使用站点 CDN 托管的固定版本模型。`.env.production` 将模型源指向 `https://pic.rlzhao.com/spatial-models/`，构建后运行 `prepare:spatial-model`，通过 SHA-256 验证下载的 q8 权重并附带许可证。版本目录中的模型文件使用一年不可变缓存，WASM 使用 `application/wasm`，模块使用 JavaScript MIME 类型。模型只在访客开启空间场景后加载。
+空间场景使用 SharpDepth＋UniDepth 的后台预计算结果。访客不再下载模型或 WASM；构建和发布不需要下载空间模型。数据库迁移、GPU worker 与前端接入见 [空间场景](spatial-scenes.md)。
 
 发布完成后，在 CDN “刷新预热”中刷新 `https://pic.rlzhao.com/` 与 `https://pic.rlzhao.com/index.html`。旧哈希资源可在确定没有客户端再使用后另行清理。
 

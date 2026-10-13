@@ -22,7 +22,7 @@ export function SpatialSceneControls({ scene, disabled }) {
         <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
           <path d="m12 2 9 5v10l-9 5-9-5V7l9-5Z M3 7l9 5 9-5 M12 12v10" />
         </svg>
-        <span>{status.phase === 'loading' && active ? '生成中…' : '空间场景'}</span>
+        <span>{status.phase === 'loading' && active ? '加载中…' : '空间场景'}</span>
         {status.phase === 'loading' && active && <span className="spatial-scene-spinner" aria-hidden="true" />}
       </button>
     </div>

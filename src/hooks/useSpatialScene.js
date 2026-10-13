@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { estimateSpatialDepth, loadSpatialImage } from '../utils/spatialDepth';
+import { loadPrecomputedSpatialDepth, loadSpatialImage } from '../utils/spatialDepth';
 import { createSpatialRenderer, orientationToSpatialInput } from '../utils/spatialRenderer';
 
 export function useSpatialScene(photoId, imageRef, mediaRef, canvasRef) {
@@ -41,13 +41,11 @@ export function useSpatialScene(photoId, imageRef, mediaRef, canvasRef) {
         setStatus({ phase: 'loading', message: '正在读取照片…' });
         const image = await loadSpatialImage(source, controller.signal);
         if (controller.signal.aborted) return;
-        const depth = await estimateSpatialDepth(image, source, (progress) => {
+        const depth = await loadPrecomputedSpatialDepth(photoId, (progress) => {
           if (controller.signal.aborted) return;
           setStatus({
             phase: 'loading',
-            message: progress.stage === 'estimating' ? '正在生成景深…'
-              : Number.isFinite(progress.progress) ? `首次下载空间模型 ${progress.progress}%`
-                : '正在加载空间模型，首次使用需下载约 27 MB…',
+            message: progress.stage === 'pending' ? '正在等待后台准备空间照片…' : '正在读取空间照片…',
           });
         }, controller.signal);
         if (controller.signal.aborted) return;
@@ -134,7 +132,7 @@ export function useSpatialScene(photoId, imageRef, mediaRef, canvasRef) {
     if (active) { setEnabledId(null); return; }
     if (reducedMotion || !photoId) return;
     // iOS requires the request to run directly inside the button's user gesture,
-    // before model downloads or any other awaited work.
+    // before reading the precomputed result or any other awaited work.
     if (window.matchMedia('(pointer: coarse)').matches && window.isSecureContext && window.DeviceOrientationEvent) {
       try {
         const permission = window.DeviceOrientationEvent.requestPermission;

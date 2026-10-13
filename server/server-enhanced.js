@@ -14,6 +14,7 @@ import { createPhotoDeletionService } from './photoDeletion.js';
 import { createPhotoUploadService } from './photoUploads.js';
 import { createLikeNotificationService } from './likeNotifications.js';
 import { createPhotoLikeHandler, createLikeEventsHandler } from './photoLikes.js';
+import { createSpatialDepthHandler, createSpatialOssClient } from './spatialDepthStorage.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -483,6 +484,13 @@ function parseAllowedOssObjectKey(rawUrl) {
 }
 
 // 代理读取 OSS 对象（供前端在无法直连 OSS 时使用）
+let spatialOssClient;
+app.get('/api/photos/:id/spatial-depth', createMemoryRateLimiter({ windowMs: 60_000, max: 120 }), createSpatialDepthHandler({
+  db: supabaseAdminFetch,
+  getClient: () => (spatialOssClient ||= createSpatialOssClient()),
+  logger,
+}));
+
 app.get('/api/media/proxy', async (req, res) => {
   try {
     if (!ossClient) {

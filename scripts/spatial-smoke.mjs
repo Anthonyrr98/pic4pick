@@ -4,7 +4,9 @@ import path from 'node:path';
 import { chromium, webkit } from 'playwright';
 
 const baseUrl = (process.env.UI_BASE_URL || 'http://127.0.0.1:5173').replace(/\/$/, '');
-const realModel = process.env.SPATIAL_REAL_MODEL === '1';
+// UI regression fixtures exercise precomputed results. Live GPU inference is a
+// separate worker check and must never be downloaded into a browser test.
+const realModel = false;
 const browserType = process.env.SPATIAL_BROWSER === 'webkit' ? webkit : chromium;
 const artifactDir = process.env.UI_ARTIFACT_DIR || '.artifacts/spatial';
 const fixture = await readFile(new URL('../public/og-image.png', import.meta.url));
@@ -13,7 +15,7 @@ const photos = [1, 2].map((id) => ({
   image_url: `https://spatial-fixture.invalid/photo-${id}.png`, category: '风光', country: '中国', location: '上海',
   status: 'approved', hidden: false, rating: 9, created_at: `2026-10-${id === 1 ? '12' : '11'}T00:00:00Z`,
 }));
-const workerPattern = /spatialDepth\.worker[^/]*\.js/;
+const workerPattern = /spatialDepth\.worker|huggingface\.co|\.onnx(?:$|\?)|ort-wasm/;
 const browser = await browserType.launch({ headless: true });
 const errors = [];
 
@@ -54,23 +56,23 @@ async function openFixture(options = {}) {
   });
   let workerRequests = 0;
   page.on('request', (request) => { if (workerPattern.test(request.url())) workerRequests += 1; });
-  if (!realModel || options.error || options.pending) {
-    await page.route(workerPattern, (route) => route.fulfill({
-      contentType: 'application/javascript', body: options.pending ? 'self.onmessage = () => {};' : options.error
-        ? 'self.onmessage = ({ data: { requestId } }) => self.postMessage({ type: "error", requestId, message: "模型下载失败，请重试。" });'
-        : `self.onmessage = ({ data: { width, height, requestId } }) => {
-          const values = new Uint8Array(width * height);
-          for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) values[y * width + x] = Math.round(255 * x / width);
-          self.postMessage({ type: 'result', requestId, values, width, height }, [values.buffer]);
-        };`,
-    }));
-  }
+  await page.route('**/rest/v1/photo_spatial*', (route) => route.fulfill({ json: [{
+    generation: 'fixture', status: options.pending ? 'processing' : options.error ? 'failed' : 'ready',
+    depth_path: 'fixture/depth.png', width: 784, height: 412,
+  }] }));
+  let depthDownloads = 0;
+  await page.route('**/storage/v1/object/sign/spatial-depth/**', (route) => {
+    if (route.request().method() === 'POST') return route.fulfill({ json: { signedURL: '/object/sign/spatial-depth/fixture/depth.png?token=fixture' } });
+    depthDownloads++;
+    return route.fulfill({ contentType: 'image/svg+xml', headers: { 'Access-Control-Allow-Origin': '*' },
+      body: '<svg xmlns="http://www.w3.org/2000/svg" width="784" height="412"><defs><linearGradient id="d"><stop stop-color="black"/><stop offset="1" stop-color="white"/></linearGradient></defs><rect width="784" height="412" fill="url(#d)"/></svg>' });
+  });
   await page.goto(`${baseUrl}/`, { waitUntil: 'networkidle' });
   await page.locator('.photo-card').first().click();
   const button = page.getByRole('button', { name: '空间场景', exact: true });
   await page.waitForFunction(() => document.querySelector('.lightbox-media img')?.naturalWidth > 0);
   await button.waitFor({ state: 'visible' });
-  return { page, context, button, workerRequests: () => workerRequests, proxyRequests: () => proxyRequests };
+  return { page, context, button, workerRequests: () => workerRequests, depthDownloads: () => depthDownloads, proxyRequests: () => proxyRequests };
 }
 
 async function waitReady(page) {
@@ -105,13 +107,15 @@ try {
   await desktop.page.waitForFunction(() => getComputedStyle(document.querySelector('.spatial-scene-canvas')).opacity === '0');
   await desktop.button.click();
   await waitReady(desktop.page);
-  assert.equal(desktop.workerRequests(), 1, 'Reopening the same photo should reuse cached depth');
+  assert.equal(desktop.depthDownloads(), 1, 'Reopening the same photo should reuse cached depth');
+  assert.equal(desktop.workerRequests(), 0, 'Visitors must never download a model or inference engine');
   await desktop.page.keyboard.press('ArrowRight');
   assert.equal(await desktop.button.getAttribute('aria-pressed'), 'false');
   assert.equal(await desktop.page.locator('.spatial-scene-canvas.is-ready').count(), 0);
   await desktop.button.click();
   await waitReady(desktop.page);
-  assert.equal(desktop.workerRequests(), 1, 'A different photo should reuse the warm inference Worker');
+  assert.equal(desktop.depthDownloads(), 2, 'A different photo should load its precomputed depth');
+  assert.equal(desktop.workerRequests(), 0, 'A different photo must not start browser inference');
   await desktop.page.keyboard.press('Escape');
   await desktop.page.getByRole('dialog').waitFor({ state: 'hidden' });
   await desktop.context.close();
@@ -120,16 +124,16 @@ try {
   if (!realModel) {
     const pending = await openFixture({ pending: true });
     await pending.button.click();
-    await pending.page.waitForFunction(() => document.querySelector('.spatial-scene-status')?.textContent.includes('模型'));
+    await pending.page.waitForFunction(() => document.querySelector('.spatial-scene-status')?.textContent.includes('后台'));
     await pending.button.click();
     await pending.page.waitForFunction(() => !document.querySelector('.spatial-scene-toggle.is-active'));
     await pending.page.waitForTimeout(100);
-    assert.equal(pending.page.workers().length, 0, 'Cancellation should terminate the inference worker');
+    assert.equal(pending.page.workers().length, 0, 'Pending photos must not start browser inference');
     await pending.button.click();
     await pending.page.waitForTimeout(100);
     await pending.page.keyboard.press('ArrowRight');
     await pending.page.waitForTimeout(100);
-    assert.equal(pending.page.workers().length, 0, 'Switching photos should terminate pending inference');
+    assert.equal(pending.page.workers().length, 0, 'Switching photos must not start browser inference');
     await pending.context.close();
 
     for (const options of [{ error: true }, { corsError: true }]) {
@@ -199,7 +203,7 @@ try {
       assert.equal(await mobile.button.getAttribute('aria-pressed'), 'false');
       await mobile.context.close();
     }
-    console.log('Cancellation, download error, CORS error, reduced motion, mobile permission and orientation passed');
+    console.log('Cancellation, background failure, CORS error, reduced motion, mobile permission and orientation passed');
   }
   assert.deepEqual(errors, [], 'No uncaught browser errors');
 } finally {

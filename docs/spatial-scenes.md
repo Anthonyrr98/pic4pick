@@ -1,66 +1,83 @@
-# 空间场景
+# 空间场景：SharpDepth＋UniDepth 后台预计算
 
-在图库中打开一张照片，点击灯箱右上角的「空间场景」。生成完成后，桌面移动鼠标、手机轻轻倾斜或拖动照片，即可查看随景深变化的视差。再次点击按钮恢复普通照片。
+图库灯箱中的「空间场景」读取已生成的深度图，用原照片做景深重投影。桌面移动鼠标、手机倾斜或拖动即可探索。采用用户选定的 SharpDepth v1.0＋UniDepthV1 ViT-L14；不经过 BiRefNet 抠图、前景颜色估计或分层背景补全。它仍是单张照片的 2.5D 效果，不能还原被遮挡的背景。
 
-这是单张照片的 2.5D 景深重投影：不同远近的区域产生不同位移。它不能还原被主体遮住的背景，也不等同于苹果系统的空间场景算法。视角范围保持较小，以减轻人物轮廓、树枝和遮挡边缘的拉伸。生成时略微放大画面以隐藏外侧露出的边缘；原图下载不受影响。
+## 上传和查看
 
-## 加载与隐私
+- 作品保存成功后，数据库触发器自动创建持久化任务，上传接口不等待推理。初次上线同时补算现有作品。
+- GPU worker 在拥有者的 Windows 电脑上主动领取任务。没有开放电脑的入站推理端口，也不需要修改 Render 的 GPU 配置。
+- 原图经过 EXIF 方向纠正，缩至最长边 2048；模型使用 FP32、处理分辨率 768、一步去噪、每张固定 seed 0，与已评审样片一致。
+- 输出深度采用相同的逆深度归一化与正值下限，保存为最长边 784 的 8 位灰度 PNG。这不是新的模型处理分辨率。
+- 深度图存到照片 OSS Bucket 的 `spatial-depth/<photo_id>/<generation>.png`，每个对象强制设置 private ACL。`photo_spatial` 仍在 Supabase 保存版本、状态、路径、尺寸和 storage_backend。后台 `/api/photos/:id/spatial-depth` 再次检查照片审核和隐藏状态，再签发有效期 5 分钟的 HTTPS 链接；签名响应禁止缓存。
+- 浏览器不下载模型、不运行推理、不上传照片像素。开启场景后加载原照片和深度 PNG，使用 WebGL 渲染；最多缓存最近三张的深度，按照片 ID＋生成版本失效。
+- 结果尚未准备时显示后台等待提示，最长等待 30 秒后提示稍后重试。失败、取消或切换照片时保留普通照片。没有回退到旧的浏览器小模型。
 
-- 开启前不下载模型、不运行推理、不请求倾斜权限。
-- [Depth Anything V2 Small](https://huggingface.co/onnx-community/depth-anything-v2-small) 的 q8 模型约 27 MB，首次使用还会加载 WASM 引擎和组件。后续可使用浏览器缓存；清理缓存后需要重新下载。
-- 模型通过 Transformers.js 在 Web Worker 中本地运行，照片像素不会上传到推理服务。图片仍从原有图片服务读取，正式站点的模型从站点 CDN 下载；没有配置镜像的开发环境默认从 Hugging Face 下载。
-- ONNX WASM 运行文件随前端构建发布，使用单线程，不需要 COOP/COEP 响应头。
-- Worker 使用像素数组完成图片缩放，不依赖 OffscreenCanvas，以兼容部分 Safari/WebKit 的 Worker 环境。
-- 推理输入最长边限制为 768 px，模型内部最长边限制为 392 px 并对齐 14 px 补丁，以减少计算量；默认 DPT 缩放算法可能让长边远超 518 px。深度图仍回采样到输入尺寸，显示纹理最长边限制为 2048 px。最多缓存最近三张照片的深度图，关闭页面后释放。
-- 取消生成、切换照片和关闭灯箱会终止未完成的 Worker。完成推理后保留模型最多 30 秒，期间新照片复用同一个已初始化的 Worker，空闲超时或离开页面后释放模型。推理请求串行执行，避免同时运行 ONNX 会话。
+## 队列和恢复
 
-## 手机与兼容性
+`spatial_jobs` 只有 service role 可读写。领取使用 `FOR UPDATE SKIP LOCKED` 和 5 分钟租约；一台电脑串行处理，不并发争抢显存。失败指数退避、最多 5 次。照片的原图或预览 URL 改变时创建新生成版本；旧版本或旧租约不能发布结果。修改标题、评分等元数据不重复推理。删除照片会级联删除任务和结果记录。
 
-手机倾斜需要 HTTPS 和设备姿态 API。iOS 的权限请求直接由按钮点击触发，发生在下载和推理之前。拒绝权限后仍可拖动照片；在空间场景开启期间，横向拖动用于探索景深，上一张/下一张按钮和键盘导航仍然可用。普通模式保留滑动切换照片。
+电脑离线或 worker 关闭时，新任务保留在数据库。已完成的结果继续从云端读取。空闲 60 秒后终止模型进程释放 GPU，空闲查询间隔降至 30 秒；有任务时重新加载模型。首次请求包含初始化成本，不能按样片预热后的 1.7 秒估算。
 
-开启系统或浏览器的「减少动态效果」会关闭空间场景并禁用按钮。模型下载失败、图片读取失败、WebGL 不可用或图形上下文丢失时，保留普通照片并显示可重试的提示。
+worker 每小时清理 OSS 深度目录和兼容存储中超过一小时且没有结果记录引用的旧文件，保留刚上传但尚未提交的文件，避免与发布竞态。删除和替换后的孤立文件会在电脑在线时清理。
 
-图片服务需要允许跨域像素读取。已有照片能够通过 `<img>` 展示，并不代表它允许被 Canvas/WebGL 读取。OSS/CDN 应返回允许站点来源的 `Access-Control-Allow-Origin`。读取失败时，对于项目已有的 OSS `origin/`、`ore/`、`pic4pick/` 路径，空间场景会通过 `VITE_API_BASE_URL` 指向的现有图片代理重试；其他外部图片不会发送给代理。代理也必须允许当前站点来源，本地测试需在图片服务或后端 CORS 配置中允许开发地址。无需为此放宽数据库权限。
+## 本机运行
 
-## 模型镜像
-
-正式站点使用 `https://pic.rlzhao.com/spatial-models/`。本地发布时，在构建后执行 `npm run prepare:spatial-model` 下载固定版本的模型到 `dist/`，检查权重的 SHA-256 并附带许可证，再执行 OSS 发布。北京 OSS 工作流也包含此步骤。需要下载代理时，可设置 `SPATIAL_DOWNLOAD_PROXY`，此变量不会进入前端构建。
-
-其他部署可以设置自己的镜像：
-
-```dotenv
-VITE_SPATIAL_MODEL_BASE_URL=https://your-model-cdn.example/
-```
-
-镜像需要允许跨域访问，并保持 Hugging Face 的文件路径结构：
+需要 Node.js 22，根目录和 server 目录分别安装 npm 依赖。此电脑沿用已验证的隔离 Python 环境、官方模型缓存和 Windows 兼容代码，不改动 Anaconda 的依赖：
 
 ```text
-onnx-community/depth-anything-v2-small/resolve/
-  0d8d94ea44f483e26c9c33dad1a97c453ef9b80c/
-    config.json
-    preprocessor_config.json
-    onnx/model_quantized.onnx
+.artifacts/spatial-compare/.gpu-venv/Scripts/python.exe
+.artifacts/spatial-compare/models/sharpdepth/
+.artifacts/spatial-compare/models/unidepth/
+.artifacts/spatial-compare/vendor/sharpdepth/
+.artifacts/spatial-compare/vendor/unidepth/
 ```
 
-模型固定版本以保持输出和资源可复现。镜像分发时保留模型的 Apache 2.0 许可证信息。修改环境变量后重新构建前端。
+主迁移为 `supabase/migrations/20261012154139_sharpdepth_spatial_jobs.sql`，另有 `20261012162348_spatial_expired_lease_recovery.sql` 处理最后一次尝试的过期租约。它们创建队列、公开结果投影、受限 Storage 读取策略、任务 RPC 和照片触发器。线上应先应用迁移，再启动 worker，最后发布前端。
 
-## 验证
+worker 使用本机已有 `server/.env` 中的 `SUPABASE_URL`、`SUPABASE_SERVICE_ROLE_KEY` 和 `ALIYUN_OSS_*` 配置；不把密钥放进 `VITE_*`、网页或 Git。图片下载只允许配置的 HTTPS 照片存储主机及 `origin/`、`ore/`、`pic4pick/` 路径，不跟随重定向，输入最多 50 MiB。
 
-先启动 `npm run dev`，然后运行：
+可选本机配置：
 
-```bash
-npm run test:spatial
+```dotenv
+SPATIAL_PYTHON=F:/Github/pic4pick/.artifacts/spatial-compare/.gpu-venv/Scripts/python.exe
+SPATIAL_RUNTIME_DIR=F:/Github/pic4pick/.artifacts/spatial-compare
+SPATIAL_IMAGE_HOSTS=pic4pick.oss-cn-beijing.aliyuncs.com,websiteanthony.oss-cn-beijing.aliyuncs.com
 ```
 
-默认使用受控深度图验证真实 WebGL 渲染、鼠标交互、移动端姿态权限、角度边界、缓存、取消、切换照片、错误回退和减少动态效果，不依赖模型网络下载。通过以下环境变量可以运行真实模型推理或切换到 WebKit：
+前台运行、单张检查、无窗口运行及当前用户登录后自动启动：
 
 ```powershell
-$env:SPATIAL_REAL_MODEL = '1'
-node scripts/spatial-smoke.mjs
-
-Remove-Item Env:SPATIAL_REAL_MODEL
-$env:SPATIAL_BROWSER = 'webkit'
-node scripts/spatial-smoke.mjs
+npm run spatial:worker
+node scripts/spatial-gpu/worker.mjs --once
+& scripts/spatial-gpu/start.ps1
+& scripts/spatial-gpu/install-startup.ps1
 ```
 
-生产构建可以启动 `npm run preview -- --host 127.0.0.1`，再设置 `UI_BASE_URL=http://127.0.0.1:4173` 运行同一脚本。截图写入 `.artifacts/spatial/`；浏览器模拟的姿态测试仍需补充真实 iPhone Safari 的手持体验验证。
+当前用户的启动项名为 `Pic4Pick Spatial GPU.lnk`；移除此启动项即可取消开机自动运行。电脑重启后凭据和模型仍需保留在上述路径。日志在 `.artifacts/spatial-worker/worker.log`、`worker-errors.log`；新启动的 worker 同时追加 `activity.jsonl`。实例锁避免重复启动。
+
+## 验证和发布
+
+- `node --test scripts/spatial-input.test.mjs scripts/precomputed-spatial-depth.test.mjs`：取消、版本缓存、后台等待、离线提示、尺寸检查及姿态映射。
+- `scripts/spatial-gpu/db-contract-test.sql`：临时事务验证领取、重试、旧租约、照片替换、隐藏访问、匿名权限与删除级联，最终回滚。
+- `scripts/spatial-smoke.mjs`：自动化 UI 回归使用云端结果接口的受控网络响应；真实 GPU 计算由 worker 单独验证。
+- `npm run build` 不再生成推理 Worker、ONNX 或 WASM，也不运行模型镜像下载步骤。前端发布沿用独立 OSS Bucket，后台 Node 上传服务不需要增加 GPU 依赖。
+
+照片像素读取仍需 OSS/CDN 对当前站点允许 CORS；失败时沿用现有受限图片代理。生产照片存储允许 `https://pic.rlzhao.com`；本地验证需使用允许本地来源的图片代理。iOS 倾斜权限仍由按钮点击直接触发，拒绝后可拖动。减少动态效果、WebGL 不可用及上下文丢失时恢复普通照片。
+
+## 模型来源
+
+沿用 [SharpDepth 官方 v1.0](https://github.com/Qualcomm-AI-research/SharpDepth/releases/tag/v1.0)、[UniDepth 官方代码](https://github.com/lpiccinelli-eth/UniDepth) 与此前固定下载的 UniDepthV1 权重。SharpDepth 保留官方许可和 NOTICE；UniDepth 上游采用 CC BY-NC 4.0。Windows 环境使用已验证的官方 Nyström 注意力算法与 PyTorch 兼容层，未安装不匹配此 GPU 的旧 xFormers 二进制。
+
+## 私有 OSS 迁移
+
+`20261012164932_spatial_depth_oss_storage.sql` 新增存储位置标记和仅 service role 可调用的 OSS 完成 RPC。先应用迁移、发布签名后端和兼容前端，再切换数据，最后重启 GPU worker。旧 Supabase 结果仍可被兼容前端读取。
+
+```powershell
+node --env-file=server/.env scripts/spatial-gpu/transfer-to-oss.mjs
+node --env-file=server/.env scripts/spatial-gpu/transfer-to-oss.mjs --switch
+node --env-file=server/.env scripts/spatial-gpu/transfer-to-oss.mjs --remove-source
+```
+
+默认只复制，逐个校验 SHA256、尺寸、private ACL 和匿名访问 403；本机备份与清单保存在忽略的 `.artifacts/spatial-oss-transfer/`。切换通过照片 ID 和生成版本条件更新，随后验证线上 300 秒签名链接、站点 CORS 和文件哈希。只有全批校验成功，清理模式才删除 Supabase 的重复文件。不要在前端仍读取 Supabase 时运行清理。
+
+Render 免费实例休眠后，第一次获取链接可能包含后台唤醒时间；签名接口客户端超时为 60 秒。签名失效不删除原文件，重新打开空间效果会重新获取链接。照片隐藏后不再签发新链接，已经签发的链接最多仍有效 5 分钟。
