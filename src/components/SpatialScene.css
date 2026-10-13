@@ -71,9 +71,6 @@
   .spatial-scene-status { top: calc(70px + env(safe-area-inset-top, 0px)); }
   .lightbox-actions { flex-wrap: wrap; max-width: calc(100vw - 24px); }
 }
-@media (min-width: 1025px) {
-  .lightbox-meta { padding-top: 48px; }
-}
 @media (prefers-reduced-motion: reduce) {
   .spatial-scene-spinner { animation: none; }
   .lightbox-media .spatial-scene-canvas { transition: none; }

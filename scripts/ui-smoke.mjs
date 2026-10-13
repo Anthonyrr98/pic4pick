@@ -8,6 +8,30 @@ const artifactDir = process.env.UI_ARTIFACT_DIR || '';
 const browser = await chromium.launch({ headless: true });
 const errors = [];
 
+async function checkResponsiveLightbox(page) {
+  const originalViewport = page.viewportSize();
+  for (const [width, height] of [[978, 956], [769, 700], [1024, 768], [1025, 768], [1280, 720], [820, 1180]]) {
+    await page.setViewportSize({ width, height });
+    const layout = await page.getByRole('dialog').evaluate((dialog) => {
+      const title = dialog.querySelector('#lightbox-title').getBoundingClientRect();
+      const actions = dialog.querySelector('.lightbox-actions').getBoundingClientRect();
+      const media = dialog.querySelector('.lightbox-media').getBoundingClientRect();
+      const image = dialog.querySelector('.lightbox-media img');
+      return {
+        overlaps: title.left < actions.right && title.right > actions.left
+          && title.top < actions.bottom && title.bottom > actions.top,
+        frameRatio: media.width / media.height,
+        imageRatio: image.naturalWidth / image.naturalHeight,
+      };
+    });
+    if (layout.overlaps) throw new Error(`Lightbox title overlaps the toolbar at ${width}x${height}`);
+    if (Math.abs(layout.frameRatio - layout.imageRatio) > 0.02) {
+      throw new Error(`Lightbox image ratio changed at ${width}x${height}`);
+    }
+  }
+  await page.setViewportSize(originalViewport);
+}
+
 try {
   const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
   if (process.env.UI_MAP_PRESET) {
@@ -55,6 +79,7 @@ try {
   if (Math.abs(lightboxRatios.frame - lightboxRatios.image) > 0.02) {
     throw new Error('Lightbox frame does not match the original image aspect ratio');
   }
+  await checkResponsiveLightbox(page);
   if (artifactDir) {
     await mkdir(artifactDir, { recursive: true });
     await page.screenshot({ path: path.join(artifactDir, 'lightbox-desktop.png'), fullPage: true });
@@ -82,6 +107,7 @@ try {
     if (Math.abs(landscapeRatios.frame - landscapeRatios.image) > 0.02) {
       throw new Error('Landscape lightbox frame does not match the original image aspect ratio');
     }
+    await checkResponsiveLightbox(page);
     if (artifactDir) {
       await page.screenshot({ path: path.join(artifactDir, 'lightbox-landscape.png'), fullPage: true });
     }
