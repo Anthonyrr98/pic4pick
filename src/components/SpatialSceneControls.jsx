@@ -33,7 +33,7 @@ export function SpatialSceneStatus({ scene }) {
   const hint = getSceneHint(scene);
   if (!hint) return null;
   return (
-    <p id="spatial-scene-status" className={`spatial-scene-status ${scene.status.phase === 'error' ? 'is-error' : ''}`} role="status" aria-live="polite">
+    <p id="spatial-scene-status" className={`spatial-scene-status ${scene.ready ? 'is-ready' : ''} ${scene.status.phase === 'error' ? 'is-error' : ''}`} role="status" aria-live="polite">
       {hint}
     </p>
   );

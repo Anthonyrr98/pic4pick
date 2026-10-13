@@ -46,6 +46,11 @@
   box-shadow: 0 6px 24px rgba(0, 0, 0, 0.2);
 }
 .spatial-scene-status.is-error { color: #f9d8ba; }
+.spatial-scene-status.is-ready { animation: spatial-hint-fade 1s ease 2s forwards; }
+@keyframes spatial-hint-fade {
+  from { opacity: 1; visibility: visible; }
+  to { opacity: 0; visibility: hidden; }
+}
 .spatial-scene-spinner { width: 12px; height: 12px; border: 1.5px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spatial-spin 1s linear infinite; }
 @keyframes spatial-spin { to { transform: rotate(360deg); } }
 .lightbox-media .spatial-scene-canvas {
