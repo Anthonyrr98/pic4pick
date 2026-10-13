@@ -798,12 +798,12 @@ export function GalleryPage() {
         >
           <div className="lightbox-actions">
             {lightboxPhoto && (
-              <SpatialSceneControls scene={spatialScene} disabled={lightboxPreviewFailed || !lightboxAspectRatio} />
-            )}
-            {lightboxPhoto && (
-              <button className="lightbox-download" aria-label="下载原图" onClick={handleDownloadOriginal}>
-                下载原图
-              </button>
+              <div className="lightbox-action-group" role="group" aria-label="照片操作">
+                <SpatialSceneControls scene={spatialScene} disabled={lightboxPreviewFailed || !lightboxAspectRatio} />
+                <button className="lightbox-download" aria-label="下载原图" onClick={handleDownloadOriginal}>
+                  下载原图
+                </button>
+              </div>
             )}
             <button className="lightbox-close" aria-label="关闭" onClick={closeLightbox}>
               &times;
