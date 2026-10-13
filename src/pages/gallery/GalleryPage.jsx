@@ -801,7 +801,10 @@ export function GalleryPage() {
               <div className="lightbox-action-group" role="group" aria-label="照片操作">
                 <SpatialSceneControls scene={spatialScene} disabled={lightboxPreviewFailed || !lightboxAspectRatio} />
                 <button className="lightbox-download" aria-label="下载原图" onClick={handleDownloadOriginal}>
-                  下载原图
+                  <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                    <path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5" />
+                  </svg>
+                  <span>下载原图</span>
                 </button>
               </div>
             )}

@@ -3044,8 +3044,20 @@ main {
 }
 
 .lightbox-action-group .lightbox-download {
+  gap: 7px;
   border-left: 1px solid rgb(var(--ink-rgb) / 0.16);
   border-radius: 0 999px 999px 0 !important;
+}
+
+.lightbox-action-group .lightbox-download svg {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .lightbox-action-group :is(.spatial-scene-toggle, .lightbox-download):hover {
