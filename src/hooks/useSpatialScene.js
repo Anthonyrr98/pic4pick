@@ -1,13 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
-import { loadPrecomputedSpatialDepth, loadSpatialImage } from '../utils/spatialDepth';
+import { loadPrecomputedSpatialDepth, loadSpatialImage, prefetchPrecomputedSpatialDepth } from '../utils/spatialDepth';
 import { createSpatialRenderer, orientationToSpatialInput } from '../utils/spatialRenderer';
 
 export function useSpatialScene(photoId, imageRef, mediaRef, canvasRef) {
   const rendererRef = useRef(null);
+  const depthTaskRef = useRef(null);
   const [enabledId, setEnabledId] = useState(null);
   const [status, setStatus] = useState({ phase: 'idle', message: '' });
   const [motionAllowed, setMotionAllowed] = useState(false);
   const [reducedMotion, setReducedMotion] = useState(false);
+  const [saveData, setSaveData] = useState(() => Boolean(navigator.connection?.saveData));
   const active = Boolean(photoId && enabledId === photoId);
 
   useEffect(() => {
@@ -25,6 +27,56 @@ export function useSpatialScene(photoId, imageRef, mediaRef, canvasRef) {
   }, []);
 
   useEffect(() => {
+    const connection = navigator.connection;
+    const update = () => setSaveData(Boolean(connection?.saveData));
+    connection?.addEventListener?.('change', update);
+    return () => connection?.removeEventListener?.('change', update);
+  }, []);
+
+  // The prepared task belongs only to this open photograph. Keep it alive when
+  // the user clicks so the foreground load can reuse an unfinished download.
+  useEffect(() => () => {
+    depthTaskRef.current?.controller.abort();
+    depthTaskRef.current = null;
+  }, [photoId, reducedMotion]);
+
+  useEffect(() => {
+    if (saveData) {
+      const task = depthTaskRef.current;
+      if (task && !task.consumed) {
+        task.controller.abort();
+        depthTaskRef.current = null;
+      }
+    }
+    if (!photoId || active || reducedMotion || saveData) return undefined;
+    let timer;
+    const schedule = () => {
+      clearTimeout(timer);
+      if (document.hidden) {
+        const task = depthTaskRef.current;
+        if (task && !task.consumed) task.controller.abort();
+        return;
+      }
+      timer = setTimeout(() => {
+        // One attempt per open photo, including after turning an effect off.
+        if (depthTaskRef.current) return;
+        const controller = new AbortController();
+        const task = { photoId, controller, consumed: false };
+        task.promise = prefetchPrecomputedSpatialDepth(photoId, controller.signal);
+        depthTaskRef.current = task;
+        // Background errors never interrupt viewing the ordinary photograph.
+        void task.promise.catch(() => {});
+      }, 800);
+    };
+    schedule();
+    document.addEventListener('visibilitychange', schedule);
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener('visibilitychange', schedule);
+    };
+  }, [photoId, active, reducedMotion, saveData]);
+
+  useEffect(() => {
     setEnabledId(null);
     setStatus({ phase: 'idle', message: '' });
   }, [photoId]);
@@ -32,27 +84,47 @@ export function useSpatialScene(photoId, imageRef, mediaRef, canvasRef) {
   useEffect(() => {
     if (!active || reducedMotion) return undefined;
     const controller = new AbortController();
+    let prepared;
     const canvas = canvasRef.current;
     const generate = async () => {
       try {
         if (!canvas?.getContext('webgl')) throw new Error('此浏览器暂不支持空间场景，请尝试新版 Safari 或 Chrome。');
         const source = imageRef.current?.currentSrc || imageRef.current?.src;
         if (!source || !imageRef.current?.naturalWidth) throw new Error('照片仍在加载，请稍后开启空间场景。');
-        setStatus({ phase: 'loading', message: '正在读取照片…' });
-        const image = await loadSpatialImage(source, controller.signal);
-        if (controller.signal.aborted) return;
-        const depth = await loadPrecomputedSpatialDepth(photoId, (progress) => {
+        setStatus({ phase: 'loading', message: '正在读取空间照片…' });
+        const onProgress = (progress) => {
           if (controller.signal.aborted) return;
           setStatus({
             phase: 'loading',
             message: progress.stage === 'pending' ? '正在等待后台准备空间照片…' : '正在读取空间照片…',
           });
-        }, controller.signal);
+        };
+        const readDepth = () => {
+          if (controller.signal.aborted) throw new DOMException('Cancelled', 'AbortError');
+          return loadPrecomputedSpatialDepth(photoId, onProgress, controller.signal);
+        };
+        prepared = depthTaskRef.current;
+        let depthPromise;
+        if (prepared?.photoId === photoId && !prepared.controller.signal.aborted) {
+          prepared.consumed = true;
+          depthPromise = prepared.promise.then((depth) => {
+            if (controller.signal.aborted) throw new DOMException('Cancelled', 'AbortError');
+            return depth || readDepth();
+          }, readDepth);
+        } else {
+          depthPromise = readDepth();
+          depthTaskRef.current = { photoId, controller, promise: depthPromise, consumed: true };
+        }
+        const [image, depth] = await Promise.all([
+          loadSpatialImage(source, controller.signal), depthPromise,
+        ]);
         if (controller.signal.aborted) return;
         rendererRef.current = createSpatialRenderer(canvas, image, depth);
         setStatus({ phase: 'ready', message: '' });
       } catch (error) {
         if (controller.signal.aborted) return;
+        controller.abort();
+        prepared?.controller.abort();
         if (error.name === 'AbortError') {
           setStatus({ phase: 'idle', message: '' });
           setEnabledId(null);
@@ -71,6 +143,7 @@ export function useSpatialScene(photoId, imageRef, mediaRef, canvasRef) {
     void generate();
     return () => {
       controller.abort();
+      prepared?.controller.abort();
       canvas?.removeEventListener('webglcontextlost', contextLost);
       rendererRef.current?.dispose();
       rendererRef.current = null;

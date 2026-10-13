@@ -118,3 +118,7 @@ export function loadPrecomputedSpatialDepth(photoId, onProgress, signal) {
   return depthClient.request(photoId, onProgress, signal);
 }
 
+export function prefetchPrecomputedSpatialDepth(photoId, signal) {
+  return depthClient.prefetch(photoId, signal);
+}
+

@@ -33,19 +33,43 @@ async function openFixture(options = {}) {
   if (realModel) page.on('console', (message) => {
     if (['warning', 'error'].includes(message.type())) console.log(message.text());
   });
-  await page.addInitScript(({ photos, permission }) => {
+  await page.addInitScript(({ photos, permission, saveData }) => {
     sessionStorage.setItem('pic4pick_intro_seen', '1');
     localStorage.setItem('camarts_approved_photos', JSON.stringify(photos));
     window.__spatialPermissionCalls = 0;
+    if (typeof saveData === 'boolean') {
+      const connection = new EventTarget();
+      connection.saveData = saveData;
+      Object.defineProperty(navigator, 'connection', { configurable: true, value: connection });
+    }
     if (permission) {
       window.DeviceOrientationEvent.requestPermission = () => {
         window.__spatialPermissionCalls += 1;
         return Promise.resolve(permission);
       };
     }
-  }, { photos: fixturePhotos, permission: options.permission });
+  }, { photos: fixturePhotos, permission: options.permission, saveData: options.saveData });
   await page.route('**/rest/v1/photos*', (route) => route.fulfill({ json: fixturePhotos }));
-  await page.route(/https:\/\/spatial-fixture\.(?:invalid|oss-cn-beijing\.aliyuncs\.com)\//, (route) => {
+  let metadataRequests = 0, photoReads = 0, signingRequests = 0, cancelledMetadata = 0;
+  const metadataIds = [];
+  let signedDepthUrl;
+  let metadataStarted;
+  const metadataStart = new Promise(resolve => { metadataStarted = resolve; });
+  let parallel = false;
+  let parallelCheckStarted = false;
+  page.on('requestfailed', request => {
+    if (request.url().includes('/rest/v1/photo_spatial')) cancelledMetadata++;
+  });
+  await page.route(/https:\/\/spatial-fixture\.(?:invalid|oss-cn-beijing\.aliyuncs\.com)\//, async (route) => {
+    if (route.request().headers().origin) {
+      photoReads++;
+      if (options.checkParallel && parallelCheckStarted) {
+        parallel = await Promise.race([
+          metadataStart.then(() => true),
+          new Promise(resolve => setTimeout(() => resolve(false), 1500)),
+        ]);
+      }
+    }
     if (options.corsError && route.request().headers().origin) return route.abort('blockedbyresponse');
     return route.fulfill({ contentType: 'image/png', body: fixture, headers: { 'Access-Control-Allow-Origin': '*' } });
   });
@@ -56,23 +80,45 @@ async function openFixture(options = {}) {
   });
   let workerRequests = 0;
   page.on('request', (request) => { if (workerPattern.test(request.url())) workerRequests += 1; });
-  await page.route('**/rest/v1/photo_spatial*', (route) => route.fulfill({ json: [{
-    generation: 'fixture', status: options.pending ? 'processing' : options.error ? 'failed' : 'ready',
-    depth_path: 'fixture/depth.png', width: 784, height: 412,
-  }] }));
+  await page.route('**/rest/v1/photo_spatial*', async (route) => {
+    metadataRequests++;
+    metadataIds.push(new URL(route.request().url()).searchParams.get('photo_id'));
+    signedDepthUrl = `${new URL(route.request().url()).origin}/storage/v1/object/sign/spatial-depth/fixture/depth.png?token=fixture`;
+    metadataStarted();
+    if (options.metadataGate && metadataRequests === 1) await options.metadataGate;
+    await route.fulfill({ json: [{
+      generation: 'fixture', status: options.pending ? 'processing' : options.error ? 'failed' : 'ready',
+      depth_path: 'fixture/depth.png', width: 784, height: 412,
+      storage_backend: options.useOss ? 'oss' : 'supabase',
+    }] }).catch(() => {}); // An intentionally cancelled route may already be closed.
+  });
+  await page.route('**/api/photos/*/spatial-depth', route => {
+    if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204,
+      headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET, OPTIONS' } });
+    signingRequests++;
+    return route.fulfill({ headers: { 'Access-Control-Allow-Origin': '*' },
+      json: { generation: 'fixture', signedUrl: signedDepthUrl } });
+  });
   let depthDownloads = 0;
-  await page.route('**/storage/v1/object/sign/spatial-depth/**', (route) => {
-    if (route.request().method() === 'POST') return route.fulfill({ json: { signedURL: '/object/sign/spatial-depth/fixture/depth.png?token=fixture' } });
+  await page.route('**/storage/v1/object/sign/spatial-depth/**', async (route) => {
+    if (route.request().method() === 'POST') {
+      signingRequests++;
+      return route.fulfill({ json: { signedURL: '/object/sign/spatial-depth/fixture/depth.png?token=fixture' } });
+    }
     depthDownloads++;
+    if (options.depthGate) await options.depthGate;
     return route.fulfill({ contentType: 'image/svg+xml', headers: { 'Access-Control-Allow-Origin': '*' },
-      body: '<svg xmlns="http://www.w3.org/2000/svg" width="784" height="412"><defs><linearGradient id="d"><stop stop-color="black"/><stop offset="1" stop-color="white"/></linearGradient></defs><rect width="784" height="412" fill="url(#d)"/></svg>' });
+      body: '<svg xmlns="http://www.w3.org/2000/svg" width="784" height="412"><defs><linearGradient id="d"><stop stop-color="black"/><stop offset="1" stop-color="white"/></linearGradient></defs><rect width="784" height="412" fill="url(#d)"/></svg>' }).catch(() => {});
   });
   await page.goto(`${baseUrl}/`, { waitUntil: 'networkidle' });
   await page.locator('.photo-card').first().click();
   const button = page.getByRole('button', { name: '空间场景', exact: true });
   await page.waitForFunction(() => document.querySelector('.lightbox-media img')?.naturalWidth > 0);
   await button.waitFor({ state: 'visible' });
-  return { page, context, button, workerRequests: () => workerRequests, depthDownloads: () => depthDownloads, proxyRequests: () => proxyRequests };
+  return { page, context, button, workerRequests: () => workerRequests, depthDownloads: () => depthDownloads, proxyRequests: () => proxyRequests,
+    metadataRequests: () => metadataRequests, photoReads: () => photoReads, signingRequests: () => signingRequests,
+    metadataIds: () => metadataIds, cancelledMetadata: () => cancelledMetadata, parallel: () => parallel,
+    startParallelCheck: () => { parallelCheckStarted = true; } };
 }
 
 async function waitReady(page) {
@@ -85,6 +131,85 @@ async function waitReady(page) {
 
 try {
   await mkdir(artifactDir, { recursive: true });
+  const prepared = await openFixture({ permission: 'granted', useOss: true });
+  await prepared.page.waitForTimeout(300);
+  assert.equal(prepared.metadataRequests(), 0, 'Brief viewing should not prefetch depth');
+  const existingPhotoReads = prepared.photoReads();
+  await prepared.page.waitForFunction(() => performance.getEntriesByType('resource').some(entry => entry.name.includes('/storage/v1/object/sign/spatial-depth/') && entry.name.includes('token=')));
+  assert.equal(prepared.metadataRequests(), 1);
+  assert.equal(prepared.depthDownloads(), 1);
+  assert.equal(prepared.photoReads(), existingPhotoReads, 'Background preparation must not reread photograph pixels');
+  assert.equal(await prepared.page.evaluate(() => window.__spatialPermissionCalls), 0, 'Prefetch must not request motion permissions');
+  assert.equal(await prepared.button.getAttribute('aria-pressed'), 'false');
+  assert.equal(await prepared.page.locator('.spatial-scene-canvas.is-ready').count(), 0);
+  await prepared.button.click();
+  await waitReady(prepared.page);
+  assert.equal(prepared.metadataRequests(), 1, 'Click should reuse prepared metadata');
+  assert.equal(prepared.signingRequests(), 1, 'Click should reuse the signed depth download');
+  assert.equal(prepared.depthDownloads(), 1);
+  await prepared.context.close();
+
+  const dataSaver = await openFixture({ saveData: true, checkParallel: true, useOss: true });
+  await dataSaver.page.waitForTimeout(1100);
+  assert.equal(dataSaver.metadataRequests(), 0, 'Data saver should disable automatic preparation');
+  dataSaver.startParallelCheck();
+  await dataSaver.button.click();
+  await waitReady(dataSaver.page);
+  assert.ok(dataSaver.parallel(), 'Depth metadata must start while photo pixels are still loading');
+  await dataSaver.context.close();
+
+  let finishDepth;
+  const handoff = await openFixture({ useOss: true, depthGate: new Promise(resolve => { finishDepth = resolve; }) });
+  await handoff.page.waitForRequest(request => request.url().includes('token=fixture'));
+  await handoff.button.click();
+  await handoff.page.waitForTimeout(100);
+  assert.equal(handoff.metadataRequests(), 1);
+  assert.equal(handoff.signingRequests(), 1);
+  assert.equal(handoff.depthDownloads(), 1, 'Click during prefetch must not download twice');
+  finishDepth();
+  await waitReady(handoff.page);
+  await handoff.context.close();
+
+  const brief = await openFixture();
+  await brief.page.keyboard.press('Escape');
+  await brief.page.waitForTimeout(1100);
+  assert.equal(brief.metadataRequests(), 0, 'Closing before the dwell delay must cancel the timer');
+  await brief.context.close();
+
+  const switched = await openFixture();
+  await switched.page.keyboard.press('ArrowRight');
+  await switched.page.waitForTimeout(1100);
+  assert.deepEqual(switched.metadataIds(), ['eq.spatial-2'], 'Only the currently viewed photo should be prepared');
+  await switched.context.close();
+
+  let finishMetadata;
+  const cancelled = await openFixture({ metadataGate: new Promise(resolve => { finishMetadata = resolve; }) });
+  await cancelled.page.waitForRequest(request => request.url().includes('/rest/v1/photo_spatial'));
+  await cancelled.page.keyboard.press('Escape');
+  await cancelled.page.waitForTimeout(100);
+  finishMetadata();
+  await cancelled.page.waitForTimeout(200);
+  assert.ok(cancelled.cancelledMetadata() > 0, 'Closing must abort an unfinished prefetch request');
+  assert.equal(cancelled.depthDownloads(), 0);
+  await cancelled.context.close();
+
+  const backgroundPending = await openFixture({ pending: true });
+  await backgroundPending.page.waitForTimeout(4200);
+  assert.equal(backgroundPending.metadataRequests(), 1, 'Pending photos should not be polled in the background');
+  assert.equal(backgroundPending.depthDownloads(), 0);
+  assert.equal(await backgroundPending.page.locator('.spatial-scene-status').count(), 0);
+  await backgroundPending.context.close();
+
+  const backgroundFailure = await openFixture({ error: true });
+  await backgroundFailure.page.waitForTimeout(1100);
+  assert.equal(backgroundFailure.metadataRequests(), 1);
+  assert.equal(await backgroundFailure.page.locator('.spatial-scene-status.is-error').count(), 0, 'Prefetch errors must stay silent');
+  await backgroundFailure.button.click();
+  await backgroundFailure.page.locator('.spatial-scene-status.is-error').waitFor();
+  assert.equal(backgroundFailure.metadataRequests(), 2, 'An explicit click should retry a failed prefetch');
+  await backgroundFailure.context.close();
+  console.log('Depth-only prefetch, parallel loading, request reuse, cancellation, data saver and silent failures passed');
+
   const desktop = await openFixture();
   assert.equal(desktop.workerRequests(), 0, 'Model code should load only after enabling the effect');
   await desktop.button.click();
@@ -154,7 +279,9 @@ try {
     await proxy.context.close();
 
     const reduced = await openFixture({ reduced: true });
+    await reduced.page.waitForTimeout(1100);
     assert.equal(await reduced.button.isDisabled(), true);
+    assert.equal(reduced.metadataRequests(), 0, 'Reduced motion should disable prefetch');
     assert.equal(reduced.workerRequests(), 0);
     await reduced.context.close();
 

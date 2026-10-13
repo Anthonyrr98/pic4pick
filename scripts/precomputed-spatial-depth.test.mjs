@@ -35,3 +35,75 @@ test('incorrect depth dimensions cannot be rendered or cached', async () => {
   const client = createPrecomputedSpatialDepthClient({ loadMetadata: async () => ready, loadDepth: async () => ({ ...depth, width: 3 }) });
   await assert.rejects(client.request('photo', () => {}, new AbortController().signal), /数据异常/);
 });
+
+test('prefetch checks a pending photo once and does not poll or download', async () => {
+  let queries = 0, downloads = 0;
+  const client = createPrecomputedSpatialDepthClient({
+    loadMetadata: async () => { queries++; return { status: 'processing' }; },
+    loadDepth: async () => { downloads++; return depth; },
+  });
+  assert.equal(await client.prefetch('photo', new AbortController().signal), null);
+  assert.equal(queries, 1);
+  assert.equal(downloads, 0);
+});
+
+test('a prefetched result is reused and still checked for a changed generation', async () => {
+  let row = ready, downloads = 0;
+  const client = createPrecomputedSpatialDepthClient({
+    loadMetadata: async () => row,
+    loadDepth: async () => { downloads++; return depth; },
+  });
+  const signal = new AbortController().signal;
+  assert.equal(await client.prefetch('photo', signal), depth);
+  assert.equal(await client.request('photo', () => {}, signal), depth);
+  assert.equal(downloads, 1);
+  row = { ...ready, generation: 'updated' };
+  await client.request('photo', () => {}, signal);
+  assert.equal(downloads, 2);
+});
+
+test('aborted background metadata cannot start a download or populate the cache', async () => {
+  const controller = new AbortController();
+  let finishMetadata, downloads = 0;
+  const client = createPrecomputedSpatialDepthClient({
+    loadMetadata: () => new Promise(resolve => { finishMetadata = resolve; }),
+    loadDepth: async () => { downloads++; return depth; },
+  });
+  const result = client.prefetch('photo', controller.signal);
+  controller.abort();
+  finishMetadata(ready);
+  await assert.rejects(result, { name: 'AbortError' });
+  assert.equal(downloads, 0);
+});
+
+test('the three-result cache evicts the least recently used photo', async () => {
+  const downloaded = [];
+  const client = createPrecomputedSpatialDepthClient({
+    loadMetadata: async photoId => ({ ...ready, depth_path: `${photoId}/a.png` }),
+    loadDepth: async row => { downloaded.push(row.depth_path); return depth; },
+  });
+  const signal = new AbortController().signal;
+  for (const id of ['one', 'two', 'three', 'one', 'four', 'one', 'two']) {
+    await client.prefetch(id, signal);
+  }
+  assert.deepEqual(downloaded, ['one/a.png', 'two/a.png', 'three/a.png', 'four/a.png', 'two/a.png']);
+});
+
+test('a depth download completed after cancellation is not cached', async () => {
+  let finishDepth, downloads = 0;
+  const client = createPrecomputedSpatialDepthClient({
+    loadMetadata: async () => ready,
+    loadDepth: () => {
+      downloads++;
+      return downloads === 1 ? new Promise(resolve => { finishDepth = resolve; }) : Promise.resolve(depth);
+    },
+  });
+  const controller = new AbortController();
+  const result = client.prefetch('photo', controller.signal);
+  await Promise.resolve();
+  controller.abort();
+  finishDepth(depth);
+  await assert.rejects(result, { name: 'AbortError' });
+  await client.request('photo', () => {}, new AbortController().signal);
+  assert.equal(downloads, 2);
+});
