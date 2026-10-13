@@ -30,7 +30,7 @@ for(const row of rows) {
   if(source) {
     bytes=Buffer.from(await source.arrayBuffer());
     await writeFile(new URL(`${row.photo_id}-${row.generation}.png`,directory),bytes);
-    if(row.storage_backend!=='oss') await uploadSpatialDepth(oss,row.photo_id,row.generation,bytes);
+    if(row.storage_backend!=='oss' && !switching) await uploadSpatialDepth(oss,row.photo_id,row.generation,bytes);
   } else bytes=(await oss.get(key)).content;
   const destination=(await oss.get(key)).content;
   if(hash(bytes)!==hash(destination) || bytes.readUInt32BE(16)!==row.width || bytes.readUInt32BE(20)!==row.height) throw new Error('Depth integrity verification failed');
