@@ -10,6 +10,8 @@ import dotenv from 'dotenv';
 import winston from 'winston';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
+import { Readable } from 'node:stream';
+import { parsePublicPhotoSource } from './publicPhotoSource.js';
 import { createPhotoDeletionService } from './photoDeletion.js';
 import { createPhotoUploadService } from './photoUploads.js';
 import { createLikeNotificationService } from './likeNotifications.js';
@@ -469,20 +471,6 @@ const getBeijingDatePrefix = (date = new Date()) => {
   return `${year}/${month}/${day}`;
 };
 
-function parseAllowedOssObjectKey(rawUrl) {
-  if (!rawUrl || typeof rawUrl !== 'string') return null;
-  let parsed;
-  try {
-    parsed = new URL(rawUrl);
-  } catch {
-    return null;
-  }
-  if (!parsed.hostname.endsWith('.aliyuncs.com')) return null;
-  const key = decodeURIComponent(parsed.pathname.replace(/^\//, ''));
-  if (!key || !OSS_OBJECT_KEY_PREFIX_RE.test(key)) return null;
-  return key;
-}
-
 // 代理读取 OSS 对象（供前端在无法直连 OSS 时使用）
 let spatialOssClient;
 app.get('/api/photos/:id/spatial-depth', createMemoryRateLimiter({ windowMs: 60_000, max: 120 }), createSpatialDepthHandler({
@@ -496,11 +484,17 @@ app.get('/api/media/proxy', async (req, res) => {
     if (!ossClient) {
       return res.status(503).json({ error: 'OSS 客户端未配置' });
     }
-    const objectKey = parseAllowedOssObjectKey(req.query.url);
-    if (!objectKey) {
+    const region = ossConfig.region.startsWith('oss-') ? ossConfig.region : `oss-${ossConfig.region}`;
+    const source = parsePublicPhotoSource(req.query.url, `${ossConfig.bucket}.${region}.aliyuncs.com`);
+    if (!source) {
       return res.status(400).json({ error: '无效或不允许的 OSS URL' });
     }
-    const result = await ossClient.getStream(objectKey, { timeout: ALIYUN_OSS_TIMEOUT_MS });
+    let result;
+    if (source.legacy) {
+      const response = await fetch(source.url, { redirect: 'error', signal: AbortSignal.timeout(30_000) });
+      if (!response.ok || !response.headers.get('content-type')?.startsWith('image/')) throw new Error('Legacy photo unavailable');
+      result = { stream: Readable.fromWeb(response.body), res: { headers: { 'content-type': response.headers.get('content-type') } } };
+    } else result = await ossClient.getStream(source.key, { timeout: ALIYUN_OSS_TIMEOUT_MS });
     const contentType = result.res?.headers?.['content-type'] || 'application/octet-stream';
     res.setHeader('Content-Type', contentType);
     res.setHeader('Cache-Control', 'public, max-age=86400');
