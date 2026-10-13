@@ -3000,7 +3000,8 @@ main {
 }
 
 .lightbox-action-group {
-  display: inline-flex;
+  display: inline-grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   align-items: stretch;
   flex-shrink: 0;
   height: 40px;
@@ -3017,6 +3018,10 @@ main {
 }
 
 .lightbox-action-group :is(.spatial-scene-toggle, .lightbox-download) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
   height: 100% !important;
   min-height: 0;
   max-width: none;
@@ -3026,7 +3031,9 @@ main {
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
   box-shadow: none;
+  font-family: inherit;
   font-size: 0.82rem !important;
+  font-weight: 600;
   line-height: 1;
   white-space: nowrap;
   transition: background 180ms ease;
