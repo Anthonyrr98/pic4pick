@@ -10,7 +10,7 @@ const errors = [];
 
 async function checkResponsiveLightbox(page) {
   const originalViewport = page.viewportSize();
-  for (const [width, height] of [[978, 956], [769, 700], [1024, 768], [1025, 768], [1280, 720], [820, 1180]]) {
+  for (const [width, height] of [[978, 956], [769, 700], [1024, 768], [1025, 768], [1280, 720], [884, 956], [820, 1180]]) {
     await page.setViewportSize({ width, height });
     const layout = await page.getByRole('dialog').evaluate((dialog) => {
       const title = dialog.querySelector('#lightbox-title').getBoundingClientRect();
@@ -27,6 +27,25 @@ async function checkResponsiveLightbox(page) {
     if (layout.overlaps) throw new Error(`Lightbox title overlaps the toolbar at ${width}x${height}`);
     if (Math.abs(layout.frameRatio - layout.imageRatio) > 0.02) {
       throw new Error(`Lightbox image ratio changed at ${width}x${height}`);
+    }
+    if (width <= 1024 && height > width) {
+      await page.locator('.lightbox-param-card').last().scrollIntoViewIfNeeded();
+      const scrolledLayout = await page.getByRole('dialog').evaluate((dialog) => {
+        const panel = dialog.querySelector('.lightbox-panel');
+        const frame = panel.getBoundingClientRect();
+        const lastCard = panel.querySelector('.lightbox-param-card:last-child').getBoundingClientRect();
+        const toolbar = panel.querySelector('.lightbox-actions').getBoundingClientRect();
+        const backdrop = getComputedStyle(panel, '::before');
+        const backdropBottom = frame.top + panel.clientTop + parseFloat(backdrop.top)
+          + parseFloat(backdrop.height) - panel.scrollTop;
+        return {
+          cardInside: lastCard.top >= frame.top && lastCard.bottom <= Math.min(frame.bottom, backdropBottom) + 1,
+          toolbarInside: toolbar.top >= frame.top && toolbar.bottom <= frame.bottom,
+        };
+      });
+      if (!scrolledLayout.cardInside) throw new Error(`Tablet metadata extends beyond its backdrop at ${width}x${height}`);
+      if (!scrolledLayout.toolbarInside) throw new Error(`Tablet toolbar scrolls out of the panel at ${width}x${height}`);
+      await page.locator('.lightbox-content-wrapper').evaluate((wrapper) => { wrapper.scrollTop = 0; });
     }
   }
   await page.setViewportSize(originalViewport);

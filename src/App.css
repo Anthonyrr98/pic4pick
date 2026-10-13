@@ -6620,9 +6620,7 @@ main {
     max-height: calc(100dvh - 32px);
     padding: 24px;
     border-radius: 32px;
-    overflow-x: hidden;
-    overflow-y: auto;
-    overscroll-behavior: contain;
+    overflow: hidden;
   }
 
   .lightbox-content-wrapper {
@@ -6630,7 +6628,11 @@ main {
     align-items: center;
     justify-content: flex-start;
     gap: 20px;
-    min-height: auto;
+    min-height: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
   }
 
   .lightbox-media,
