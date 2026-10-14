@@ -17,6 +17,7 @@ import { createPhotoUploadService } from './photoUploads.js';
 import { createLikeNotificationService } from './likeNotifications.js';
 import { createPhotoLikeHandler, createLikeEventsHandler } from './photoLikes.js';
 import { createSpatialDepthHandler, createSpatialOssClient } from './spatialDepthStorage.js';
+import { registerLikeRoutes, registerAdminUpdateRoutes } from './miniappCompatibility.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -519,12 +520,13 @@ app.post('/api/admin/notifications/likes/test', authenticateToken, requireAdmin,
     sendSupabaseAdminError(res, error, '测试邮件发送失败');
   }
 });
-app.patch('/api/photos/:id/likes', likeRateLimit, createPhotoLikeHandler({
+const photoLikeHandler = createPhotoLikeHandler({
   db: supabaseAdminFetch,
   notifications: likeNotifications,
   logger,
   sendError: sendSupabaseAdminError,
-}));
+});
+registerLikeRoutes(app, likeRateLimit, photoLikeHandler);
 
 // 上传到阿里云 OSS
 app.post('/api/upload/oss', authenticateToken, requireAdmin, upload.single('file'), async (req, res) => {
@@ -868,7 +870,7 @@ app.post('/api/admin/photos/upsert', authenticateToken, requireAdmin, async (req
   }
 });
 
-app.patch('/api/admin/photos/:id', authenticateToken, requireAdmin, async (req, res) => {
+const updateAdminPhotoHandler = async (req, res) => {
   try {
     const data = await supabaseAdminFetch('photos', new URLSearchParams({
       id: `eq.${req.params.id}`,
@@ -882,7 +884,8 @@ app.patch('/api/admin/photos/:id', authenticateToken, requireAdmin, async (req, 
   } catch (error) {
     sendSupabaseAdminError(res, error, '管理端照片更新失败');
   }
-});
+};
+registerAdminUpdateRoutes(app, authenticateToken, requireAdmin, updateAdminPhotoHandler);
 
 app.delete('/api/admin/photos/:id', authenticateToken, requireAdmin, async (req, res) => {
   try {
