@@ -7,7 +7,7 @@
 [![React](https://img.shields.io/badge/React-19-149ECA?logo=react&logoColor=white)](https://react.dev/)
 [![Supabase](https://img.shields.io/badge/Supabase-Postgres-3FCF8E?logo=supabase&logoColor=white)](https://supabase.com/)
 
-Pic4Pick is the open-source photography portfolio and content management system
+Pic4Pick is the photography portfolio and content management system
 behind **Light of Anthony**. It combines a responsive gallery, high-resolution
 lightbox, geographic exploration, EXIF presentation, and a protected admin
 workflow while keeping public data, privileged operations, and image storage
@@ -20,29 +20,32 @@ separated.
 ## Features
 
 - Responsive photography gallery for desktop, iPad, and mobile
-- Featured, chronological, distance-based, and film-based filters
+- Latest, random, nearby, faraway, and film browsing modes
+- Paper Gallery and Warm Analog themes with persistent visitor preferences ([details](./docs/global-themes.md))
 - High-resolution lightbox that preserves each photograph's aspect ratio
-- Optional spatial scenes with local depth estimation, mouse parallax, phone tilt, and drag controls ([details](./docs/spatial-scenes.md))
+- Optional spatial scenes powered by SharpDepth + UniDepth GPU precomputation, with mouse parallax, phone tilt, and drag controls ([details](./docs/spatial-scenes.md))
 - Keyboard navigation, touch gestures, and accessible modal behavior
-- Map-based geographic exploration
+- Map-based geographic exploration with city collections, location markers, and configurable map styles
 - EXIF, capture date, camera, lens, and film stock presentation
-- Protected admin login, upload, review, edit, and delete workflows
+- Protected admin login, upload, review, resubmit, edit, hide, and delete workflows
+- Custom branding, camera/lens presets, and JSON import/export
 - Original image uploads up to 100 MB
 - Automatic 2,000 px, quality-90 JPEG lightbox previews during upload
 - Separate Aliyun OSS storage for originals and previews
 - Supabase Row Level Security and server-side administration APIs
-- Atomic like updates, API rate limiting, and security response headers
-- Automatic deployment to GitHub Pages and Render
+- Atomic like updates, optional SMTP notifications, API rate limiting, and security response headers
+- Aliyun OSS + CDN publishing, GitHub Pages backup, and Render backend deployment
 
 ## Technology Stack
 
 | Layer | Technology |
 | --- | --- |
-| Frontend | React 19, Vite 7, React Router, i18next |
+| Frontend | React 19, Vite 7, JavaScript / TypeScript, React Router, i18next, GSAP |
 | Maps | MapLibre GL, AMap Web API |
 | Image metadata | exifr |
 | Database | Supabase Postgres, PostgREST, RLS |
-| Backend | Node.js, Express 5, Sharp, Multer, JWT |
+| Backend | Node.js, Express 5, Sharp, Multer, JWT, Nodemailer |
+| Spatial scenes | SharpDepth + UniDepth GPU worker, WebGL depth reprojection |
 | Image storage | Aliyun OSS |
 | Frontend hosting | Beijing Aliyun OSS + CDN; GitHub Pages backup |
 | Backend hosting | Render |
@@ -55,10 +58,14 @@ Browser
   ├─ Aliyun CDN → Beijing OSS ─ React / Vite frontend
   ├─ Supabase Data API ──────── public approved photos (read only)
   ├─ Render API ─────────────── admin auth, writes, likes, uploads
-  │    └─ Supabase service role ─ protected database operations
+  │    ├─ Supabase service role ─ protected database operations
+  │    └─ Signed depth URLs ── approved, visible photos only
   └─ Aliyun OSS
        ├─ origin/YYYY/MM/DD/ ── original files
-       └─ ore/hd/YYYY/MM/DD/ ── 2,000 px lightbox previews
+       ├─ ore/hd/YYYY/MM/DD/ ── 2,000 px lightbox previews
+       └─ spatial-depth/ ───── private precomputed depth maps
+
+Owner's GPU worker → Supabase job queue → SharpDepth + UniDepth → private OSS
 ```
 
 The public application uses a Supabase publishable/anon key to read approved,
@@ -70,14 +77,16 @@ browser.
 
 ```text
 .
-├─ .github/workflows/       # GitHub Pages deployment and Supabase keepalive
+├─ .github/workflows/       # Pages / OSS deployment and Supabase keepalive
+├─ docs/                    # Architecture, themes, spatial scenes, and deployment
 ├─ public/                  # Static assets, icons, and social preview images
-├─ scripts/                 # UI and compatibility regression tests
+├─ scripts/                 # Regression checks, OSS publisher, and GPU worker
 ├─ server/                  # Express API, image processing, and OSS uploads
 ├─ src/
 │  ├─ components/           # Shared UI components
 │  ├─ hooks/                # Upload, map, and branding hooks
 │  ├─ pages/                # Gallery and admin application
+│  ├─ themes/               # Theme tokens, switching, and animations
 │  └─ utils/                # Auth, Supabase, storage, and security utilities
 ├─ supabase/
 │  ├─ functions/            # Optional Edge Functions
@@ -88,11 +97,16 @@ browser.
 
 ## Requirements
 
-- Node.js 20 or newer
+- Node.js 22.12 or newer recommended for frontend, OSS publishing, and GPU worker
 - npm 10 or newer
 - A Supabase project
 - An Aliyun OSS bucket
 - Optional: Supabase CLI for migrations and database advisors
+- Optional: a compatible GPU and separately configured Python/model runtime for depth precomputation ([setup](./docs/spatial-scenes.md))
+
+The web frontend supports Node.js 20.19+ as specified by Vite. Browsing the
+gallery and viewing existing spatial results do not require a visitor-side GPU
+worker or model download.
 
 ## Local Development
 
@@ -134,8 +148,7 @@ VITE_USE_OSS_MEDIA_PROXY=false
 ### 4. Configure the backend
 
 ```bash
-cd server
-npm ci
+npm --prefix server ci
 ```
 
 Copy `server/.env.example` to `server/.env`, then supply real credentials:
@@ -162,6 +175,10 @@ Production startup rejects default admin credentials, JWT secrets shorter than
 32 characters, admin passwords shorter than 12 characters, and wildcard CORS
 origins.
 
+Optional like-notification SMTP settings are documented in
+[`server/README.md`](./server/README.md). Copy the example file with your shell's
+copy command; on PowerShell, use `Copy-Item server/.env.example server/.env`.
+
 ### 5. Start the development services
 
 Run the frontend and backend in separate terminals:
@@ -180,13 +197,18 @@ Open [http://localhost:5173](http://localhost:5173). The admin application is
 available at
 [http://localhost:5173/#/admin](http://localhost:5173/#/admin).
 
+Run both commands from the repository root. For a production build, configure
+`VITE_API_BASE_URL` with your deployed backend's absolute HTTPS URL in
+`.env.production`; the build rejects missing, local, or non-HTTPS API URLs.
+This production configuration takes precedence over the local development URL.
+
 ## Database Setup
 
 The complete base schema is stored in
 [`docs/schema_domestic_postgres.sql`](./docs/schema_domestic_postgres.sql).
 Subsequent changes live in [`supabase/migrations`](./supabase/migrations).
 For a new deployment, apply the base schema first and then execute the migration
-files in filename order.
+files in filename order. Apply only pending changes to an existing database.
 
 ```bash
 npx supabase login
@@ -221,10 +243,52 @@ The current permission model is:
 4. Original bytes are uploaded to `origin/YYYY/MM/DD/`.
 5. Sharp applies EXIF orientation and creates a 2,000 px JPEG preview.
 6. The preview is uploaded to `ore/hd/YYYY/MM/DD/`.
-7. The backend writes the photograph record through the Supabase service role.
+7. The client submits metadata through the protected admin API; the backend saves
+   the photograph through the Supabase service role.
 
-The original file is never re-encoded to produce the preview. The **Download
-original** action always resolves to the preserved source file.
+The backend preserves the bytes it receives separately from its generated
+preview. The upload form can optimize large files before sending them; choose
+the original-file option when you need the uncompressed source. **Download
+original** resolves to the stored upload, rather than the lightbox preview.
+
+Uploads use a stable submission ID and SHA-256 fingerprint to support retries.
+Deleting a photograph cleans up its image assets and removes associated depth
+records; the GPU worker later removes unreferenced depth files while online.
+
+## Spatial Scenes
+
+After a photo is saved, a database trigger queues depth processing. A GPU worker
+on the owner's computer claims jobs, runs SharpDepth + UniDepth, and stores
+private depth maps in OSS. The backend issues five-minute signed links after
+checking that the photograph is approved and visible.
+
+The browser loads the photograph and precomputed depth, then renders the scene
+with WebGL. It preloads depth for the current lightbox photo and caches up to
+three results. When the worker is offline, new jobs stay queued and existing
+results remain available. Ordinary photo viewing remains available when depth
+is pending or WebGL is unavailable.
+
+This is a single-photo 2.5D effect; hidden backgrounds cannot be reconstructed.
+The worker needs a separately prepared Python environment and model weights;
+`npm ci` alone does not install them. See [Spatial scenes](./docs/spatial-scenes.md)
+for migrations, runtime paths, model licenses, and worker operation.
+
+## WeChat Mini Program — In Development
+
+A separate Taro 4.3 + React 18 + TypeScript client is being developed in the local
+working tree under `miniapp/`, with reusable business logic under
+`packages/shared/`. These directories have not yet been committed to the public
+repository, so cloning this revision provides the web application and backend.
+
+The implementation covers gallery browsing, themes, details, native-map
+exploration, admin workflows, and a spatial Canvas. Simulator checks have
+covered the public gallery, details, map transitions, and spatial rendering.
+Full device testing, authenticated admin writes/uploads, production domain
+configuration, and complete visual/function acceptance remain in progress.
+
+The backend already includes WeChat-compatible `POST /api/photos/:id/likes` and
+`POST /api/admin/photos/:id/update` routes alongside the web client's PATCH
+routes. The mini program is not yet a published release.
 
 ## Available Commands
 
@@ -237,6 +301,15 @@ original** action always resolves to the preserved source file.
 | `npm run preview` | Preview the production build locally |
 | `npm run lint` | Run ESLint |
 | `npm run test:ui` | Run Playwright UI regression tests |
+| `npm run test:themes` | Check theme switching, persistence, and layout |
+| `npm run test:maps` | Check city flights and map interactions |
+| `npm run test:spatial` | Check spatial input/cache logic and WebGL UI |
+| `npm run test:admin` | Check submissions, retries, resubmission, and deletion |
+| `npm run test:admin:ui` | Check admin UI workflows |
+| `npm run test:likes` | Check likes and notification behavior |
+| `npm run spatial:worker` | Start the configured GPU depth worker |
+| `npm run deploy:oss -- --dry-run` | Validate frontend OSS publishing inputs |
+| `npm run deploy:oss` | Publish the built frontend to its dedicated OSS bucket |
 | `npm run server` | Start the backend in development mode |
 
 ### Backend
@@ -246,15 +319,31 @@ original** action always resolves to the preserved source file.
 | `npm start` | Start the production server |
 | `npm run dev` | Start the server in watch mode |
 | `npm run previews:rebuild` | Rebuild HD previews for historical OSS files |
+| `npm run mail:test` | Check the configured SMTP connection and authentication |
+
+Run backend commands inside `server/`, or use `npm --prefix server run <script>`
+from the root.
 
 ## Testing and Quality Checks
 
-Run the following checks before submitting changes:
+Install Playwright's Chromium browser once with `npx playwright install chromium`.
+Start `npm run dev` in a separate terminal before browser regression checks;
+they use `http://127.0.0.1:5173` by default (`UI_BASE_URL` can override it).
+The basic UI suite needs visible gallery photos. Spatial UI fixtures check
+precomputed results; they do not validate GPU inference.
+
+Run checks appropriate to your changes:
 
 ```bash
 npm run lint
 npm run build
 npm run test:ui
+npm run test:themes
+npm run test:maps
+npm run test:spatial
+npm run test:admin
+npm run test:admin:ui
+npm run test:likes
 npm audit --omit=dev
 npm --prefix server audit --omit=dev
 ```
@@ -267,7 +356,12 @@ the admin login page.
 
 ### Frontend: Beijing OSS + Aliyun CDN
 
-The dedicated frontend bucket, CDN settings, local publishing commands, and opt-in GitHub Actions workflow are documented in [the Aliyun deployment guide](./docs/aliyun-frontend-deployment.md). Fonts are bundled with the frontend. Existing photo storage, Supabase, and Render services retain their current configuration.
+The primary frontend uses a dedicated Beijing OSS bucket and Aliyun CDN. Fonts
+are bundled with the application. Publishing commands and CDN configuration
+are documented in [the Aliyun deployment guide](./docs/aliyun-frontend-deployment.md).
+The [OSS workflow](./.github/workflows/deploy-oss.yml) runs only when the repository
+variable `OSS_FRONTEND_ENABLED=true` is set; it supports pushes to `main` and
+manual dispatch. Photo storage uses a separate bucket.
 
 ### Frontend: GitHub Pages
 
@@ -281,6 +375,9 @@ GitHub Actions secrets:
 - `VITE_API_BASE_URL`
 - The required `VITE_AMAP_*` map credentials
 - Optional: `VITE_USE_OSS_MEDIA_PROXY`
+
+Map appearance is controlled by repository variables `VITE_MAP_STYLE_PRESET`
+and `VITE_AMAP_MAP_STYLE`; the current workflows enable the AMap JS SDK.
 
 The custom domain is configured by [`public/CNAME`](./public/CNAME).
 
@@ -298,6 +395,18 @@ non-sensitive configuration. Configure these secrets in the Render Dashboard:
 - `ALIYUN_OSS_ACCESS_KEY_SECRET`
 
 Render checks `/api/health` and automatically deploys updates from `main`.
+The optional like-email feature also requires backend SMTP credentials; see
+[`server/.env.example`](./server/.env.example).
+
+## Documentation
+
+| Guide | Contents |
+| --- | --- |
+| [Global themes](./docs/global-themes.md) | Paper Gallery, Warm Analog, persistence, and animation |
+| [Spatial scenes](./docs/spatial-scenes.md) | GPU jobs, private depth storage, signed URLs, and model runtime |
+| [Aliyun frontend deployment](./docs/aliyun-frontend-deployment.md) | OSS + CDN setup, publishing, and rollback |
+| [Backend guide](./server/README.md) | API setup and like-email notifications |
+| [Supabase CLI reference](https://supabase.com/docs/reference/cli/introduction) | Official CLI usage |
 
 ## Supabase Free-Project Keepalive
 
