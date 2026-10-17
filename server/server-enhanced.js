@@ -14,6 +14,7 @@ import { Readable } from 'node:stream';
 import { parsePublicPhotoSource } from './publicPhotoSource.js';
 import { createPhotoDeletionService } from './photoDeletion.js';
 import { createPhotoUploadService } from './photoUploads.js';
+import { uploadPhotoObject } from './ossPhotoUpload.js';
 import { createLikeNotificationService } from './likeNotifications.js';
 import { createPhotoLikeHandler, createLikeEventsHandler } from './photoLikes.js';
 import { createSpatialDepthHandler, createSpatialOssClient } from './spatialDepthStorage.js';
@@ -68,16 +69,15 @@ const logger = winston.createLogger({
     winston.format.json()
   ),
   transports: [
-    new winston.transports.File({ filename: 'logs/error.log', level: 'error' }),
-    new winston.transports.File({ filename: 'logs/combined.log' }),
+    new winston.transports.Console({
+      format: process.env.NODE_ENV === 'production' ? winston.format.json() : winston.format.simple(),
+    }),
+    ...(process.env.ENABLE_FILE_LOGGING === 'false' ? [] : [
+      new winston.transports.File({ filename: 'logs/error.log', level: 'error' }),
+      new winston.transports.File({ filename: 'logs/combined.log' }),
+    ]),
   ],
 });
-
-if (process.env.NODE_ENV !== 'production') {
-  logger.add(new winston.transports.Console({
-    format: winston.format.simple()
-  }));
-}
 
 // 中间件
 app.disable('x-powered-by');
@@ -348,6 +348,8 @@ if (ossConfigReady) {
     accessKeyId: ossConfig.accessKeyId,
     accessKeySecret: ossConfig.accessKeySecret,
     bucket: ossConfig.bucket,
+    secure: true,
+    retryMax: 2,
     timeout: ALIYUN_OSS_TIMEOUT_MS,
   });
   logger.info(`✅ 阿里云 OSS 客户端已初始化 (Region: ${region}, Bucket: ${ossConfig.bucket}, Timeout: ${ALIYUN_OSS_TIMEOUT_MS}ms)`);
@@ -585,7 +587,8 @@ app.post('/api/upload/oss', authenticateToken, requireAdmin, upload.single('file
     }
 
     // 上传原始字节；超过 20MB 也不依赖 OSS 图片处理能力。
-    const putOrigin = (key) => ossClient.put(key, originalBuffer, {
+    const putOrigin = (key) => uploadPhotoObject({
+      client: ossClient, key, buffer: originalBuffer, logger,
       timeout: ALIYUN_OSS_TIMEOUT_MS,
       headers: {
         'Content-Type': file.mimetype || 'application/octet-stream',
@@ -642,7 +645,7 @@ app.post('/api/upload/oss', authenticateToken, requireAdmin, upload.single('file
       message: '上传到 OSS 成功'
     });
   } catch (error) {
-    logger.error('OSS 上传错误:', error);
+    logger.error('OSS 上传错误', { message: error.message, code: error.code, status: error.status });
     if (!trackedUpload) {
       const cleanupResults = await Promise.allSettled(writtenKeys.map((key) => ossClient.delete(key)));
       if (cleanupResults.some((result) => result.status === 'rejected')) logger.warn('旧版上传失败后的 OSS 清理未完成');
