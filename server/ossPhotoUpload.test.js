@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { uploadPhotoObject } from './ossPhotoUpload.js';
+import { uploadPhotoObject, createUploadProgressStore } from './ossPhotoUpload.js';
 
 const logger = { info() {}, warn() {} };
 const headers = { 'Content-Type': 'image/jpeg', 'Content-Disposition': 'attachment; filename="original.jpg"', 'x-oss-object-acl': 'public-read' };
@@ -18,14 +18,14 @@ test('small photos preserve the existing PUT behavior, headers and bytes', async
   assert.equal(await uploadPhotoObject({ ...options, client, buffer }), result);
 });
 
-test('25 MB originals use 1 MB parts with bounded concurrency and request timeouts', async () => {
+test('25 MB originals use bounded parts, concurrency and request timeouts', async () => {
   const buffer = Buffer.alloc(25 * 1024 * 1024);
   const progress = [];
   const client = { multipartUpload: async (key, data, settings) => {
     assert.equal(key, options.key);
     assert.equal(data, buffer, 'Original bytes must never be recompressed');
-    assert.equal(settings.partSize, 1024 * 1024);
-    assert.equal(settings.parallel, 3);
+    assert.equal(settings.partSize, 512 * 1024);
+    assert.equal(settings.parallel, 8);
     assert.equal(settings.timeout, 60_000);
     assert.equal(settings.mime, 'image/jpeg');
     assert.equal(settings.headers, headers);
@@ -38,6 +38,21 @@ test('25 MB originals use 1 MB parts with bounded concurrency and request timeou
   const result = await uploadPhotoObject({ ...options, client, buffer, logger: { info: (_message, entry) => progress.push(entry.percent) } });
   assert.equal(result.name, options.key);
   assert.deepEqual(progress, [0, 10]);
+});
+
+test('progress store isolates uploads and expires finished or abandoned progress', () => {
+  let time = 0;
+  const store = createUploadProgressStore({ now: () => time });
+  store.set('one', 'original', 0.42);
+  store.set('two', 'processing');
+  assert.deepEqual(store.get('one'), { stage: 'original', percent: 42 });
+  assert.deepEqual(store.get('two'), { stage: 'processing', percent: 0 });
+  assert.equal(store.get('unknown'), null);
+  store.set('one', 'complete', 1);
+  assert.deepEqual(store.get('one'), { stage: 'complete', percent: 100 });
+  time += 16 * 60 * 1000;
+  assert.equal(store.get('one'), null);
+  assert.equal(store.get('two'), null);
 });
 
 test('failed multipart uploads abort only their own upload and preserve the original failure', async () => {

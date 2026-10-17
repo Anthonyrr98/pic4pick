@@ -14,7 +14,7 @@ import { Readable } from 'node:stream';
 import { parsePublicPhotoSource } from './publicPhotoSource.js';
 import { createPhotoDeletionService } from './photoDeletion.js';
 import { createPhotoUploadService } from './photoUploads.js';
-import { uploadPhotoObject } from './ossPhotoUpload.js';
+import { uploadPhotoObject, createUploadProgressStore } from './ossPhotoUpload.js';
 import { createLikeNotificationService } from './likeNotifications.js';
 import { createPhotoLikeHandler, createLikeEventsHandler } from './photoLikes.js';
 import { createSpatialDepthHandler, createSpatialOssClient } from './spatialDepthStorage.js';
@@ -530,12 +530,20 @@ const photoLikeHandler = createPhotoLikeHandler({
 });
 registerLikeRoutes(app, likeRateLimit, photoLikeHandler);
 
+const uploadProgress = createUploadProgressStore();
+app.get('/api/upload/oss/progress/:id', authenticateToken, requireAdmin, (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  if (!/^[0-9a-f-]{36}$/i.test(req.params.id)) return res.status(400).json({ error: '上传 ID 无效' });
+  res.json({ success: true, data: uploadProgress.get(req.params.id) });
+});
+
 // 上传到阿里云 OSS
 app.post('/api/upload/oss', authenticateToken, requireAdmin, upload.single('file'), async (req, res) => {
   // 设置较长的超时时间，避免大文件或慢速 OSS 响应被过早中断
   req.setTimeout(UPLOAD_REQUEST_TIMEOUT_MS);
   const writtenKeys = [];
   let trackedUpload = false;
+  const uploadId = req.body?.uploadId;
   
   try {
     if (!ossClient) {
@@ -551,10 +559,10 @@ app.post('/api/upload/oss', authenticateToken, requireAdmin, upload.single('file
     logger.info(`开始处理 OSS 上传: ${req.file.originalname}, 大小: ${req.file.size} bytes`);
 
     const file = req.file;
-    const uploadId = req.body.uploadId;
     if (uploadId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(uploadId)) {
       throw Object.assign(new Error('上传 ID 无效'), { status: 400 });
     }
+    uploadProgress.set(uploadId, 'processing');
     const requestedFilename = String(req.body.filename || file.filename);
     const filename = path.basename(requestedFilename).replace(/[^a-zA-Z0-9._-]/g, '_');
     if (!filename) {
@@ -589,6 +597,7 @@ app.post('/api/upload/oss', authenticateToken, requireAdmin, upload.single('file
     // 上传原始字节；超过 20MB 也不依赖 OSS 图片处理能力。
     const putOrigin = (key) => uploadPhotoObject({
       client: ossClient, key, buffer: originalBuffer, logger,
+      onProgress: (fraction) => uploadProgress.set(uploadId, 'original', fraction),
       timeout: ALIYUN_OSS_TIMEOUT_MS,
       headers: {
         'Content-Type': file.mimetype || 'application/octet-stream',
@@ -598,7 +607,9 @@ app.post('/api/upload/oss', authenticateToken, requireAdmin, upload.single('file
     });
 
     // 如果缩略图生成成功，则上传到 ore 目录
-    const putThumb = (key) => ossClient.put(key, thumbBuffer, {
+    const putThumb = (key) => {
+      uploadProgress.set(uploadId, 'preview');
+      return ossClient.put(key, thumbBuffer, {
         timeout: ALIYUN_OSS_TIMEOUT_MS,
         headers: {
           'Content-Type': 'image/jpeg',
@@ -607,6 +618,7 @@ app.post('/api/upload/oss', authenticateToken, requireAdmin, upload.single('file
           'x-oss-object-acl': 'public-read',
         },
       });
+    };
     const objectUrl = (key) => ossClient.generateObjectUrl(key).replace(/^http:\/\//, 'https://');
     const result = { url: objectUrl(originKey), thumbnailUrl: thumbBuffer ? objectUrl(thumbKey) : null };
     let uploaded;
@@ -636,6 +648,7 @@ app.post('/api/upload/oss', authenticateToken, requireAdmin, upload.single('file
 
     logger.info(`OSS 上传成功: ${filename}, 原图: ${uploaded.url}, 缩略图: ${uploaded.thumbnailUrl || '无'}`);
 
+    uploadProgress.set(uploadId, 'complete', 1);
     res.json({
       success: true,
       ...uploaded,
@@ -645,6 +658,7 @@ app.post('/api/upload/oss', authenticateToken, requireAdmin, upload.single('file
       message: '上传到 OSS 成功'
     });
   } catch (error) {
+    uploadProgress.set(uploadId, 'failed');
     logger.error('OSS 上传错误', { message: error.message, code: error.code, status: error.status });
     if (!trackedUpload) {
       const cleanupResults = await Promise.allSettled(writtenKeys.map((key) => ossClient.delete(key)));
