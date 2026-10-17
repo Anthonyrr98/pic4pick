@@ -5,6 +5,7 @@ import { handleError, ErrorType, safeSync } from './errorHandler';
 import { ensureHttps } from './urlUtils';
 import { getAuthToken } from './auth';
 import { getEnvValue } from './envConfig';
+import { watchOssUploadProgress } from './ossUploadProgress';
 
 // 上传方式类型
 export const UPLOAD_TYPES = {
@@ -408,28 +409,27 @@ const uploadToSupabase = async (file, filename, onProgress) => {
 
 /** 解析 localStorage / 环境变量中的 OSS 上传后端地址（不含 Supabase Edge 回退） */
 export const resolveOssBackendApiUrl = (path = '/api/upload/oss') => {
-  const applyBase = (baseRaw, { stripApiBase = false } = {}) => {
+  const applyBase = (baseRaw) => {
     const base = typeof baseRaw === 'string' ? baseRaw.trim() : '';
     if (!base) return null;
     let normalizedBase = base.replace(/\/+$/, '');
     if (normalizedBase.includes('/functions/v1/upload-oss')) return normalizedBase;
     if (normalizedBase.endsWith(path)) return normalizedBase;
-    if (stripApiBase && normalizedBase.endsWith('/api') && path.startsWith('/api/')) {
+    if (normalizedBase.endsWith('/api') && path.startsWith('/api/')) {
       normalizedBase = normalizedBase.slice(0, -4);
     }
     return `${normalizedBase}${path}`;
   };
 
-  const fromStorage = applyBase(StorageString.get(STORAGE_KEYS.ALIYUN_OSS_BACKEND_URL, ''));
-  if (fromStorage) return fromStorage;
-
   const fromVite = applyBase(getEnvValue('VITE_ALIYUN_OSS_BACKEND_URL', ''));
   if (fromVite) return fromVite;
 
-  const fromApiBase = applyBase(getEnvValue('VITE_API_BASE_URL', ''), { stripApiBase: true });
+  const fromApiBase = applyBase(getEnvValue('VITE_API_BASE_URL', ''));
   if (fromApiBase) return fromApiBase;
 
-  return null;
+  // Older deployments stored a separate URL that the current settings panel
+  // cannot edit. Use it only when no current backend configuration exists.
+  return applyBase(StorageString.get(STORAGE_KEYS.ALIYUN_OSS_BACKEND_URL, ''));
 };
 
 // 获取后端 API URL（根据环境自动选择）
@@ -497,11 +497,20 @@ const uploadToAliyunOSS = async (file, filename, onProgress, options) => {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     const progressReporter = createXhrProgressReporter(file, onProgress);
+    let stopProgress = () => {};
 
     xhr.upload.addEventListener('progress', progressReporter.handleTransferProgress);
-    xhr.upload.addEventListener('load', progressReporter.markWaitingForServer);
+    xhr.upload.addEventListener('load', () => {
+      progressReporter.markWaitingForServer();
+      if (options.uploadId) {
+        stopProgress();
+        stopProgress = watchOssUploadProgress({ apiUrl, uploadId: options.uploadId, token, file, onProgress });
+      }
+    });
+    xhr.addEventListener('loadend', () => stopProgress());
 
     xhr.addEventListener('load', () => {
+      stopProgress();
       progressReporter.markResponseReceived();
       if (xhr.status >= 200 && xhr.status < 300) {
         try {
@@ -533,7 +542,10 @@ const uploadToAliyunOSS = async (file, filename, onProgress, options) => {
           const errorText = xhr.responseText?.trim();
           if (errorText) message = errorText;
         }
-        reject(new Error(message));
+        if (xhr.status === 404) {
+          message = `上传服务返回 404，请检查上传后端地址：${apiUrl}`;
+        }
+        reject(Object.assign(new Error(message), { status: xhr.status, requestUrl: apiUrl }));
       }
     });
 

@@ -13,7 +13,7 @@
     "test:spatial": "node --test scripts/spatial-input.test.mjs scripts/precomputed-spatial-depth.test.mjs && node scripts/spatial-smoke.mjs",
     "test:themes": "node scripts/theme-smoke.mjs",
     "test:maps": "node --test scripts/city-flight.test.mjs && node scripts/map-smoke.mjs",
-    "test:admin": "node --test server/photoDeletion.test.js server/photoUploads.test.js scripts/photoSubmission.test.js scripts/adminResubmit.test.js",
+    "test:admin": "node --test server/photoDeletion.test.js server/photoUploads.test.js scripts/photoSubmission.test.js scripts/adminResubmit.test.js scripts/oss-upload.test.mjs scripts/oss-upload-progress.test.mjs",
     "test:likes": "node --test server/likeNotifications.test.js server/photoLikes.test.js",
     "test:admin:ui": "node scripts/admin-ui-smoke.mjs",
     "preview": "vite preview",
