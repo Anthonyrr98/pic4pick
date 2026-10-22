@@ -87,8 +87,6 @@ export class AppError extends Error {
 const errorConfig = {
   // 是否在控制台输出错误
   logToConsole: true,
-  // 是否显示用户友好的错误消息
-  showUserMessage: true,
   // 错误消息前缀
   prefix: '[错误]',
 };
@@ -214,27 +212,7 @@ export const safeSync = (fn, options = {}) => {
   }
 };
 
-/**
- * 创建错误处理包装器
- * @param {Function} fn - 要包装的函数
- * @param {Object} options - 处理选项
- * @returns {Function} 包装后的函数
- */
-export const withErrorHandling = (fn, options = {}) => {
-  return async (...args) => {
-    try {
-      return await fn(...args);
-    } catch (error) {
-      const appError = handleError(error, { ...options, context: fn.name || 'unknown' });
-      
-      if (options.throwError !== false) {
-        throw appError;
-      }
-      
-      return { error: appError };
-    }
-  };
-};
+
 
 /**
  * 格式化错误消息（用于显示给用户）
@@ -300,35 +278,3 @@ export const formatErrorMessage = (error, defaultMessage = '操作失败，请�
   
   return defaultMessage;
 };
-
-/**
- * 检查是否为网络错误
- */
-export const isNetworkError = (error) => {
-  if (error instanceof AppError) {
-    return error.type === ErrorType.NETWORK;
-  }
-  if (error instanceof Error) {
-    return error.name === 'NetworkError' || 
-           error.message.includes('fetch') || 
-           error.message.includes('network') ||
-           error.message.includes('Failed to fetch');
-  }
-  return false;
-};
-
-/**
- * 检查是否为权限错误
- */
-export const isPermissionError = (error) => {
-  if (error instanceof AppError) {
-    return error.type === ErrorType.PERMISSION;
-  }
-  if (error instanceof Error) {
-    return error.message.includes('permission') || 
-           error.message.includes('unauthorized') ||
-           error.message.includes('forbidden');
-  }
-  return false;
-};
-

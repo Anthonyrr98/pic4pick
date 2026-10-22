@@ -76,3 +76,7 @@
 恢复点：`968adfb`。修改 `src/utils/upload.js`、`src/pages/Admin.jsx`、`src/utils/adminUtils.js`、`scripts/oss-upload.test.mjs`。复核所有调用链，实际 Web 入口固定 OSS，小程序有自己的 OSS 适配器，没有第三方存储选择器。删除四种不可达的客户端上传实现、分派、名称映射及恒定分支；简化无 setter 的 uploadType 状态。
 
 进一步确认客户端压缩器只由恒为 false 的非 OSS 分支引用，因此一并删除；OSS 仍传原始文件，服务器高清预览、小程序原有压缩策略、本地历史作品读取均保留。所有现有 HTTP 路由、请求字段和当前 OSS 返回值保持不变；显式传入已退役客户端模式会明确失败，避免静默退回 Base64。新增大于 6 MiB 文件原字节保留测试。完整检查通过（115 项 Node 测试、23 项小程序测试），管理页浏览器回归通过。
+
+## 批次 15：示例与运行代码分离（P3-07）
+
+恢复点：`4e77152`。删除 `src/utils/errorHandler.example.js`，在 `docs/development/error-handling.md` 保留现行用法，更新 `docs/README.md` 入口；修改 `src/utils/errorHandler.js` 去掉唯一由旧示例消费的 withErrorHandling、isNetworkError、isPermissionError 及无人读取的 showUserMessage 配置字段。实际错误处理、回滚/重试、错误边界均保留。完整检查通过。
