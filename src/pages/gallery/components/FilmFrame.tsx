@@ -36,7 +36,7 @@ export function FilmFrameEdges({ orientation = 'landscape', repeatHorizontal = f
       return (
         <div key={edge} className={`film-negative-edge film-negative-edge--${edge} film-negative-edge--repeated`}
           aria-hidden="true">
-          {Array.from({ length: 4 }, (_, index) => (
+          {Array.from({ length: 12 }, (_, index) => (
             <svg key={index} className="film-negative-edge-tile" viewBox={tileViewBox}
               style={{ width: `calc(var(--film-edge-${edge}) * ${tileWidth / height})` }}
               aria-hidden="true" focusable="false">

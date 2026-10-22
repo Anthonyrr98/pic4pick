@@ -79,7 +79,9 @@ export function createSpatialRenderer(canvas, image, depth) {
     };
     const resize = () => {
       const parent = canvas.parentElement;
-      const width = Math.min(parent.clientWidth, parent.clientHeight * aspect);
+      const preview = parent.querySelector('img');
+      const cover = preview && getComputedStyle(preview).objectFit === 'cover';
+      const width = (cover ? Math.max : Math.min)(parent.clientWidth, parent.clientHeight * aspect);
       const height = width / aspect;
       canvas.style.width = `${width}px`;
       canvas.style.height = `${height}px`;

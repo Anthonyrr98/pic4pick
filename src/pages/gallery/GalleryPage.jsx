@@ -566,7 +566,7 @@ export function GalleryPage() {
       if (event.key !== 'Tab' || !dialog) return;
       const focusable = Array.from(dialog.querySelectorAll(
         'button:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])'
-      ));
+      )).filter((element) => element.getClientRects().length > 0 && getComputedStyle(element).visibility !== 'hidden');
       if (!focusable.length) return;
       const first = focusable[0];
       const last = focusable[focusable.length - 1];
@@ -822,10 +822,27 @@ export function GalleryPage() {
             </div>
           )}
           <div className="lightbox-actions">
+            {isFilmSection && lightboxPhoto && (
+              <button
+                type="button"
+                className="lightbox-info-toggle"
+                aria-label="照片信息"
+                title="照片信息"
+                aria-expanded={showMobileMeta}
+                aria-controls="lightbox-photo-details"
+                onClick={() => setShowMobileMeta((visible) => !visible)}
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                  <circle cx="12" cy="12" r="9" />
+                  <path d="M12 11v6m0-10v1" />
+                </svg>
+                <span>照片信息</span>
+              </button>
+            )}
             {lightboxPhoto && (
               <div className="lightbox-action-group" role="group" aria-label="照片操作">
                 <SpatialSceneControls scene={spatialScene} disabled={lightboxPreviewFailed || !lightboxAspectRatio} />
-                <button className="lightbox-download" aria-label="下载原图" onClick={handleDownloadOriginal}>
+                <button className="lightbox-download" aria-label="下载原图" title="下载原图" onClick={handleDownloadOriginal}>
                   <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
                     <path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5" />
                   </svg>
@@ -875,7 +892,7 @@ export function GalleryPage() {
                   key={lightboxPhoto.id}
                   src={lightboxVisualSrc}
                   srcSet={lightboxVisualSrcSet || undefined}
-                  sizes={lightboxVisualSrcSet ? LIGHTBOX_IMAGE_SIZES : undefined}
+                  sizes={lightboxVisualSrcSet ? (isFilmSection ? '100vw' : LIGHTBOX_IMAGE_SIZES) : undefined}
                   alt={lightboxPhoto.title}
                   loading="eager"
                   fetchPriority="high"
@@ -912,7 +929,8 @@ export function GalleryPage() {
               )}
             </div>
             {lightboxPhoto && (
-              <div className={`lightbox-meta ${showMobileMeta ? 'mobile-visible' : ''}`}>
+              <div id="lightbox-photo-details" className={`lightbox-meta ${showMobileMeta ? 'mobile-visible' : ''}`}
+                hidden={isFilmSection && !showMobileMeta}>
                 <div className="lightbox-title-section">
                   <h3 id="lightbox-title">{lightboxPhoto.title}</h3>
                   <p className="subtitle">{lightboxPhoto.country} · {lightboxPhoto.location}</p>
