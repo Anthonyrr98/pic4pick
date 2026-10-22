@@ -78,6 +78,3 @@ export function buildGaodeRasterMaplibreStyle(
     ],
   };
 }
-
-/** @deprecated 使用 getActiveMapStylePreset().amapStyle */
-export const AMAP_MAP_STYLE_WHITESMOKE = 'amap://styles/whitesmoke';

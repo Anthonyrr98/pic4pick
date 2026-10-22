@@ -94,13 +94,6 @@ const errorConfig = {
 };
 
 /**
- * 设置错误处理配置
- */
-export const configureErrorHandler = (config) => {
-  Object.assign(errorConfig, config);
-};
-
-/**
  * 创建错误对象
  */
 export const createError = (message, type = ErrorType.UNKNOWN, severity = ErrorSeverity.MEDIUM, originalError = null) => {

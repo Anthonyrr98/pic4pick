@@ -133,11 +133,3 @@ export const verifyToken = async () => {
     },
   }) || { success: false, authenticated: false };
 };
-
-export const logout = () => {
-  clearAuthToken();
-};
-
-export const isAuthenticated = () => {
-  return !!getAuthToken();
-};

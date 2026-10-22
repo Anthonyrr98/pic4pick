@@ -271,22 +271,3 @@ export const getPreviewMediaFallbackUrls = (media, fallbackOptions = []) => {
 
   return [...new Set(urls)];
 };
-
-/**
- * Ensure URL-like fields use HTTPS.
- */
-export const ensureHttpsForFields = (urls, urlFields = ['url', 'image', 'imageUrl', 'image_url', 'thumbnail', 'thumbnailUrl', 'thumbnail_url', 'preview']) => {
-  if (!urls || typeof urls !== 'object') {
-    return urls;
-  }
-
-  const result = { ...urls };
-  
-  for (const field of urlFields) {
-    if (result[field]) {
-      result[field] = ensureHttps(result[field]);
-    }
-  }
-
-  return result;
-};

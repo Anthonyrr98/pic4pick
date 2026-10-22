@@ -164,17 +164,3 @@ export const cityMeta: Record<string, { lat: number; lng: number }> = {
 export const MUNICIPALITY_PROVINCES = new Set(['beijing', 'tianjin', 'shanghai', 'chongqing', 'hongkong', 'macao']);
 
 export const tabs = PHOTO_CATEGORIES;
-
-export const explorePins = [
-  { name: '北京', coords: [39.9042, 116.4074] },
-  { name: '上海', coords: [31.2304, 121.4737] },
-  { name: '东京', coords: [35.6762, 139.6503] },
-  { name: '京都', coords: [35.0116, 135.7681] },
-  { name: '曼谷', coords: [13.7563, 100.5018] },
-  { name: '迪拜', coords: [25.2048, 55.2708] },
-  { name: '伦敦', coords: [51.5072, -0.1276] },
-  { name: '雷克雅未克', coords: [64.1466, -21.9426] },
-  { name: '纽约', coords: [40.7128, -74.006] },
-  { name: '里约热内卢', coords: [-22.9068, -43.1729] },
-  { name: '开普敦', coords: [-33.9249, 18.4241] },
-];

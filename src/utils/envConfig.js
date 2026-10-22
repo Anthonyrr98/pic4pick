@@ -46,8 +46,6 @@ export const getEnvValue = (key, fallback = '') => {
   return import.meta.env[key] ?? fallback;
 };
 
-export const getEnvOverrides = () => ({ ...readOverrides() });
-
 const MAP_CONFIG_KEYS = [
   'VITE_GAODE_RASTER_STYLE',
   'VITE_MAP_USE_AMAP_SDK',

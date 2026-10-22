@@ -53,12 +53,6 @@ export const fetchAdminPhotos = async () => {
   return payload.data || [];
 };
 
-export const fetchAdminPhoto = async (id, select) => {
-  const query = select ? `?select=${encodeURIComponent(select)}` : '';
-  const payload = await requestAdminApi(`/api/admin/photos/${encodeURIComponent(id)}${query}`);
-  return payload.data || null;
-};
-
 export const createAdminPhoto = async (photo, uploadId) => {
   const payload = await requestAdminApi('/api/admin/photos', {
     method: 'POST',

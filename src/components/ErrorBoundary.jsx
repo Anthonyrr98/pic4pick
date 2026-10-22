@@ -143,14 +143,3 @@ export class ErrorBoundary extends React.Component {
   }
 }
 
-/**
- * 高阶组件：为组件添加错误边界
- */
-export const withErrorBoundary = (Component, fallback = null) => {
-  return (props) => (
-    <ErrorBoundary fallback={fallback}>
-      <Component {...props} />
-    </ErrorBoundary>
-  );
-};
-

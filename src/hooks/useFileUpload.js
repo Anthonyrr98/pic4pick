@@ -2,9 +2,7 @@
  * 文件上传管理 Hook
  */
 
-import { useState, useCallback } from 'react';
-import { uploadImage } from '../utils/upload';
-import { handleError, ErrorType } from '../utils/errorHandler';
+import { useState } from 'react';
 
 export const useFileUpload = () => {
   const [isUploading, setIsUploading] = useState(false);
@@ -13,71 +11,6 @@ export const useFileUpload = () => {
   const [uploadBytes, setUploadBytes] = useState({ uploaded: 0, total: 0 });
   const [uploadStatus, setUploadStatus] = useState('');
 
-  /**
-   * 上传文件
-   */
-  const uploadFile = useCallback(async (file, filename, onProgress) => {
-    setIsUploading(true);
-    setUploadingFileName(filename);
-    setUploadProgress(0);
-    setUploadBytes({ uploaded: 0, total: file.size });
-    setUploadStatus('准备上传...');
-
-    try {
-      const result = await uploadImage(
-        file,
-        filename,
-        (progress, uploaded, total, status) => {
-          setUploadProgress(progress);
-          if (status?.label) {
-            setUploadStatus(status.label);
-          }
-          if (uploaded !== undefined && total !== undefined) {
-            setUploadBytes({ uploaded, total });
-          }
-          if (onProgress) {
-            onProgress(progress, uploaded, total, status);
-          }
-        }
-      );
-
-      setUploadProgress(100);
-      setUploadStatus('上传完成');
-      // 延迟隐藏进度条，让用户看到100%完成
-      setTimeout(() => {
-        setUploadProgress(null);
-        setUploadingFileName(null);
-        setUploadBytes({ uploaded: 0, total: 0 });
-        setUploadStatus('');
-      }, 500);
-
-      return result;
-    } catch (error) {
-      const appError = handleError(error, {
-        context: 'uploadFile',
-        type: ErrorType.NETWORK,
-      });
-      setUploadProgress(null);
-      setUploadingFileName(null);
-      setUploadBytes({ uploaded: 0, total: 0 });
-      setUploadStatus('');
-      throw appError;
-    } finally {
-      setIsUploading(false);
-    }
-  }, []);
-
-  /**
-   * 重置上传状态
-   */
-  const resetUploadState = useCallback(() => {
-    setIsUploading(false);
-    setUploadProgress(null);
-    setUploadingFileName(null);
-    setUploadBytes({ uploaded: 0, total: 0 });
-    setUploadStatus('');
-  }, []);
-
   // 返回所有状态和函数
   return {
     isUploading,
@@ -85,8 +18,6 @@ export const useFileUpload = () => {
     uploadingFileName,
     uploadBytes,
     uploadStatus,
-    uploadFile,
-    resetUploadState,
     // 导出 setter 函数，供外部手动控制状态
     setIsUploading,
     setUploadProgress,

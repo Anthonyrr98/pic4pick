@@ -33,16 +33,6 @@ import { PHOTO_CATEGORIES, normalizePhotoCategory } from '../utils/photoCategori
 const tabs = PHOTO_CATEGORIES;
 
 const FILM_STOCK_TAG_PREFIX = 'film_stock:';
-const FILM_STOCK_OPTIONS = [
-  'Kodak Portra 400',
-  'Kodak Gold 200',
-  'Kodak Ektar 100',
-  'Fuji Pro 400H',
-  'Fuji Superia 400',
-  'Ilford HP5 Plus 400',
-  'Ilford Delta 100',
-  'Cinestill 800T',
-];
 
 const MAX_UPLOAD_FILE_SIZE = 100 * 1024 * 1024;
 const OPTIMIZE_UPLOAD_THRESHOLD = 6 * 1024 * 1024;
@@ -2443,7 +2433,6 @@ export function AdminPage() {
       </nav>
     )
   );
-
 
   // 总作品数 = 已审核通过的作品 + 待审核的作品（不包括内置示例）
   const totalPhotos = approvedCount + pendingReviewCount;

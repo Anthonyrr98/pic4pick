@@ -24,3 +24,9 @@
 ## 批次 3：失联基础模块（P0-03、P0-05）
 
 恢复点：`27d514f`。删除 `src/hooks/useMapInitialize.js`、`src/hooks/useLocationPicker.js`、`src/utils/ossSignature.js`。再次检查源码、脚本、配置、共享层与小程序均无调用方；保留当前地图和受保护的后端上传实现。实际删除 447 行。`npm run check` 全通过。
+
+## 批次 4：未使用内部符号（P0-06、P0-07、P0-08）
+
+恢复点：`7929dcc`。修改 `src/pages/Admin.jsx`、`packages/shared/constants/locationData.ts`、`src/utils/{gaodeMapStyle.ts,errorHandler.js,envConfig.js,adminApi.js,auth.js,urlUtils.js}`、`packages/shared/mediaUrls.js`、`src/components/ErrorBoundary.jsx`、`src/hooks/useFileUpload.js`。
+
+逐项复核后删除 FILM_STOCK_OPTIONS、explorePins、旧地图常量、8 个无人消费的导出，以及上传 Hook 的未消费操作方法；保留实际上传、ErrorBoundary、令牌清理和后端 GET 接口。`npm run check` 全通过。
