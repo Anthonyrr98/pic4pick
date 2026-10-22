@@ -283,6 +283,9 @@ export function GalleryPage() {
   const lightboxFilmStockArtwork = isFilmSection && /^fuji\s+c200$/i.test(lightboxFilmStock)
     ? '/images/film-stocks/fuji-c200.png'
     : '';
+  const lightboxCameraArtwork = isFilmSection && /^nikon\s*fm2$/i.test(String(lightboxPhoto?.camera || '').trim())
+    ? '/images/cameras/nikon-fm2.png'
+    : '';
   const lightboxShotInfo = lightboxPhoto
     ? getShotTimeInfo(lightboxPhoto.shotDate || lightboxPhoto.shot_date)
     : null;
@@ -291,7 +294,7 @@ export function GalleryPage() {
       ['焦距', lightboxPhoto.focal], ['光圈', lightboxPhoto.aperture],
       ['快门', lightboxPhoto.shutter], ['ISO', lightboxPhoto.iso],
     ]),
-    ['相机', lightboxPhoto.camera], ['镜头', lightboxPhoto.lens],
+    ['相机', lightboxPhoto.camera, lightboxCameraArtwork], ['镜头', lightboxPhoto.lens],
   ] : [];
   const lightboxStoryItems = lightboxPhoto ? [
     {
@@ -962,8 +965,8 @@ export function GalleryPage() {
                 </div>
                 <div className="lightbox-params-grid"
                   onClick={(e) => { if (window.innerWidth <= 768) e.stopPropagation(); }}>
-                  {lightboxParamItems.map(([label, value]) => (
-                    <div key={label} className="lightbox-param-card"
+                  {lightboxParamItems.map(([label, value, artwork]) => (
+                    <div key={label} className={`lightbox-param-card${artwork ? ' lightbox-param-card--camera-artwork' : ''}`}
                       onClick={(e) => openMetaPopover('basic', e)}>
                       <span className="param-label">
                         {label}
@@ -973,6 +976,11 @@ export function GalleryPage() {
                         {label === 'ISO' && <IsoIcon className="param-label-icon" />}
                       </span>
                       <span className={`param-value ${label === '相机' || label === '镜头' ? 'param-value-equipment' : ''}`}>{value}</span>
+                      {artwork && (
+                        <div className="lightbox-camera-artwork" aria-hidden="true">
+                          <img src={artwork} alt="" decoding="async" />
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>

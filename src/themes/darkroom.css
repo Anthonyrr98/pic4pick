@@ -513,6 +513,20 @@
   transform: translateX(-50%);
   object-fit: contain;
 }
+.lightbox-panel--film .lightbox-param-card--camera-artwork {
+  min-width: 0;
+  padding-right: 50% !important;
+}
+.lightbox-camera-artwork {
+  position: absolute;
+  inset: 8px 6px 8px 50%;
+  pointer-events: none;
+}
+.lightbox-camera-artwork img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
 :root[data-theme='darkroom'] .lightbox-panel--film .lightbox-nav-prev { left: calc(var(--film-edge-left) + 6px); }
 :root[data-theme='darkroom'] .lightbox-panel--film .lightbox-nav-next { right: calc(var(--film-edge-right) + 6px); }
 :root[data-theme='darkroom'] .lightbox-panel--film:has(.meta-visible) .lightbox-nav { visibility: hidden; }
