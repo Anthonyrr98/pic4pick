@@ -44,3 +44,7 @@
 ## 批次 7：Web API 地址拼接（P2-03）
 
 恢复点：`1f12690`。修改 `src/utils/{auth.js,adminApi.js,spatialDepth.js}` 与 `src/pages/gallery/hooks/usePhotoData.ts`，新增 `src/utils/apiUrl.js`、`scripts/api-url.test.mjs`。统一相对路径、空格、末尾斜线及 /api 后缀处理；保留请求方法、令牌、取消和响应解析。`npm run check` 全通过（110 项 Node 测试、23 项小程序测试）。
+
+## 批次 8：图片回退（P2-05）
+
+恢复点：`351a063`。修改 `src/pages/gallery/{GalleryPage.jsx,components/PhotoGrid.tsx}`，新增 `src/utils/imageFallback.js`、`scripts/image-fallback.test.mjs`。共享候选推进和 srcset 清理，保持缩略图/灯箱各自失败状态与展示；新增耗尽和重复候选回归。`npm run check` 全通过（112 项 Node 测试、23 项小程序测试）。

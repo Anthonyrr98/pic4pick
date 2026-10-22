@@ -36,6 +36,7 @@ import { ThemeSwitcher } from '../../themes/ThemeSwitcher';
 import { useTheme } from '../../themes/ThemeContext';
 import { SpatialSceneControls, SpatialSceneStatus } from '../../components/SpatialSceneControls';
 import { useSpatialScene } from '../../hooks/useSpatialScene';
+import { advanceImageFallback } from '../../utils/imageFallback';
 
 let exploreViewModulePromise = null;
 
@@ -875,21 +876,7 @@ export function GalleryPage() {
                     setLightboxAspectRatio(img.naturalWidth / img.naturalHeight);
                   }}
                   onError={(e) => {
-                    const img = e.currentTarget;
-                    let fallbackIndex = Number(img.dataset.previewFallbackIndex || '0');
-                    const currentSrc = img.currentSrc || img.src;
-                    while (lightboxFallbackUrls[fallbackIndex] === currentSrc) {
-                      fallbackIndex += 1;
-                    }
-
-                    const fallbackSrc = lightboxFallbackUrls[fallbackIndex];
-                    if (fallbackSrc) {
-                      img.dataset.previewFallbackIndex = `${fallbackIndex + 1}`;
-                      img.srcset = '';
-                      img.sizes = '';
-                      img.src = fallbackSrc;
-                      return;
-                    }
+                    if (advanceImageFallback(e.currentTarget, lightboxFallbackUrls)) return;
 
                     handleError(new Error(`Lightbox preview unavailable: ${lightboxPhoto.title}`), {
                       context: 'GalleryPage.lightboxPreview',

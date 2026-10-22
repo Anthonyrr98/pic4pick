@@ -7,6 +7,7 @@ import { GalleryPhoto } from '../utils/photoDataUtils';
 import { handleError, ErrorType } from '../../../utils/errorHandler';
 import { getPreviewMediaFallbackUrls, getPreviewMediaSrcSet, getPreviewMediaUrl } from '../../../utils/urlUtils';
 import { FilmFrame } from './FilmFrame';
+import { advanceImageFallback } from '../../../utils/imageFallback';
 
 // Keep enough source pixels for high-DPI displays; 360px previews looked soft after cover cropping.
 const GRID_IMAGE_WIDTHS = [540, 720, 900, 1200, 1440];
@@ -195,21 +196,7 @@ export const PhotoGrid: React.FC<PhotoGridProps> = ({
                       setLoadedImageIds((prev) => (prev[item.id] ? prev : { ...prev, [item.id]: true }));
                     }}
                     onError={(e) => {
-                      const img = e.currentTarget;
-                      let fallbackIndex = Number(img.dataset.previewFallbackIndex || '0');
-                      const currentSrc = img.currentSrc || img.src;
-                      while (imageFallbackUrls[fallbackIndex] === currentSrc) {
-                        fallbackIndex += 1;
-                      }
-
-                      const fallbackSrc = imageFallbackUrls[fallbackIndex];
-                      if (fallbackSrc) {
-                        img.dataset.previewFallbackIndex = `${fallbackIndex + 1}`;
-                        img.srcset = '';
-                        img.sizes = '';
-                        img.src = fallbackSrc;
-                        return;
-                      }
+                      if (advanceImageFallback(e.currentTarget, imageFallbackUrls)) return;
 
                       handleError(new Error(`图片加载失败: ${item.title}`), {
                         context: 'PhotoGrid.imageLoad',
