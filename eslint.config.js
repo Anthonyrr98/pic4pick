@@ -24,7 +24,8 @@ export default defineConfig([
       },
     },
     rules: {
-      'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]' }],
+      // JSX component names need an exemption; unused UPPER_CASE constants do not.
+      'no-unused-vars': ['error', { varsIgnorePattern: '^(?:[A-Z][A-Za-z0-9]*|_.*)$' }],
       // These effects intentionally reset view state when their external inputs change.
       'react-hooks/set-state-in-effect': 'off',
     },
@@ -41,7 +42,7 @@ export default defineConfig([
       },
     },
     rules: {
-      'no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^[A-Z_]' }],
+      'no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
     },
   },
   {

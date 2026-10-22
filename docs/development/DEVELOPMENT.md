@@ -4,6 +4,8 @@
 
 当前图库、地图和共享层入口分别见 `docs/engineering/gallery-modularization.md`、`docs/engineering/map-refactor-guide.md`；统一验证运行 `npm run check`，包含 Web/小程序类型、lint、单测和 Web 内存构建。小程序完整构建在 miniapp 运行 `npm run build:weapp`。
 
+首次检查前分别安装根目录、server、miniapp 的锁定依赖：`npm ci`、`npm --prefix server ci`、`npm --prefix miniapp ci`。质量 workflow 使用 Node 22，执行相同检查和小程序构建，不依赖线上凭据，也不执行部署。
+
 ## 📋 目录
 
 - [环境要求](#环境要求)
