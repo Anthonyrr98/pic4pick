@@ -3,6 +3,7 @@ import { loadMapLibre } from '../../../utils/maplibreLoader';
 import { useGaodeMapInit, useFocusMapOnCity, useMapMotion } from '../hooks/useMapInit';
 import { buildCityPhotoMap, buildCurationGroups, buildPhotosByLocation } from '../utils/photoDataUtils';
 import { CurationPanel } from './CurationPanel';
+import { EXPLORE_MARKER_COLORS, EXPLORE_MARKER_DOT_SIZE, EXPLORE_MARKER_BORDER_SIZE } from '../../../../packages/shared/exploreMarkerStyle';
 
 export function ExploreView({
   isActive,
@@ -113,7 +114,6 @@ export function ExploreView({
       const maplibregl = mapProvider === 'maplibre' ? await ensureMapLibre() : null;
       if (cancelled) return;
 
-      const palette = ['#cfa56a', '#111218', '#9b9dad', '#d48a48'];
       const markerDots = [];
       const markerTargets = [];
       const showLocation = group => onShowLocationPanel({
@@ -125,7 +125,7 @@ export function ExploreView({
         emptyMessage: group.photos.length === 0 ? '当前地点暂时没有图库照片' : '',
       });
       photosByLocation.forEach((group, index) => {
-        const color = palette[index % palette.length];
+        const color = EXPLORE_MARKER_COLORS[index % EXPLORE_MARKER_COLORS.length];
         const anchor = document.createElement('button');
         anchor.type = 'button';
         anchor.className = 'explore-marker-target';
@@ -134,11 +134,11 @@ export function ExploreView({
         const dot = document.createElement('div');
         dot.className = 'explore-marker';
         dot.style.cssText = [
-          'width:9px',
-          'height:9px',
+          `width:${EXPLORE_MARKER_DOT_SIZE}px`,
+          `height:${EXPLORE_MARKER_DOT_SIZE}px`,
           'border-radius:999px',
           `background:${color}`,
-          'border:2px solid #ffffff',
+          `border:${EXPLORE_MARKER_BORDER_SIZE}px solid #ffffff`,
           'box-shadow:0 0 0 1px rgba(0,0,0,0.35),0 6px 12px rgba(0,0,0,0.25)',
           'cursor:pointer',
           'transition:transform 0.2s ease,opacity 0.2s ease',

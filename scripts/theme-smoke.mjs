@@ -6,8 +6,8 @@ import { chromium } from 'playwright';
 const baseUrl = (process.env.UI_BASE_URL || 'http://127.0.0.1:5173').replace(/\/$/, '');
 const artifacts = process.env.UI_ARTIFACT_DIR || '';
 const presets = [
-  { id: 'paper', name: '纸白画廊', bg: 'rgb(245, 245, 242)' },
-  { id: 'film', name: '暖调胶片', bg: 'rgb(242, 234, 221)' },
+  { id: 'paper', name: '纸白', bg: 'rgb(245, 245, 242)' },
+  { id: 'film', name: '暖调', bg: 'rgb(242, 234, 221)' },
 ];
 const browser = await chromium.launch({ headless: true });
 const errors = [];
@@ -52,7 +52,7 @@ try {
   await page.getByRole('menu', { name: '全局主题' }).waitFor();
   await page.keyboard.press('Home');
   await page.keyboard.press('ArrowDown');
-  assert.ok(await page.getByRole('menuitemradio', { name: /暖调胶片/ }).evaluate(el => el === document.activeElement));
+  assert.ok(await page.getByRole('menuitemradio', { name: /暖调/ }).evaluate(el => el === document.activeElement));
   await page.keyboard.press('Enter');
   assert.equal(await page.locator('html').getAttribute('data-theme'), 'film');
   await trigger.click();
@@ -126,7 +126,7 @@ try {
     };
   });
   await fallbackPage.getByRole('button', { name: /切换主题/ }).click();
-  await fallbackPage.getByRole('menuitemradio', { name: /暖调胶片/ }).click();
+  await fallbackPage.getByRole('menuitemradio', { name: /暖调/ }).click();
   assert.equal(await fallbackPage.locator('html').getAttribute('data-theme'), 'film');
   await fallbackContext.close();
   assert.deepEqual(errors, []);

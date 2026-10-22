@@ -1,0 +1,319 @@
+/* The film section is a quiet darkroom around unfiltered photographic prints. */
+:root[data-theme='darkroom'] {
+  color-scheme: dark;
+  --bg: #25241f;
+  --bg-rgb: 37 36 31;
+  --panel: #302e28;
+  --panel-rgb: 48 46 40;
+  --panel-dark: #1b1a17;
+  --text: #d9d2c4;
+  --ink-rgb: 217 210 196;
+  --muted: #aaa18f;
+  --accent: #be754c;
+  --accent-strong: #d3976f;
+  --accent-rgb: 190 117 76;
+  --on-accent: #1b1713;
+  --surface-soft: #2b2923;
+  --surface-hover: #3b372e;
+  --selected-bg: #be754c;
+  --selected-text: #211b16;
+  --glass: rgb(var(--panel-rgb) / 0.94);
+  --glass-edge: rgb(var(--ink-rgb) / 0.16);
+  --shadow-soft: 0 4px 14px rgb(0 0 0 / 0.1);
+  --shadow-card: 0 3px 5px rgb(0 0 0 / 0.2), 0 14px 28px rgb(0 0 0 / 0.15);
+  --card-radius: 2px;
+  --ui-radius: 6px;
+  --display-font: 'Songti SC', 'STSong', 'SimSun', serif;
+  --theme-duration: 300ms;
+  --warning: #d7b47a;
+  --danger: #df9380;
+  --success: #a3b48e;
+  --info: #a1b9c1;
+  --print-paper: #e9e2d3;
+  --print-ink: #3d392f;
+  --print-muted: #736a5c;
+  --archive-font: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+}
+
+.film-print-meta { display: none; }
+
+/* Text-only buttons within the supplied film control frames. */
+:root[data-theme] .tab-strip.film-label-selected::before { opacity: 0; }
+:root[data-theme] .app-shell:not(.admin-shell) .tab.tab--film,
+:root[data-theme] .app-shell:not(.admin-shell) .tab.tab--film:hover,
+:root[data-theme] .app-shell:not(.admin-shell) .tab.tab--film.active {
+  color: #fff;
+  background: transparent;
+  box-shadow: none;
+}
+.tab--film .tab-label,
+.tab--film.active .tab-label {
+  transform: none;
+}
+.tab--film.active .tab-label { font-weight: 750; }
+
+/* The supplied wide 35mm frame sits behind live controls. */
+.film-control-frame {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: -1;
+}
+:root[data-theme] .app-shell:not(.admin-shell) .tab-strip.film-label-selected {
+  isolation: isolate;
+  padding: 15px 28px;
+  border: 0;
+  border-radius: 1px;
+  background: transparent;
+  box-shadow: none;
+  filter: drop-shadow(0 3px 4px rgb(16 12 8 / 0.2));
+}
+
+/* Original supplied 135-film artwork, sliced into four edges with SVG viewBoxes.
+   Container-relative dimensions keep the perforations proportional on mobile. */
+:root[data-theme='darkroom'] .photo-card.has-film-negative { container-type: inline-size; }
+.film-negative {
+  --film-edge-top: 7.255cqw;
+  --film-edge-right: 14.732cqw;
+  --film-edge-bottom: 7.031cqw;
+  --film-edge-left: 14.955cqw;
+  position: relative;
+  flex: none;
+  padding: var(--film-edge-top) var(--film-edge-right) var(--film-edge-bottom) var(--film-edge-left);
+  background: #0d0c09;
+  border-radius: 1px;
+  overflow: hidden;
+}
+.film-negative--landscape {
+  --film-edge-top: 8.939cqw;
+  --film-edge-right: 3.052cqw;
+  --film-edge-bottom: 9.084cqw;
+  --film-edge-left: 3.198cqw;
+}
+.film-negative-edge { position: absolute; display: block; pointer-events: none; z-index: 2; }
+.film-negative-edge--top { top: 0; left: 0; width: 100%; height: var(--film-edge-top); }
+.film-negative-edge--bottom { bottom: 0; left: 0; width: 100%; height: var(--film-edge-bottom); }
+.film-negative-edge--left { top: var(--film-edge-top); bottom: var(--film-edge-bottom); left: 0; width: var(--film-edge-left); height: calc(100% - var(--film-edge-top) - var(--film-edge-bottom)); }
+.film-negative-edge--right { top: var(--film-edge-top); bottom: var(--film-edge-bottom); right: 0; width: var(--film-edge-right); height: calc(100% - var(--film-edge-top) - var(--film-edge-bottom)); }
+:root[data-theme='darkroom'] .photo-card .film-negative img {
+  height: auto;
+  aspect-ratio: var(--film-photo-ratio);
+  object-fit: contain;
+  border-radius: 3px;
+}
+:root[data-theme='darkroom'] .photo-card .film-negative .photo-skeleton {
+  inset: var(--film-edge-top) var(--film-edge-right) var(--film-edge-bottom) var(--film-edge-left);
+  width: auto;
+  height: auto;
+  aspect-ratio: auto;
+  background: #ede9df;
+  animation: none;
+}
+:root[data-theme='darkroom'] .photo-card .film-negative .photo-load-failed { aspect-ratio: var(--film-photo-ratio); }
+
+/* Start only once the preview has loaded. Re-entering the film section mounts
+   a fresh framed image; ordinary data refreshes keep the existing animation. */
+@media (prefers-reduced-motion: no-preference) {
+  :root[data-theme='darkroom'] .photo-card .film-negative img.loaded {
+    animation: film-photo-develop 4200ms ease-in-out backwards;
+    animation-delay: calc(min(var(--stagger, 0), 6) * 100ms);
+    transition: none;
+  }
+}
+@keyframes film-photo-develop {
+  0% {
+    filter: grayscale(1) contrast(0.03) brightness(1.85) blur(1.2px);
+  }
+  30% {
+    filter: grayscale(0.95) contrast(0.32) brightness(1.55) blur(0.8px);
+  }
+  68% {
+    filter: grayscale(0.4) contrast(0.8) brightness(1.12) blur(0.2px);
+  }
+  100% { filter: none; }
+}
+.theme-section-note { margin: 0 0 12px; color: var(--muted); font-size: 0.75rem; line-height: 1.7; }
+
+:root[data-theme='darkroom'] .app-shell:not(.explore-mode) {
+  background-image: linear-gradient(rgb(22 17 12 / 0.18), rgb(22 17 12 / 0.18)), url('/images/film-desktop.png');
+  background-size: cover;
+  background-position: center top;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+}
+:root[data-theme='darkroom'] .app-shell:not(.explore-mode) .app-header:not(.admin-header)::before {
+  background: rgb(26 20 14 / 0.38);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+:root[data-theme='darkroom'] :is(.gallery-count, .gallery-sync, .gallery-grid > div:last-child) { text-shadow: 0 1px 5px rgb(16 12 8 / 0.85); }
+:root[data-theme='darkroom'] .brand-wordmark-img { filter: invert(1); opacity: 0.82; }
+:root[data-theme='darkroom'] .app-shell:not(.admin-shell) :is(.view-toggle, .tab-strip) {
+  border-radius: 6px;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+:root[data-theme='darkroom'] .app-shell:not(.admin-shell) :is(.view-toggle, .tab-strip)::before { border-radius: 3px; box-shadow: none; }
+:root[data-theme='darkroom'] .theme-trigger { border-radius: 6px; backdrop-filter: none; }
+:root[data-theme='darkroom'] .app-header .header-actions :is(.theme-trigger, .view-toggle).has-film-frame {
+  isolation: isolate;
+  position: relative;
+  border: 0;
+  border-radius: 1px;
+  background: transparent;
+  box-shadow: none;
+  filter: drop-shadow(0 3px 4px rgb(16 12 8 / 0.2));
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+:root[data-theme='darkroom'] .app-header .theme-trigger.has-film-frame { height: 60px; padding: 12px 12px; }
+:root[data-theme='darkroom'] .app-header .header-actions .view-toggle.has-film-frame { padding: 12px 12px; gap: 6px; }
+:root[data-theme='darkroom'] .app-header .view-toggle.has-film-frame::before { opacity: 0; }
+:root[data-theme='darkroom'] .app-header .view-toggle.has-film-frame :is(.toggle-btn, .toggle-btn:hover, .toggle-btn.active) {
+  color: var(--muted);
+  background: transparent;
+  box-shadow: none;
+}
+:root[data-theme='darkroom'] .app-header .view-toggle.has-film-frame .toggle-btn:is(.active, :hover) { color: #fff; }
+:root[data-theme='darkroom'] .view-toggle.has-film-frame .toggle-label { transform: none; }
+:root[data-theme='darkroom'] .view-toggle.has-film-frame .toggle-btn.active .toggle-label { font-weight: 750; }
+:root[data-theme='darkroom'] .theme-popover { top: 110px; }
+:root[data-theme='darkroom'] .gallery-status-row { font-variant-numeric: tabular-nums; }
+:root[data-theme='darkroom'] .gallery-sync { font-size: 0.75rem; }
+:root[data-theme='darkroom'] .gallery-grid { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: clamp(20px, 3vw, 38px); }
+
+:root[data-theme='darkroom'] .photo-card {
+  display: flex;
+  flex-direction: column;
+  align-self: start;
+  aspect-ratio: auto;
+  padding: 8px 8px 0;
+  border: 1px solid #f0eadf;
+  background: var(--print-paper);
+  box-shadow: var(--shadow-card);
+  transform: none;
+  animation: none;
+}
+:root[data-theme='darkroom'] .photo-card::before,
+:root[data-theme='darkroom'] .photo-card::after { display: none; }
+:root[data-theme='darkroom'] .photo-card img {
+  flex: none;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 3 / 4;
+  object-fit: cover;
+  transform: none;
+  filter: none;
+  border-radius: 1px;
+}
+:root[data-theme='darkroom'] .photo-card .photo-skeleton,
+:root[data-theme='darkroom'] .photo-card .photo-load-failed {
+  inset: 8px 8px auto;
+  width: calc(100% - 16px);
+  height: auto;
+  aspect-ratio: 3 / 4;
+  border-radius: 1px;
+}
+:root[data-theme='darkroom'] .photo-card .photo-load-failed { position: relative; inset: auto; width: 100%; }
+:root[data-theme='darkroom'] .photo-card .badge { display: none; }
+:root[data-theme='darkroom'] .photo-card .caption {
+  position: relative;
+  inset: auto;
+  padding: 16px 10px 12px;
+  min-width: 0;
+  color: var(--print-ink);
+  background: transparent;
+}
+:root[data-theme='darkroom'] .photo-card .caption h4 {
+  margin: 0 48px 3px 0;
+  font-family: var(--display-font);
+  font-size: 1.05rem;
+  font-weight: 600;
+  line-height: 1.5;
+  text-shadow: none;
+}
+:root[data-theme='darkroom'] .photo-card .caption .photo-location {
+  color: var(--print-muted);
+  font-size: 0.74rem;
+  opacity: 1;
+}
+:root[data-theme='darkroom'] .photo-card .film-print-meta {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 16px;
+  padding-top: 9px;
+  border-top: 1px solid rgb(61 57 47 / 0.16);
+}
+:root[data-theme='darkroom'] .photo-card .film-print-meta span {
+  color: var(--print-muted);
+  font-family: var(--archive-font);
+  font-size: 0.64rem;
+  line-height: 1.4;
+  letter-spacing: 0.07em;
+  opacity: 1;
+}
+:root[data-theme='darkroom'] .film-print-stock { text-transform: uppercase; overflow-wrap: anywhere; }
+:root[data-theme='darkroom'] .film-print-number { flex-shrink: 0; font-variant-numeric: tabular-nums; }
+:root[data-theme='darkroom'] .photo-card .like-badge {
+  top: 16px;
+  right: 8px;
+  bottom: auto;
+  padding: 3px 5px;
+  border: 0;
+  border-radius: 3px;
+  color: var(--print-muted);
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+:root[data-theme='darkroom'] .photo-card .like-badge span { color: inherit; opacity: 1; }
+:root[data-theme='darkroom'] .photo-card .like-badge.liked { color: #964927; background: rgb(190 117 76 / 0.12); }
+:root[data-theme='darkroom'] .photo-card .like-badge.liked svg { stroke: none; fill: currentColor; }
+:root[data-theme='darkroom'] .photo-card:focus-visible { outline-color: var(--accent); outline-offset: 5px; }
+
+/* Keep the image at its own exposure; remove the blurred image behind the details. */
+:root[data-theme='darkroom'] .lightbox { background: rgb(20 19 16 / 0.96); backdrop-filter: none; }
+:root[data-theme='darkroom'] .lightbox-panel { background: var(--bg) !important; border: 1px solid var(--border); border-radius: 6px; box-shadow: none; }
+:root[data-theme='darkroom'] .lightbox-panel::before { background: var(--bg); backdrop-filter: none; }
+:root[data-theme='darkroom'] :is(.lightbox-media, .lightbox-media:hover) { box-shadow: none; }
+:root[data-theme='darkroom'] :is(.lightbox-story-chip, .lightbox-param-card) { border-radius: 3px; box-shadow: none; }
+:root[data-theme='darkroom'] :is(.lightbox-close, .lightbox-nav, .lightbox-action-group) { background: var(--panel); color: var(--text); border-color: var(--border); box-shadow: none; }
+:root[data-theme='darkroom'] .lightbox-action-group :is(.lightbox-download, .spatial-scene-toggle) { color: var(--text); }
+:root[data-theme='darkroom'] .theme-transition-wash { display: none; }
+
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  :root[data-theme='darkroom'] .photo-card:hover { transform: translateY(-3px); box-shadow: 0 6px 9px rgb(0 0 0 / 0.18), 0 18px 32px rgb(0 0 0 / 0.2); }
+  :root[data-theme='darkroom'] .photo-card:hover img { transform: none; filter: none; }
+}
+@media (max-width: 640px) {
+  :root[data-theme='darkroom'] .app-header .theme-trigger.has-film-frame { height: 52px; padding: 10px 8px; }
+  :root[data-theme='darkroom'] .app-header .header-actions .view-toggle.has-film-frame { padding: 10px 10px; }
+  :root[data-theme='darkroom'] .app-header .view-toggle.has-film-frame::before { top: 10px; height: calc(100% - 20px); }
+  :root[data-theme='darkroom'] .theme-popover { top: 76px; }
+  :root[data-theme='darkroom'] .app-shell:not(.explore-mode) { background-attachment: scroll; }
+  :root[data-theme='darkroom'] .gallery-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 12px; }
+  :root[data-theme='darkroom'] .photo-card { padding: 5px 5px 0; }
+  :root[data-theme='darkroom'] .photo-card .caption { padding: 11px 5px 9px; }
+  :root[data-theme='darkroom'] .photo-card .caption h4 { font-size: 0.88rem; margin-right: 0; }
+  :root[data-theme='darkroom'] .photo-card .caption .photo-location { font-size: 0.64rem; }
+  :root[data-theme='darkroom'] .photo-card .film-print-meta { margin-top: 12px; padding-top: 8px; gap: 6px; }
+  :root[data-theme='darkroom'] .photo-card .film-print-meta span { font-size: 0.55rem; letter-spacing: 0.02em; }
+  :root[data-theme='darkroom'] .photo-card .like-badge { position: static; float: right; margin-top: 5px; padding: 4px; min-height: 28px; }
+  :root[data-theme='darkroom'] .photo-card .photo-skeleton { inset: 5px 5px auto; width: calc(100% - 10px); }
+}
+@media (prefers-reduced-motion: no-preference) {
+  :root[data-theme='darkroom'] :is(.tab-strip, .view-toggle, .theme-trigger) { transition: background-color 300ms ease, color 300ms ease, border-color 300ms ease; }
+}
+
+/* Film thumbnails show the negative itself, without an additional paper card. */
+:root[data-theme='darkroom'] .photo-card.has-film-negative {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}

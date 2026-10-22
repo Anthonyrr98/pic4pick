@@ -6,12 +6,11 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { Storage, STORAGE_KEYS } from '../../../utils/storage';
 import { ensureHttps } from '../../../utils/urlUtils';
 import { handleError, safeAsync, ErrorType } from '../../../utils/errorHandler';
-import { PHOTO_SELECT_FIELDS } from '../../../utils/photoFields';
 import { getEnvValue } from '../../../utils/envConfig';
 import { GalleryPhoto } from '../utils/photoDataUtils';
 import { normalizePhotoCategory } from '../../../utils/photoCategories';
-
-const SUPABASE_REFRESH_MIN_INTERVAL_MS = 60 * 1000;
+import { getPublicPhotoSource, PUBLIC_PHOTOS_INVALIDATED_EVENT } from '../../../utils/galleryPhotoSource';
+import { PUBLIC_PHOTO_CACHE_KEY, PUBLIC_PHOTO_REFRESH_INTERVAL_MS } from '../../../utils/publicPhotoData';
 
 const getApiUrl = (path: string) => {
   const rawBase = getEnvValue('VITE_API_BASE_URL', '').trim();
@@ -39,7 +38,7 @@ const updatePhotoLike = async (photoId: string, delta: number) => {
 // 从 localStorage 加载审核通过的作品
 const loadApprovedPhotos = (): GalleryPhoto[] => {
   const photos = Storage.get(STORAGE_KEYS.APPROVED_PHOTOS, []);
-  return photos.map((photo: any) => ({
+  return (Array.isArray(photos) ? photos : []).map((photo: any) => ({
     ...photo,
     category: normalizePhotoCategory(photo.category),
     mood: photo.mood === '精选' ? '原创作品' : photo.mood,
@@ -50,48 +49,19 @@ const loadApprovedPhotos = (): GalleryPhoto[] => {
 };
 
 // 映射 Supabase 数据到 Gallery 照片格式
-const mapSupabaseRowToGalleryPhoto = (row: any): GalleryPhoto => {
-  const imageUrl = row.image_url || '';
-  const thumbnailUrl = row.thumbnail_url || row.thumbnail || '';
-  const mood = row.tags?.split(',')[0]?.trim() || '原创作品';
-
-  return {
-    id: row.id,
-    title: row.title || '',
-    country: row.country || '',
-    location: row.location || '',
-    category: normalizePhotoCategory(row.category),
-    image: ensureHttps(imageUrl),
-    focal: row.focal || '50mm',
-    aperture: row.aperture || 'f/2.8',
-    shutter: row.shutter || '1/125s',
-    iso: row.iso || '200',
-    camera: row.camera || 'Unknown',
-    lens: row.lens || 'Unknown',
-    filmStock: row.film_stock || '',
-    mood: mood === '精选' ? '原创作品' : mood,
-    latitude: row.latitude ?? null,
-    longitude: row.longitude ?? null,
-    altitude: row.altitude ?? null,
-    tags: row.tags || '',
-    createdAt: row.created_at || row.createdAt || null,
-    thumbnail: ensureHttps(thumbnailUrl),
-    preview: thumbnailUrl ? ensureHttps(thumbnailUrl) : '',
-    hidden: row.hidden ?? false,
-    shotDate: row.shot_date || null,
-    rating: typeof row.rating === 'number' ? row.rating : null,
-    likes: typeof row.likes === 'number' ? row.likes : 0,
-  };
-};
+export { mapSupabaseRowToGalleryPhoto } from '../../../../packages/shared/photoMapper';
+import { mapSupabaseRowToGalleryPhoto } from '../../../../packages/shared/photoMapper';
 
 // 加载照片数据
 export const usePhotoData = (supabase: any) => {
-  const [approvedPhotos, setApprovedPhotos] = useState<GalleryPhoto[]>(() => loadApprovedPhotos());
+  const source = supabase ? getPublicPhotoSource() : null;
+  const [initialCache] = useState(() => source?.readCache());
+  const [approvedPhotos, setApprovedPhotos] = useState<GalleryPhoto[]>(() => source
+    ? (initialCache?.rows || []).map(mapSupabaseRowToGalleryPhoto) : loadApprovedPhotos());
   const [isPhotoDataLoading, setIsPhotoDataLoading] = useState(Boolean(supabase));
-  const [lastPhotoDataLoadedAt, setLastPhotoDataLoadedAt] = useState<number | null>(null);
+  const [lastPhotoDataLoadedAt, setLastPhotoDataLoadedAt] = useState<number | null>(initialCache?.fetchedAt || null);
   const [supabaseError, setSupabaseError] = useState('');
   const localApprovedPhotosSnapshotRef = useRef<string | null>(null);
-  const lastSupabaseFetchAtRef = useRef(0);
 
   // 监听 localStorage 变化（非 Supabase 模式）
   useEffect(() => {
@@ -126,82 +96,82 @@ export const usePhotoData = (supabase: any) => {
 
   // 从 Supabase 加载数据
   useEffect(() => {
-    if (!supabase) return;
+    if (!source) return;
 
     let isMounted = true;
+    let generation = 0;
+    let appliedAt: number | null = null;
+    const applyCache = () => {
+      const cached = source.readCache();
+      setApprovedPhotos((cached?.rows || []).map(mapSupabaseRowToGalleryPhoto));
+      setLastPhotoDataLoadedAt(cached?.fetchedAt || null);
+      appliedAt = cached?.fetchedAt || null;
+    };
+    applyCache();
 
-    const fetchApprovedFromSupabase = async (force = false) => {
-      const now = Date.now();
-      if (!force && now - lastSupabaseFetchAtRef.current < SUPABASE_REFRESH_MIN_INTERVAL_MS) {
-        return;
-      }
-      lastSupabaseFetchAtRef.current = now;
-      if (force) {
-        setIsPhotoDataLoading(true);
-      }
-
+    const fetchApprovedFromSupabase = async () => {
+      const requestGeneration = ++generation;
+      setIsPhotoDataLoading(true);
       try {
-        let { data, error } = await supabase
-          .from('photos')
-          .select(PHOTO_SELECT_FIELDS)
-          .eq('status', 'approved')
-          .order('created_at', { ascending: false })
-          .limit(1000);
-
-        if (error && /statement timeout/i.test(error.message || '')) {
-          const fallback = await supabase
-            .from('photos')
-            .select(PHOTO_SELECT_FIELDS)
-            .eq('status', 'approved')
-            .limit(1000);
-          data = fallback.data;
-          error = fallback.error;
-        }
-
-        if (error) {
-          throw error;
-        }
-
-        if (isMounted) {
-          const mapped = (data || []).map(mapSupabaseRowToGalleryPhoto);
-          console.log(`从 Supabase 加载了 ${mapped.length} 张已审核通过的照片`);
-          setApprovedPhotos(mapped);
-          Storage.remove(STORAGE_KEYS.APPROVED_PHOTOS);
+        const result = await source.load();
+        if (isMounted && requestGeneration === generation) {
+          // A focus event can reuse the same snapshot. Preserve optimistic likes.
+          if (result.fetchedAt !== appliedAt) {
+            setApprovedPhotos(result.rows.map(mapSupabaseRowToGalleryPhoto));
+            appliedAt = result.fetchedAt;
+          }
           setSupabaseError('');
-          setLastPhotoDataLoadedAt(Date.now());
+          setLastPhotoDataLoadedAt(result.fetchedAt);
         }
       } catch (error) {
+        if (!isMounted || requestGeneration !== generation) return;
         const appError = handleError(error, {
           context: 'fetchApprovedFromSupabase',
           type: ErrorType.NETWORK,
         });
-        if (isMounted) {
-          setSupabaseError(`加载云端作品失败: ${appError.message}`);
-        }
+        const cached = source.readCache();
+        if (!cached || cached.fetchedAt !== appliedAt) applyCache();
+        setSupabaseError(`加载云端作品失败: ${appError.message}`);
       } finally {
-        if (isMounted && force) {
+        if (isMounted && requestGeneration === generation) {
           setIsPhotoDataLoading(false);
         }
       }
     };
 
-    fetchApprovedFromSupabase(true);
+    fetchApprovedFromSupabase();
 
     const refreshWhenActive = () => {
       if (document.visibilityState === 'visible') {
         fetchApprovedFromSupabase();
       }
     };
+    const handleInvalidation = () => { applyCache(); fetchApprovedFromSupabase(); };
+    const handleCacheChange = (event: StorageEvent) => {
+      if (event.key && event.key !== PUBLIC_PHOTO_CACHE_KEY) return;
+      generation += 1;
+      source.invalidate({ persist: false });
+      applyCache();
+      setIsPhotoDataLoading(false);
+      setSupabaseError('');
+      if (!event.newValue) fetchApprovedFromSupabase();
+    };
 
     window.addEventListener('focus', refreshWhenActive);
     document.addEventListener('visibilitychange', refreshWhenActive);
+    window.addEventListener(PUBLIC_PHOTOS_INVALIDATED_EVENT, handleInvalidation);
+    window.addEventListener('storage', handleCacheChange);
+    const timer = window.setInterval(refreshWhenActive, PUBLIC_PHOTO_REFRESH_INTERVAL_MS);
 
     return () => {
       isMounted = false;
       window.removeEventListener('focus', refreshWhenActive);
       document.removeEventListener('visibilitychange', refreshWhenActive);
+      window.removeEventListener(PUBLIC_PHOTOS_INVALIDATED_EVENT, handleInvalidation);
+      window.removeEventListener('storage', handleCacheChange);
+      window.clearInterval(timer);
     };
-  }, [supabase]);
+  }, [source]);
 
   return { approvedPhotos, setApprovedPhotos, isPhotoDataLoading, lastPhotoDataLoadedAt, supabaseError };
 };

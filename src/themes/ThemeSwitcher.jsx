@@ -3,18 +3,19 @@ import { createPortal } from 'react-dom';
 import { gsap } from 'gsap';
 import { useGSAP } from '@gsap/react';
 import { useTheme } from './ThemeContext';
-import { THEMES } from './themeConfig';
+import { getThemeDefinition, THEMES } from './themeConfig';
+import { FilmControlFrame } from '../pages/gallery/components/FilmFrame';
 
 gsap.registerPlugin(useGSAP);
 
 export function ThemeSwitcher() {
-  const { theme, selectTheme } = useTheme();
+  const { theme, preferredTheme, selectTheme } = useTheme();
   const [open, setOpen] = useState(false);
   const container = useRef(null);
   const trigger = useRef(null);
   const panel = useRef(null);
   const panelId = useId();
-  const activeTheme = THEMES.find((item) => item.id === theme);
+  const activeTheme = getThemeDefinition(theme);
 
   useGSAP(() => {
     const media = gsap.matchMedia();
@@ -64,7 +65,7 @@ export function ThemeSwitcher() {
 
   return (
     <div className="theme-switcher" ref={container} onKeyDown={onKeyDown} onBlur={onBlur}>
-      <button className="theme-trigger" type="button" ref={trigger}
+      <button className={`theme-trigger${theme === 'darkroom' ? ' has-film-frame' : ''}`} type="button" ref={trigger}
         aria-label={`切换主题，当前：${activeTheme.name}`} aria-expanded={open}
         aria-haspopup="menu"
         aria-controls={open ? panelId : undefined} onClick={() => setOpen((value) => !value)}>
@@ -73,21 +74,23 @@ export function ThemeSwitcher() {
           <path d="M12 4a8 8 0 0 1 0 16Z" fill="currentColor" />
         </svg>
         <span className="theme-trigger-label">外观</span>
+        {theme === 'darkroom' && <FilmControlFrame />}
       </button>
       {open && createPortal(
         <div className="theme-popover" id={panelId} ref={panel} onBlur={onBlur}>
           <div className="theme-popover-heading"><span>选择你的观展氛围</span><span>APPEARANCE</span></div>
+          {theme === 'darkroom' && <p className="theme-section-note">胶片分区使用暗房外观，下方选择将在离开胶片后应用。</p>}
           <div role="menu" aria-label="全局主题">
             {THEMES.map((item, index) => (
-              <button key={item.id} type="button" role="menuitemradio" aria-checked={theme === item.id}
-                tabIndex={theme === item.id ? 0 : -1} className={`theme-option${theme === item.id ? ' is-selected' : ''}`}
+              <button key={item.id} type="button" role="menuitemradio" aria-checked={preferredTheme === item.id}
+                tabIndex={preferredTheme === item.id ? 0 : -1} className={`theme-option${preferredTheme === item.id ? ' is-selected' : ''}`}
                 onClick={() => { selectTheme(item.id); close(); }}>
                 <span className="theme-preview" style={{ '--preview-bg': item.colors[0], '--preview-panel': item.colors[1], '--preview-ink': item.colors[2], '--preview-accent': item.colors[3] }} aria-hidden="true">
                   <span className="theme-preview-line" /><span className="theme-preview-frame" /><span className="theme-preview-dot" />
                 </span>
                 <span className="theme-option-copy"><span className="theme-option-name">{item.name}<span className="theme-option-number">0{index + 1}</span></span>
                   <span className="theme-option-english">{item.english}</span></span>
-                <span className="theme-option-check" aria-hidden="true">{theme === item.id ? '✓' : ''}</span>
+                <span className="theme-option-check" aria-hidden="true">{preferredTheme === item.id ? '✓' : ''}</span>
               </button>
             ))}
           </div>

@@ -1,20 +1,24 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { gsap } from 'gsap';
 import { useGSAP } from '@gsap/react';
 import { STORAGE_KEYS } from '../constants/storageKeys';
 import { ThemeContext } from './ThemeContext';
-import { applyTheme, DEFAULT_THEME, isTheme, readTheme, THEMES } from './themeConfig';
+import { applyTheme, DEFAULT_THEME, FILM_SECTION_THEME, getThemeDefinition, isTheme, readTheme } from './themeConfig';
 
 gsap.registerPlugin(useGSAP);
 
 export function ThemeProvider({ children }) {
-  const [theme, setTheme] = useState(readTheme);
+  const [preferredTheme, setPreferredTheme] = useState(readTheme);
+  const [filmMode, setFilmMode] = useState(false);
+  const theme = filmMode ? FILM_SECTION_THEME.id : preferredTheme;
   const wash = useRef(null);
+
+  useLayoutEffect(() => { applyTheme(theme); }, [theme]);
 
   useGSAP(() => {
     const media = gsap.matchMedia();
     media.add('(prefers-reduced-motion: no-preference)', () => {
-      const preset = THEMES.find((item) => item.id === theme);
+      const preset = getThemeDefinition(theme);
       gsap.fromTo(wash.current, { opacity: 0.12 }, { opacity: 0, duration: preset.duration, ease: preset.ease });
     });
     return () => media.revert();
@@ -22,8 +26,7 @@ export function ThemeProvider({ children }) {
 
   const selectTheme = useCallback((id) => {
     if (!isTheme(id)) return;
-    applyTheme(id);
-    setTheme(id);
+    setPreferredTheme(id);
     try {
       window.localStorage.setItem(STORAGE_KEYS.THEME, id);
     } catch {
@@ -35,13 +38,12 @@ export function ThemeProvider({ children }) {
     const syncTheme = (event) => {
       if (event.key !== STORAGE_KEYS.THEME && event.key !== null) return;
       const id = isTheme(event.newValue) ? event.newValue : DEFAULT_THEME;
-      applyTheme(id);
-      setTheme(id);
+      setPreferredTheme(id);
     };
     window.addEventListener('storage', syncTheme);
     return () => window.removeEventListener('storage', syncTheme);
   }, []);
 
-  const value = useMemo(() => ({ theme, selectTheme }), [theme, selectTheme]);
+  const value = useMemo(() => ({ theme, preferredTheme, selectTheme, setFilmMode }), [theme, preferredTheme, selectTheme]);
   return <ThemeContext.Provider value={value}>{children}<div className="theme-transition-wash" ref={wash} aria-hidden="true" /></ThemeContext.Provider>;
 }

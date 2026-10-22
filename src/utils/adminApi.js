@@ -1,5 +1,6 @@
 import { getAuthToken } from './auth';
 import { getEnvValue } from './envConfig';
+import { invalidatePublicPhotoCache } from './galleryPhotoSource';
 
 const getApiUrl = (path) => {
   const rawBase = getEnvValue('VITE_API_BASE_URL', '').trim();
@@ -41,6 +42,9 @@ export const requestAdminApi = async (path, options = {}) => {
     throw error;
   }
 
+  if ((options.method || 'GET') !== 'GET' && /^\/api\/admin\/photos(?:\/|$)/.test(path)) {
+    invalidatePublicPhotoCache();
+  }
   return payload;
 };
 

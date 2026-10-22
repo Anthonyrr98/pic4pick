@@ -5,6 +5,10 @@ import App from './App.jsx';
 import { applyFaviconFromStoredLogo } from './utils/branding';
 import { ThemeProvider } from './themes/ThemeProvider';
 import { applyTheme, readTheme } from './themes/themeConfig';
+import { prefetchPublicPhotos } from './utils/galleryPhotoSource';
+
+// Start the public list while React and the gallery's lazy chunk initialize.
+if (!window.location.hash.includes('/admin')) prefetchPublicPhotos();
 
 applyTheme(readTheme());
 

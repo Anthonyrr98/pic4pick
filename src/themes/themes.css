@@ -102,7 +102,7 @@ html { background: var(--bg); scrollbar-color: var(--muted) var(--bg); }
   transition: background 180ms ease, border-color 180ms ease;
 }
 .theme-trigger:hover, .theme-trigger[aria-expanded='true'] { background: var(--surface-hover); border-color: var(--accent); }
-.theme-trigger svg { width: 20px; height: 20px; }
+.theme-trigger svg:not(.film-control-frame) { width: 20px; height: 20px; }
 .theme-trigger:focus-visible, .theme-option:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 .theme-popover {
   position: fixed;

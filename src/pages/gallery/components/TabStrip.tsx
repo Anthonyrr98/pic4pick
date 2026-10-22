@@ -5,6 +5,7 @@
 import React, { useEffect, useRef } from 'react';
 import { tabs } from '../constants/locationData';
 import { FilterType } from '../utils/photoFilterUtils';
+import { FilmControlFrame } from './FilmFrame';
 
 interface TabStripProps {
   activeFilter: FilterType;
@@ -46,11 +47,11 @@ export const TabStrip: React.FC<TabStripProps> = ({
   }, [activeFilter]);
 
   return (
-    <div className="tab-strip" ref={tabStripRef} role="tablist" aria-label="作品分类">
+    <div className={`tab-strip${activeFilter === 'film' ? ' film-label-selected' : ''}`} ref={tabStripRef} role="tablist" aria-label="作品分类">
       {tabs.map((tab) => (
         <button
           key={tab.id}
-          className={`tab ${activeFilter === tab.id ? 'active' : ''}`}
+          className={`tab ${activeFilter === tab.id ? 'active' : ''}${tab.id === 'film' && activeFilter === 'film' ? ' tab--film' : ''}`}
           onClick={() => onFilterChange(tab.id as FilterType)}
           onKeyDown={(event) => {
             if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
@@ -74,6 +75,7 @@ export const TabStrip: React.FC<TabStripProps> = ({
           <span className="tab-label">{tab.label}</span>
         </button>
       ))}
+      {activeFilter === 'film' && <FilmControlFrame />}
     </div>
   );
 };

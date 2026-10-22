@@ -6,6 +6,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { GalleryPhoto } from '../utils/photoDataUtils';
 import { handleError, ErrorType } from '../../../utils/errorHandler';
 import { getPreviewMediaFallbackUrls, getPreviewMediaSrcSet, getPreviewMediaUrl } from '../../../utils/urlUtils';
+import { FilmFrame } from './FilmFrame';
 
 // Keep enough source pixels for high-DPI displays; 360px previews looked soft after cover cropping.
 const GRID_IMAGE_WIDTHS = [540, 720, 900, 1200, 1440];
@@ -32,6 +33,7 @@ interface PhotoGridProps {
   onLoadMore: () => void;
   loadMoreRef: React.RefObject<HTMLDivElement>;
   totalCount: number;
+  filmFrames?: boolean;
 }
 
 export const PhotoGrid: React.FC<PhotoGridProps> = ({
@@ -44,10 +46,12 @@ export const PhotoGrid: React.FC<PhotoGridProps> = ({
   onLoadMore,
   loadMoreRef,
   totalCount,
+  filmFrames = false,
 }) => {
   const eagerImageCount = typeof window !== 'undefined' && window.innerWidth <= 768 ? 4 : 6;
   const [loadedImageIds, setLoadedImageIds] = useState<Record<string, boolean>>({});
   const [failedImageIds, setFailedImageIds] = useState<Record<string, boolean>>({});
+  const [photoAspects, setPhotoAspects] = useState<Record<string, number>>({});
   const hoverBounds = useRef<{ card: HTMLElement; rect: DOMRect } | null>(null);
 
   useEffect(() => {
@@ -121,6 +125,14 @@ export const PhotoGrid: React.FC<PhotoGridProps> = ({
     return categoryLabel || '未分类';
   };
 
+  const filmStockLabel = (photo: GalleryPhoto) => {
+    if (photo.filmStock?.trim()) return photo.filmStock.trim();
+    const tag = String(photo.tags || '').split(',').map(tag => tag.trim())
+      .find(tag => tag.toLowerCase().startsWith('film_stock:'));
+    if (tag) return tag.slice('film_stock:'.length).trim() || '胶片';
+    return photo.category === 'film' ? formatBadgeText(photo) : '胶片';
+  };
+
   return (
     <div className="gallery-grid">
       {photos.map((item, index) => {
@@ -134,7 +146,7 @@ export const PhotoGrid: React.FC<PhotoGridProps> = ({
         return (
           <article
             key={item.id}
-            className="photo-card"
+            className={`photo-card${filmFrames ? ' has-film-negative' : ''}`}
             onClick={() => onPhotoClick(item)}
             onPointerEnter={handlePhotoCardPointerMove}
             onPointerMove={handlePhotoCardPointerMove}
@@ -152,6 +164,7 @@ export const PhotoGrid: React.FC<PhotoGridProps> = ({
             aria-label={`查看作品：${item.title || '未命名照片'}`}
             style={{ ['--stagger' as any]: index }}
           >
+            <FilmFrame enabled={filmFrames} aspectRatio={photoAspects[item.id] || 2 / 3}>
             {item.image ? (
               <>
                 <div
@@ -175,6 +188,10 @@ export const PhotoGrid: React.FC<PhotoGridProps> = ({
                     decoding="async"
                     onLoad={(e) => {
                       delete e.currentTarget.dataset.previewFallbackIndex;
+                      if (filmFrames && e.currentTarget.naturalHeight > 0) {
+                        const ratio = e.currentTarget.naturalWidth / e.currentTarget.naturalHeight;
+                        setPhotoAspects(prev => prev[item.id] === ratio ? prev : { ...prev, [item.id]: ratio });
+                      }
                       setLoadedImageIds((prev) => (prev[item.id] ? prev : { ...prev, [item.id]: true }));
                     }}
                     onError={(e) => {
@@ -220,12 +237,18 @@ export const PhotoGrid: React.FC<PhotoGridProps> = ({
                 图片加载中...
               </div>
             )}
+            </FilmFrame>
+            {!filmFrames && <>
             <span className="badge">{formatBadgeText(item)}</span>
             <div className="caption">
               <h4>{item.title}</h4>
               <span className="photo-location">
                 {item.country || ''} {item.country && item.location ? '·' : ''} {item.location || ''}
               </span>
+              <div className="film-print-meta">
+                <span className="film-print-stock">{filmStockLabel(item)}</span>
+                <span className="film-print-number" aria-label={`第 ${index + 1} 张`}>{String(index + 1).padStart(2, '0')}</span>
+              </div>
               <button
                 type="button"
                 className={`like-badge ${liked ? 'liked' : ''}`}
@@ -246,6 +269,7 @@ export const PhotoGrid: React.FC<PhotoGridProps> = ({
                 <span className="like-badge-count">{likeCount}</span>
               </button>
             </div>
+            </>}
           </article>
         );
       })}

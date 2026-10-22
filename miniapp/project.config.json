@@ -1,0 +1,17 @@
+{
+  "description": "Pic4Pick 独立微信小程序",
+  "miniprogramRoot": "dist/",
+  "projectname": "Pic4Pick",
+  "appid": "wxbee87099f5e5d386",
+  "compileType": "miniprogram",
+  "setting": {
+    "urlCheck": true,
+    "es6": true,
+    "minified": true,
+    "postcss": false,
+    "enhance": true
+  },
+  "packOptions": {
+    "ignore": []
+  }
+}

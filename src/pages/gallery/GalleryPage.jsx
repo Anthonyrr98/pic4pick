@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState, useCallback } from 'react';
+import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, useCallback } from 'react';
 import '../../App.css';
 import { getSupabaseClient } from '../../utils/supabaseClient';
 import {
@@ -30,8 +30,10 @@ import {
 } from '../../utils/urlUtils';
 import { TabStrip } from './components/TabStrip';
 import { PhotoGrid } from './components/PhotoGrid';
+import { FilmControlFrame } from './components/FilmFrame';
 import { LocationPanel } from './components/LocationPanel';
 import { ThemeSwitcher } from '../../themes/ThemeSwitcher';
+import { useTheme } from '../../themes/ThemeContext';
 import { SpatialSceneControls, SpatialSceneStatus } from '../../components/SpatialSceneControls';
 import { useSpatialScene } from '../../hooks/useSpatialScene';
 
@@ -183,6 +185,13 @@ export function GalleryPage() {
   const [activeFilter, setActiveFilter] = useState('latest');
   const [activeView, setActiveView] = useState('gallery-view');
   const [hasVisitedExplore, setHasVisitedExplore] = useState(false);
+  const { setFilmMode } = useTheme();
+  const isFilmSection = activeFilter === 'film' && activeView === 'gallery-view';
+
+  useLayoutEffect(() => {
+    setFilmMode(isFilmSection);
+    return () => setFilmMode(false);
+  }, [isFilmSection, setFilmMode]);
 
   // 鈹€鈹€ Lightbox 鐘舵€?
   const [lightboxPhoto, setLightboxPhoto] = useState(null);
@@ -263,9 +272,10 @@ export function GalleryPage() {
     : null;
 
   const hasMore = displayedCount < filteredPhotos.length;
-  const shouldShowGalleryLoading = isPhotoDataLoading && approvedPhotos.length === 0;
+  const hasPhotoData = lastPhotoDataLoadedAt !== null || approvedPhotos.length > 0;
+  const shouldShowGalleryLoading = isPhotoDataLoading && !hasPhotoData;
   const galleryStatusText = isPhotoDataLoading
-    ? '正在加载作品'
+    ? hasPhotoData ? '正在更新作品' : '正在加载作品'
     : `${filteredPhotos.length} / ${allPhotos.length} 张作品`;
   const gallerySyncText = lastPhotoDataLoadedAt ? `更新于 ${formatSyncTime(lastPhotoDataLoadedAt)}` : '';
   const lightboxFilmStock = lightboxPhoto ? getFilmStockFromPhoto(lightboxPhoto) : '';
@@ -690,7 +700,7 @@ export function GalleryPage() {
         </div>
         <div className="header-actions">
           <ThemeSwitcher />
-          <div className={`view-toggle ${activeView === 'explore-view' ? 'explore-active' : ''}`}>
+          <div className={`view-toggle ${activeView === 'explore-view' ? 'explore-active' : ''}${isFilmSection ? ' has-film-frame' : ''}`}>
             <button
               className={`toggle-btn ${activeView === 'gallery-view' ? 'active' : ''}`}
               onClick={() => handleViewChange('gallery-view')}
@@ -710,6 +720,7 @@ export function GalleryPage() {
             >
               <span className="toggle-label">发现</span>
             </button>
+            {isFilmSection && <FilmControlFrame />}
           </div>
         </div>
       </header>
@@ -746,6 +757,7 @@ export function GalleryPage() {
               onLoadMore={loadMore}
               loadMoreRef={loadMoreRef}
               totalCount={filteredPhotos.length}
+              filmFrames={isFilmSection}
             />
           ) : (
             <div className="empty-state">

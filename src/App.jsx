@@ -2,6 +2,7 @@ import { Suspense, lazy, useEffect, useState } from 'react';
 import { HashRouter, Route, Routes } from 'react-router-dom';
 import './App.css';
 import './themes/themes.css';
+import './themes/darkroom.css';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
 const AdminPage = lazy(() =>
