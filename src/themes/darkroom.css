@@ -119,7 +119,7 @@
    a fresh framed image; ordinary data refreshes keep the existing animation. */
 @media (prefers-reduced-motion: no-preference) {
   :root[data-theme='darkroom'] .photo-card .film-negative {
-    --film-develop-duration: 6800ms;
+    --film-develop-duration: 5210ms;
     --film-develop-delay: calc(min(var(--stagger, 0), 6) * 140ms);
   }
   :root[data-theme='darkroom'] .photo-card .film-negative img.loaded {
