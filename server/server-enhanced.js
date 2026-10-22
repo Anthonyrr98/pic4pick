@@ -1,3 +1,4 @@
+import { PHOTO_SELECT_FIELDS } from './photoFields.js';
 import express from 'express';
 import multer from 'multer';
 import cors from 'cors';
@@ -365,33 +366,7 @@ const OSS_OBJECT_KEY_PREFIX_RE = /^(origin|ore|pic4pick)\//;
 
 const SUPABASE_URL = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '').replace(/\/+$/, '');
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
-const PHOTO_SELECT_FIELDS = [
-  'id',
-  'title',
-  'location',
-  'country',
-  'category',
-  'tags',
-  'image_url',
-  'thumbnail_url',
-  'latitude',
-  'longitude',
-  'altitude',
-  'focal',
-  'aperture',
-  'shutter',
-  'iso',
-  'camera',
-  'lens',
-  'film_stock',
-  'rating',
-  'shot_date',
-  'created_at',
-  'status',
-  'hidden',
-  'reject_reason',
-  'likes',
-].join(',');
+
 
 const isSupabaseAdminConfigured = () => Boolean(SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY);
 

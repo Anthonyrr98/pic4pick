@@ -48,3 +48,7 @@
 ## 批次 8：图片回退（P2-05）
 
 恢复点：`351a063`。修改 `src/pages/gallery/{GalleryPage.jsx,components/PhotoGrid.tsx}`，新增 `src/utils/imageFallback.js`、`scripts/image-fallback.test.mjs`。共享候选推进和 srcset 清理，保持缩略图/灯箱各自失败状态与展示；新增耗尽和重复候选回归。`npm run check` 全通过（112 项 Node 测试、23 项小程序测试）。
+
+## 批次 9：照片字段契约（P2-02）
+
+恢复点：`287e599`。修改 `server/server-enhanced.js`、`packages/shared/photoFields.js`，新增 `server/photoFields.js`。确认原字段序列逐字等价后，定义只保留一份，放在独立后端部署目录中的纯 JS 叶模块；共享入口转导出它，不引入任何 Express、凭据或 Node 运行代码，不改 Render/Docker 根目录。完整检查及 `miniapp` 的 `npm run build:weapp` 均通过。
