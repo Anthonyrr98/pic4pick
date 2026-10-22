@@ -109,31 +109,86 @@
   width: auto;
   height: auto;
   aspect-ratio: auto;
-  background: #ede9df;
+  background: #23130b;
   animation: none;
 }
+:root[data-theme='darkroom'] .photo-card .film-negative .photo-skeleton::after { display: none; }
 :root[data-theme='darkroom'] .photo-card .film-negative .photo-load-failed { aspect-ratio: var(--film-photo-ratio); }
 
 /* Start only once the preview has loaded. Re-entering the film section mounts
    a fresh framed image; ordinary data refreshes keep the existing animation. */
 @media (prefers-reduced-motion: no-preference) {
+  :root[data-theme='darkroom'] .photo-card .film-negative {
+    --film-develop-duration: 6800ms;
+    --film-develop-delay: calc(min(var(--stagger, 0), 6) * 140ms);
+  }
   :root[data-theme='darkroom'] .photo-card .film-negative img.loaded {
-    animation: film-photo-develop 4200ms ease-in-out backwards;
-    animation-delay: calc(min(var(--stagger, 0), 6) * 100ms);
+    animation: film-photo-develop var(--film-develop-duration) linear var(--film-develop-delay) backwards;
     transition: none;
+  }
+  /* The emulsion clears unevenly inside the image aperture, leaving the film
+     edges still. Both layers disappear completely once development finishes. */
+  :root[data-theme='darkroom'] .film-negative:has(> img.loaded)::before,
+  :root[data-theme='darkroom'] .film-negative:has(> img.loaded)::after {
+    content: '';
+    position: absolute;
+    inset: var(--film-edge-top) var(--film-edge-right) var(--film-edge-bottom) var(--film-edge-left);
+    z-index: 2;
+    border-radius: 3px;
+    pointer-events: none;
+    opacity: 0;
+    animation-duration: var(--film-develop-duration);
+    animation-delay: var(--film-develop-delay);
+    animation-timing-function: ease-in-out;
+    animation-fill-mode: backwards;
+  }
+  :root[data-theme='darkroom'] .film-negative:has(> img.loaded)::before {
+    background:
+      radial-gradient(ellipse at 34% 38%, transparent 8%, rgb(27 12 5 / 0.72) 66%, #170c06 100%),
+      radial-gradient(ellipse at 78% 76%, transparent 12%, rgb(54 25 9 / 0.55) 74%);
+    animation-name: film-emulsion-clear;
+  }
+  :root[data-theme='darkroom'] .film-negative:has(> img.loaded)::after {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='grain'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.88' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Cpath fill='%23fff' filter='url(%23grain)' d='M0 0h160v160H0z'/%3E%3C/svg%3E");
+    mix-blend-mode: soft-light;
+    animation-name: film-grain-settle;
   }
 }
 @keyframes film-photo-develop {
   0% {
-    filter: grayscale(1) contrast(0.03) brightness(1.85) blur(1.2px);
+    opacity: 0.3;
+    filter: invert(1) sepia(1) saturate(1.8) contrast(0.65) brightness(0.45) blur(1px);
   }
-  30% {
-    filter: grayscale(0.95) contrast(0.32) brightness(1.55) blur(0.8px);
+  20% {
+    opacity: 0.85;
+    filter: invert(1) sepia(0.95) saturate(1.6) contrast(0.85) brightness(0.72) blur(0.7px);
+  }
+  42% {
+    opacity: 1;
+    filter: invert(0.65) sepia(0.8) saturate(1.3) contrast(0.9) brightness(0.7) blur(0.45px);
   }
   68% {
-    filter: grayscale(0.4) contrast(0.8) brightness(1.12) blur(0.2px);
+    opacity: 1;
+    filter: invert(0) sepia(0.4) saturate(0.75) contrast(0.95) brightness(0.88) blur(0.15px);
   }
-  100% { filter: none; }
+  86% {
+    opacity: 1;
+    filter: invert(0) sepia(0.12) saturate(0.95) contrast(1) brightness(0.98) blur(0);
+  }
+  100% { opacity: 1; filter: none; }
+}
+@keyframes film-emulsion-clear {
+  0% { opacity: 0.95; }
+  24% { opacity: 0.72; }
+  52% { opacity: 0.4; }
+  78% { opacity: 0.12; }
+  100% { opacity: 0; }
+}
+@keyframes film-grain-settle {
+  0%, 20% { opacity: 0.28; }
+  54% { opacity: 0.16; }
+  82% { opacity: 0.06; }
+  100% { opacity: 0; }
 }
 .theme-section-note { margin: 0 0 12px; color: var(--muted); font-size: 0.75rem; line-height: 1.7; }
 
@@ -285,6 +340,87 @@
 :root[data-theme='darkroom'] :is(.lightbox-close, .lightbox-nav, .lightbox-action-group) { background: var(--panel); color: var(--text); border-color: var(--border); box-shadow: none; }
 :root[data-theme='darkroom'] .lightbox-action-group :is(.lightbox-download, .spatial-scene-toggle) { color: var(--text); }
 :root[data-theme='darkroom'] .theme-transition-wash { display: none; }
+
+/* Frame the entire detail panel with the same supplied 135-film artwork. The
+   separate edge layer stays outside the photo and never captures interaction. */
+:root[data-theme='darkroom'] .lightbox-panel--film {
+  --film-edge-top: 44px;
+  --film-edge-right: 18px;
+  --film-edge-bottom: 44px;
+  --film-edge-left: 18px;
+  padding: calc(var(--film-edge-top) + 16px) calc(var(--film-edge-right) + 20px)
+    calc(var(--film-edge-bottom) + 16px) calc(var(--film-edge-left) + 20px);
+  background: #11100c !important;
+  border: 0;
+  border-radius: 2px;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+:root[data-theme='darkroom'] .lightbox-panel--film::before {
+  inset: var(--film-edge-top) var(--film-edge-right) var(--film-edge-bottom) var(--film-edge-left);
+  border-radius: 1px;
+  background: #1b1a17;
+  -webkit-backdrop-filter: none;
+}
+.lightbox-panel > .lightbox-film-frame {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+}
+.film-negative-edge--repeated { display: flex; overflow: hidden; }
+.film-negative-edge-tile { display: block; flex: none; height: 100%; }
+:root[data-theme='darkroom'] .lightbox-panel--film :is(.lightbox-media, .lightbox-media img) {
+  border-radius: 2px;
+}
+:root[data-theme='darkroom'] .lightbox-panel--film .lightbox-media { transform: none; }
+@media (min-width: 769px) {
+  :root[data-theme='darkroom'] .lightbox-panel--film .lightbox-content-wrapper {
+    overflow-y: auto;
+    scrollbar-width: thin;
+  }
+  :root[data-theme='darkroom'] .lightbox-panel--film .lightbox-media.aspect-fit {
+    /* Allow for the film edges, 32px inner padding, 48px toolbar and 12px gap. */
+    width: min(
+      calc(100% - clamp(240px, 22vw, 300px) - 12px),
+      calc((min(90vh, calc(100vh - 48px)) - var(--film-edge-top) - var(--film-edge-bottom) - 92px) * var(--lightbox-aspect-ratio, 1.5))
+    );
+  }
+  :root[data-theme='darkroom'] .lightbox-panel--film .lightbox-nav-prev { left: calc(var(--film-edge-left) + 6px); }
+  :root[data-theme='darkroom'] .lightbox-panel--film .lightbox-nav-next { right: calc(var(--film-edge-right) + 6px); }
+}
+@media (min-width: 769px) and (max-width: 1024px) and (orientation: portrait) {
+  :root[data-theme='darkroom'] .lightbox-panel--film {
+    --film-edge-top: 36px;
+    --film-edge-bottom: 36px;
+    --film-edge-left: 14px;
+    --film-edge-right: 14px;
+  }
+  :root[data-theme='darkroom'] .lightbox-panel--film .lightbox-media.aspect-fit {
+    width: min(100%, calc(56dvh * var(--lightbox-aspect-ratio, 1.5)));
+  }
+}
+@media (max-width: 768px) {
+  :root[data-theme='darkroom'] .lightbox-panel--film {
+    --film-edge-top: calc(32px + env(safe-area-inset-top, 0px));
+    --film-edge-bottom: calc(32px + env(safe-area-inset-bottom, 0px));
+    --film-edge-left: calc(10px + env(safe-area-inset-left, 0px));
+    --film-edge-right: calc(10px + env(safe-area-inset-right, 0px));
+  }
+  :root[data-theme='darkroom'] .lightbox-panel--film .lightbox-content-wrapper {
+    inset: var(--film-edge-top) var(--film-edge-right) var(--film-edge-bottom) var(--film-edge-left);
+    width: auto;
+    height: auto;
+  }
+  :root[data-theme='darkroom'] .lightbox-panel--film .lightbox-actions {
+    top: calc(var(--film-edge-top) + 12px);
+    right: calc(var(--film-edge-right) + 12px);
+    max-width: calc(100% - var(--film-edge-left) - var(--film-edge-right) - 24px);
+  }
+  :root[data-theme='darkroom'] .lightbox-panel--film .lightbox-watermark-frame {
+    width: min(100%, calc((100dvh - var(--film-edge-top) - var(--film-edge-bottom)) * var(--lightbox-aspect-ratio, 1.5)));
+  }
+}
 
 @media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
   :root[data-theme='darkroom'] .photo-card:hover { transform: translateY(-3px); box-shadow: 0 6px 9px rgb(0 0 0 / 0.18), 0 18px 32px rgb(0 0 0 / 0.2); }

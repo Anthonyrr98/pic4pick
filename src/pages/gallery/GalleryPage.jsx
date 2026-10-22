@@ -30,7 +30,7 @@ import {
 } from '../../utils/urlUtils';
 import { TabStrip } from './components/TabStrip';
 import { PhotoGrid } from './components/PhotoGrid';
-import { FilmControlFrame } from './components/FilmFrame';
+import { FilmControlFrame, FilmFrameEdges } from './components/FilmFrame';
 import { LocationPanel } from './components/LocationPanel';
 import { ThemeSwitcher } from '../../themes/ThemeSwitcher';
 import { useTheme } from '../../themes/ThemeContext';
@@ -283,6 +283,13 @@ export function GalleryPage() {
   const lightboxShotInfo = lightboxPhoto
     ? getShotTimeInfo(lightboxPhoto.shotDate || lightboxPhoto.shot_date)
     : null;
+  const lightboxParamItems = lightboxPhoto ? [
+    ...(isFilmSection ? [] : [
+      ['焦距', lightboxPhoto.focal], ['光圈', lightboxPhoto.aperture],
+      ['快门', lightboxPhoto.shutter], ['ISO', lightboxPhoto.iso],
+    ]),
+    ['相机', lightboxPhoto.camera], ['镜头', lightboxPhoto.lens],
+  ] : [];
   const lightboxStoryItems = lightboxPhoto ? [
     {
       label: '拍摄',
@@ -805,10 +812,15 @@ export function GalleryPage() {
         }}
       >
         <div
-          className="lightbox-panel"
+          className={`lightbox-panel${isFilmSection ? ' lightbox-panel--film' : ''}`}
           style={{ backgroundImage: lightboxVisualSrc ? `url(${lightboxVisualSrc})` : 'none' }}
           onClick={(e) => e.stopPropagation()}
         >
+          {isFilmSection && (
+            <div className="lightbox-film-frame" aria-hidden="true">
+              <FilmFrameEdges repeatHorizontal />
+            </div>
+          )}
           <div className="lightbox-actions">
             {lightboxPhoto && (
               <div className="lightbox-action-group" role="group" aria-label="照片操作">
@@ -916,10 +928,7 @@ export function GalleryPage() {
                 </div>
                 <div className="lightbox-params-grid"
                   onClick={(e) => { if (window.innerWidth <= 768) e.stopPropagation(); }}>
-                  {[['焦距', lightboxPhoto.focal], ['光圈', lightboxPhoto.aperture],
-                    ['快门', lightboxPhoto.shutter], ['ISO', lightboxPhoto.iso],
-                    ['相机', lightboxPhoto.camera], ['镜头', lightboxPhoto.lens]
-                  ].map(([label, value]) => (
+                  {lightboxParamItems.map(([label, value]) => (
                     <div key={label} className="lightbox-param-card"
                       onClick={(e) => openMetaPopover('basic', e)}>
                       <span className="param-label">
@@ -1005,10 +1014,17 @@ export function GalleryPage() {
                         return (<><p className="meta-card-main">{yearsAgoText}</p><p className="meta-card-sub">{dateText}</p></>);
                       })()}
                     </article>
+                    {isFilmSection ? lightboxParamItems.map(([label, value]) => (
+                      <article key={label} className="meta-card">
+                        <p className="meta-card-label">{label}</p>
+                        <p className="meta-card-main">{value}</p>
+                      </article>
+                    )) : <>
                     <article className="meta-card"><p className="meta-card-label">光圈</p><p className="meta-card-main">{lightboxPhoto.aperture}</p></article>
                     <article className="meta-card"><p className="meta-card-label">快门</p><p className="meta-card-main">{lightboxPhoto.shutter}</p></article>
                     <article className="meta-card"><p className="meta-card-label">焦距</p><p className="meta-card-main">{lightboxPhoto.focal}</p></article>
                     <article className="meta-card"><p className="meta-card-label">感光度</p><p className="meta-card-main">{lightboxPhoto.iso}</p></article>
+                    </>}
                   </div>
                 </div>
               )}
