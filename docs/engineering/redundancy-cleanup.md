@@ -20,3 +20,7 @@
 恢复点：`ed3457b`。删除 `src/components/{HomeIntroSplash.jsx,admin/ToolsPanel.jsx}`、`src/pages/gallery/{index.ts,components/LightboxPanel.tsx}`；仅修改 `src/App.css` 移除旧开场专属样式。再次检索未发现运行入口，真实 AppLoading、灯箱、上传逻辑保持原样。实际删除 909 行。
 
 `npm run check` 全通过。浏览器测试首次并发冷启动时两次加载超时，暂停后续清理；在已就绪的同一个本地服务上复测，`admin-ui-smoke.mjs` 和 `gallery-cache-smoke.mjs` 均通过。未修改测试断言来绕过失败，测试业务请求均被拦截为本地 fixture。
+
+## 批次 3：失联基础模块（P0-03、P0-05）
+
+恢复点：`27d514f`。删除 `src/hooks/useMapInitialize.js`、`src/hooks/useLocationPicker.js`、`src/utils/ossSignature.js`。再次检查源码、脚本、配置、共享层与小程序均无调用方；保留当前地图和受保护的后端上传实现。实际删除 447 行。`npm run check` 全通过。
