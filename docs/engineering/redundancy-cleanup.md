@@ -30,3 +30,7 @@
 恢复点：`7929dcc`。修改 `src/pages/Admin.jsx`、`packages/shared/constants/locationData.ts`、`src/utils/{gaodeMapStyle.ts,errorHandler.js,envConfig.js,adminApi.js,auth.js,urlUtils.js}`、`packages/shared/mediaUrls.js`、`src/components/ErrorBoundary.jsx`、`src/hooks/useFileUpload.js`。
 
 逐项复核后删除 FILM_STOCK_OPTIONS、explorePins、旧地图常量、8 个无人消费的导出，以及上传 Hook 的未消费操作方法；保留实际上传、ErrorBoundary、令牌清理和后端 GET 接口。`npm run check` 全通过。
+
+## 批次 5：依赖归属（P0-09）
+
+恢复点：`b950960`。仅修改根 `package.json`/`package-lock.json`：去掉 i18next、语言检测器、react-i18next、nanoid 的直接声明；显式声明源码实际使用的 date-fns 4.1.0 和测试使用的 esbuild 0.28.2，均沿用原已解析版本。正常更新依赖树移除了 8 个包，PostCSS 所需 nanoid 传递依赖保留。`npm run check` 全通过。
