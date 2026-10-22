@@ -20,6 +20,7 @@ import { createLikeNotificationService } from './likeNotifications.js';
 import { createPhotoLikeHandler, createLikeEventsHandler } from './photoLikes.js';
 import { createSpatialDepthHandler, createSpatialOssClient } from './spatialDepthStorage.js';
 import { registerLikeRoutes, registerAdminUpdateRoutes } from './miniappCompatibility.js';
+import { registerFrontendStatic } from './frontendStatic.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -976,22 +977,11 @@ app.post('/api/admin/gear-presets', authenticateToken, requireAdmin, async (req,
   }
 });
 
-// 生产模式：服务前端构建文件
-if (process.env.NODE_ENV === 'production' || process.env.SERVE_STATIC === 'true') {
-  const DIST_DIR = path.join(__dirname, '..', 'dist');
-  // 服务静态资源文件
-  app.use('/assets', express.static(path.join(DIST_DIR, 'assets')));
-  // 服务其他静态文件（如 favicon 等）
-  app.use(express.static(DIST_DIR));
-  // 所有非 API 路由都返回 index.html（用于 React Router）
-  app.get('/{*splat}', (req, res, next) => {
-    if (!req.path.startsWith('/api') && !req.path.startsWith('/uploads')) {
-      res.sendFile(path.join(DIST_DIR, 'index.html'));
-    } else {
-      next();
-    }
-  });
-}
+// Render 默认只提供 API；合并托管前端时显式启用，且必须存在构建入口。
+registerFrontendStatic(app, {
+  enabled: process.env.SERVE_STATIC === 'true',
+  distDir: path.join(__dirname, '..', 'dist'),
+});
 
 // 错误处理中间件
 app.use((error, req, res, _next) => {

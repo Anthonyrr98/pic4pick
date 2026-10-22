@@ -13,6 +13,8 @@ npm --prefix server start
 
 Render 配置见根目录 `render.yaml`：rootDir 为 server，构建 npm ci，启动 npm start，健康检查 `/api/health`。Docker 仍以 server 目录作为构建上下文，Dockerfile 启动 server-enhanced.js。部署方式和域名由运维决定，本次清理没有切换托管目标。
 
+后端默认只提供 API 和已有 `/uploads` 文件服务。仅当显式配置 `SERVE_STATIC=true` 且仓库根目录存在 `dist/index.html` 时，才托管前端资源并启用 SPA 页面回退；`NODE_ENV=production` 不会自动启用该功能。当前 OSS/CDN 前端与 Render 后端分开部署，Render 保持 `SERVE_STATIC` 未设置或 `false`。直接访问后端非 API 页面返回 404，健康检查继续使用 `/api/health`。
+
 ## 必需配置
 
 使用 `server/.env.example` 对照实际环境，凭据不写入前端或 Git：
