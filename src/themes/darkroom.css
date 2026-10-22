@@ -415,6 +415,17 @@
   object-fit: contain !important;
   border-radius: 0;
 }
+:root[data-theme='darkroom'] .lightbox-panel--film .lightbox-media.portrait-fit { isolation: isolate; }
+:root[data-theme='darkroom'] .lightbox-panel--film .lightbox-media.portrait-fit > img { background: transparent !important; }
+.film-portrait-ambient {
+  position: absolute;
+  inset: -40px;
+  z-index: -1;
+  background-size: cover;
+  background-position: center;
+  filter: blur(36px) brightness(0.48) saturate(0.75);
+  pointer-events: none;
+}
 :root[data-theme='darkroom'] .lightbox-panel--film .lightbox-watermark-frame {
   inset: auto;
   left: 50%;

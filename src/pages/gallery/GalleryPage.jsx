@@ -201,6 +201,7 @@ export function GalleryPage() {
   const [showMobileMeta, setShowMobileMeta] = useState(false);
   const [isLightboxPortrait, setIsLightboxPortrait] = useState(false);
   const [lightboxAspectRatio, setLightboxAspectRatio] = useState(null);
+  const [lightboxAmbientSrc, setLightboxAmbientSrc] = useState('');
   const [lightboxPreviewFailed, setLightboxPreviewFailed] = useState(false);
   const lightboxPointerRef = useRef(null);
   const lightboxRef = useRef(null);
@@ -386,6 +387,7 @@ export function GalleryPage() {
     setMetaPopover(null);
     setShowMobileMeta(false);
     setLightboxAspectRatio(null);
+    setLightboxAmbientSrc('');
     setLightboxPhoto(photo);
   }, []);
 
@@ -404,6 +406,7 @@ export function GalleryPage() {
     setMetaPopover(null);
     setShowMobileMeta(false);
     setLightboxAspectRatio(null);
+    setLightboxAmbientSrc('');
     setLightboxPhoto(nextPhoto);
   }, [canNavigateLightbox, lightboxIndex, lightboxSequence]);
 
@@ -900,6 +903,10 @@ export function GalleryPage() {
               onPointerDown={handleLightboxPointerDown}
               onPointerUp={handleLightboxPointerUp}
               onPointerCancel={handleLightboxPointerCancel}>
+              {isFilmSection && isLightboxPortrait && lightboxAmbientSrc && !lightboxPreviewFailed && (
+                <div className="film-portrait-ambient" aria-hidden="true"
+                  style={{ backgroundImage: `url(${JSON.stringify(lightboxAmbientSrc)})` }} />
+              )}
               {lightboxPhoto && lightboxVisualSrc && !lightboxPreviewFailed ? (
                 <img
                   ref={lightboxImageRef}
@@ -917,6 +924,7 @@ export function GalleryPage() {
                     delete img.dataset.previewFallbackIndex;
                     setIsLightboxPortrait(img.naturalHeight > img.naturalWidth);
                     setLightboxAspectRatio(img.naturalWidth / img.naturalHeight);
+                    setLightboxAmbientSrc(img.naturalHeight > img.naturalWidth ? (img.currentSrc || img.src) : '');
                   }}
                   onError={(e) => {
                     if (advanceImageFallback(e.currentTarget, lightboxFallbackUrls)) return;
