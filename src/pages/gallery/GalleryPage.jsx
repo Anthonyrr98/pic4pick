@@ -406,8 +406,9 @@ export function GalleryPage() {
       x: event.clientX,
       y: event.clientY,
       at: Date.now(),
+      dismissedMeta: isFilmSection && showMobileMeta,
     };
-  }, []);
+  }, [isFilmSection, showMobileMeta]);
 
   const handleLightboxPointerUp = useCallback((event) => {
     const start = lightboxPointerRef.current;
@@ -427,7 +428,7 @@ export function GalleryPage() {
       return;
     }
 
-    if (window.innerWidth <= 768 && absX < 14 && absY < 14 && elapsed < 500) {
+    if (window.innerWidth <= 768 && absX < 14 && absY < 14 && elapsed < 500 && !start.dismissedMeta) {
       setShowMobileMeta((prev) => !prev);
     }
   }, [goToAdjacentLightboxPhoto, spatialScene.ready]);
@@ -807,6 +808,12 @@ export function GalleryPage() {
         aria-modal={lightboxPhoto ? 'true' : undefined}
         aria-labelledby={lightboxPhoto ? 'lightbox-title' : undefined}
         tabIndex={lightboxPhoto ? -1 : undefined}
+        onPointerDownCapture={(event) => {
+          if (isFilmSection && showMobileMeta &&
+            !event.target.closest('.lightbox-meta, .lightbox-info-toggle, .meta-popover')) {
+            setShowMobileMeta(false);
+          }
+        }}
         onClick={(e) => {
           if (e.target === e.currentTarget) closeLightbox();
         }}
