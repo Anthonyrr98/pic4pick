@@ -351,7 +351,7 @@
 :root[data-theme='darkroom'] .lightbox-action-group :is(.lightbox-download, .spatial-scene-toggle) { color: var(--text); }
 :root[data-theme='darkroom'] .theme-transition-wash { display: none; }
 
-/* The film aperture fills the viewport; details float above the photograph. */
+/* The film frame fills the viewport; the complete photograph fits inside it. */
 :root[data-theme='darkroom']:has(.lightbox.active .lightbox-panel--film) { overflow: hidden; scrollbar-gutter: auto; }
 :root[data-theme='darkroom'] .lightbox { padding: 0; width: 100vw; width: 100dvw; height: 100vh; height: 100dvh; }
 :root[data-theme='darkroom'] .lightbox-panel--film {
@@ -412,15 +412,17 @@
 :root[data-theme='darkroom'] .lightbox-panel--film .lightbox-media img {
   width: 100%;
   height: 100%;
-  object-fit: cover !important;
+  object-fit: contain !important;
   border-radius: 0;
 }
 :root[data-theme='darkroom'] .lightbox-panel--film .lightbox-watermark-frame {
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  aspect-ratio: auto;
-  transform: none;
+  inset: auto;
+  left: 50%;
+  top: 50%;
+  width: min(100%, calc((100dvh - var(--film-edge-top) - var(--film-edge-bottom)) * var(--lightbox-aspect-ratio, 1.5)));
+  height: auto;
+  aspect-ratio: var(--lightbox-aspect-ratio, 1.5);
+  transform: translate(-50%, -50%);
 }
 :root[data-theme='darkroom'] .lightbox-panel--film .lightbox-actions {
   position: absolute;
