@@ -34,3 +34,9 @@
 ## 批次 5：依赖归属（P0-09）
 
 恢复点：`b950960`。仅修改根 `package.json`/`package-lock.json`：去掉 i18next、语言检测器、react-i18next、nanoid 的直接声明；显式声明源码实际使用的 date-fns 4.1.0 和测试使用的 esbuild 0.28.2，均沿用原已解析版本。正常更新依赖树移除了 8 个包，PostCSS 所需 nanoid 传递依赖保留。`npm run check` 全通过。
+
+## 批次 6：共享媒体规则（P2-01）
+
+恢复点：`c470522`。修改 `packages/shared/mediaUrls.js`、`src/utils/urlUtils.js`，新增 `scripts/media-urls.test.mjs`。原八个导出保留；通过工厂显式注入代理开关，默认适配器保持小程序直链，Web 适配器继续读取原 Vite 开关，移除无人设置的隐式 global。消除接近一份文件的重复实现。
+
+完整检查通过（Node 测试增至 109 项，小程序 23 项）；管理页与图库缓存浏览器回归均通过，原图恢复、响应式预览和代理隔离新增合同测试通过。
