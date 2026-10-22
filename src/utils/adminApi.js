@@ -1,14 +1,8 @@
 import { getAuthToken } from './auth';
-import { getEnvValue } from './envConfig';
+import { getApiUrl } from './apiUrl';
 import { invalidatePublicPhotoCache } from './galleryPhotoSource';
 
-const getApiUrl = (path) => {
-  const rawBase = getEnvValue('VITE_API_BASE_URL', '').trim();
-  if (!rawBase) return path;
 
-  const base = rawBase.replace(/\/+$/, '').replace(/\/api$/, '');
-  return `${base}${path}`;
-};
 
 export const requestAdminApi = async (path, options = {}) => {
   const token = getAuthToken();

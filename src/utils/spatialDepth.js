@@ -1,4 +1,4 @@
-import { getEnvValue } from './envConfig';
+import { getApiUrl } from './apiUrl';
 import { getDirectMediaUrl } from './urlUtils';
 import { getSupabaseClient } from './supabaseClient';
 import { createPrecomputedSpatialDepthClient } from './precomputedSpatialDepth';
@@ -16,8 +16,7 @@ const depthClient = createPrecomputedSpatialDepthClient({
   async loadDepth(row, signal) {
     let data, error;
     if (row.storage_backend === 'oss') {
-      const base = String(getEnvValue('VITE_API_BASE_URL', '')).trim().replace(/\/+$/, '').replace(/\/api$/, '');
-      const response = await fetch(`${base}/api/photos/${encodeURIComponent(row.photo_id)}/spatial-depth`, {
+      const response = await fetch(getApiUrl(`/api/photos/${encodeURIComponent(row.photo_id)}/spatial-depth`), {
         cache: 'no-store', signal: AbortSignal.any([signal, AbortSignal.timeout(60_000)]),
       });
       if (!response.ok) throw new Error('空间照片读取失败，请稍后重试。');
@@ -109,8 +108,7 @@ export async function loadSpatialImage(src, signal) {
     // image hosts through the backend. The displayed photograph stays unchanged.
     if (parsed.protocol !== 'https:' || !parsed.hostname.endsWith('.aliyuncs.com')
       || !/^\/(?:origin|ore|pic4pick)\//.test(parsed.pathname)) throw error;
-    const base = String(getEnvValue('VITE_API_BASE_URL', '')).trim().replace(/\/+$/, '').replace(/\/api$/, '');
-    return readSpatialImage(`${base}/api/media/proxy?url=${encodeURIComponent(direct)}`, signal);
+    return readSpatialImage(getApiUrl(`/api/media/proxy?url=${encodeURIComponent(direct)}`), signal);
   }
 }
 

@@ -40,3 +40,7 @@
 恢复点：`c470522`。修改 `packages/shared/mediaUrls.js`、`src/utils/urlUtils.js`，新增 `scripts/media-urls.test.mjs`。原八个导出保留；通过工厂显式注入代理开关，默认适配器保持小程序直链，Web 适配器继续读取原 Vite 开关，移除无人设置的隐式 global。消除接近一份文件的重复实现。
 
 完整检查通过（Node 测试增至 109 项，小程序 23 项）；管理页与图库缓存浏览器回归均通过，原图恢复、响应式预览和代理隔离新增合同测试通过。
+
+## 批次 7：Web API 地址拼接（P2-03）
+
+恢复点：`1f12690`。修改 `src/utils/{auth.js,adminApi.js,spatialDepth.js}` 与 `src/pages/gallery/hooks/usePhotoData.ts`，新增 `src/utils/apiUrl.js`、`scripts/api-url.test.mjs`。统一相对路径、空格、末尾斜线及 /api 后缀处理；保留请求方法、令牌、取消和响应解析。`npm run check` 全通过（110 项 Node 测试、23 项小程序测试）。

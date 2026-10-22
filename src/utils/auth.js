@@ -1,6 +1,6 @@
 import { Storage, StorageString, STORAGE_KEYS } from './storage';
 import { safeAsync } from './errorHandler';
-import { getEnvValue } from './envConfig';
+import { getApiUrl } from './apiUrl';
 
 const STATIC_AUTH_TOKEN_PREFIX = 'pic4pick-static-admin:';
 const LEGACY_ADMIN_AUTHED_KEY = 'admin_authed';
@@ -9,13 +9,7 @@ const isStaticAuthToken = (token) => {
   return typeof token === 'string' && token.startsWith(STATIC_AUTH_TOKEN_PREFIX);
 };
 
-const getApiUrl = (path) => {
-  const rawBase = getEnvValue('VITE_API_BASE_URL', '').trim();
-  if (!rawBase) return path;
 
-  const base = rawBase.replace(/\/+$/, '').replace(/\/api$/, '');
-  return `${base}${path}`;
-};
 
 const createAuthApiUnavailableError = (message) => {
   const error = new Error(message);

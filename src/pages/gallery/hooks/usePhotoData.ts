@@ -6,19 +6,13 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { Storage, STORAGE_KEYS } from '../../../utils/storage';
 import { ensureHttps } from '../../../utils/urlUtils';
 import { handleError, safeAsync, ErrorType } from '../../../utils/errorHandler';
-import { getEnvValue } from '../../../utils/envConfig';
+import { getApiUrl } from '../../../utils/apiUrl';
 import { GalleryPhoto } from '../utils/photoDataUtils';
 import { normalizePhotoCategory } from '../../../utils/photoCategories';
 import { getPublicPhotoSource, PUBLIC_PHOTOS_INVALIDATED_EVENT } from '../../../utils/galleryPhotoSource';
 import { PUBLIC_PHOTO_CACHE_KEY, PUBLIC_PHOTO_REFRESH_INTERVAL_MS } from '../../../utils/publicPhotoData';
 
-const getApiUrl = (path: string) => {
-  const rawBase = getEnvValue('VITE_API_BASE_URL', '').trim();
-  if (!rawBase) return path;
 
-  const base = rawBase.replace(/\/+$/, '').replace(/\/api$/, '');
-  return `${base}${path}`;
-};
 
 const updatePhotoLike = async (photoId: string, delta: number) => {
   const response = await fetch(getApiUrl(`/api/photos/${encodeURIComponent(photoId)}/likes`), {
