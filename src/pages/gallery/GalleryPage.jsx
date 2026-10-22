@@ -201,7 +201,6 @@ export function GalleryPage() {
   const [showMobileMeta, setShowMobileMeta] = useState(false);
   const [isLightboxPortrait, setIsLightboxPortrait] = useState(false);
   const [lightboxAspectRatio, setLightboxAspectRatio] = useState(null);
-  const [lightboxAmbientSrc, setLightboxAmbientSrc] = useState('');
   const [lightboxPreviewFailed, setLightboxPreviewFailed] = useState(false);
   const lightboxPointerRef = useRef(null);
   const lightboxRef = useRef(null);
@@ -210,6 +209,7 @@ export function GalleryPage() {
   const lightboxMediaRef = useRef(null);
   const spatialCanvasRef = useRef(null);
   const spatialScene = useSpatialScene(lightboxPhoto?.id, lightboxImageRef, lightboxMediaRef, spatialCanvasRef);
+  const isFilmPortrait = isFilmSection && lightboxAspectRatio > 0 && lightboxAspectRatio < 1 && !lightboxPreviewFailed;
 
   // 鈹€鈹€ 鍝佺墝鐘舵€?
   const [brandLogo, setBrandLogo] = useState(() => getStoredBrandLogo());
@@ -387,7 +387,6 @@ export function GalleryPage() {
     setMetaPopover(null);
     setShowMobileMeta(false);
     setLightboxAspectRatio(null);
-    setLightboxAmbientSrc('');
     setLightboxPhoto(photo);
   }, []);
 
@@ -406,7 +405,6 @@ export function GalleryPage() {
     setMetaPopover(null);
     setShowMobileMeta(false);
     setLightboxAspectRatio(null);
-    setLightboxAmbientSrc('');
     setLightboxPhoto(nextPhoto);
   }, [canNavigateLightbox, lightboxIndex, lightboxSequence]);
 
@@ -829,13 +827,17 @@ export function GalleryPage() {
         }}
       >
         <div
-          className={`lightbox-panel${isFilmSection ? ' lightbox-panel--film' : ''}`}
-          style={{ backgroundImage: lightboxVisualSrc ? `url(${lightboxVisualSrc})` : 'none' }}
+          className={`lightbox-panel${isFilmSection ? ' lightbox-panel--film' : ''}${isFilmPortrait ? ' lightbox-panel--film-portrait' : ''}`}
+          style={{
+            backgroundImage: lightboxVisualSrc ? `url(${lightboxVisualSrc})` : 'none',
+            '--lightbox-aspect-ratio': lightboxAspectRatio || undefined,
+          }}
           onClick={(e) => e.stopPropagation()}
         >
           {isFilmSection && (
             <div className="lightbox-film-frame" aria-hidden="true">
-              <FilmFrameEdges repeatHorizontal />
+              <FilmFrameEdges orientation={isFilmPortrait ? 'portrait' : 'landscape'}
+                repeatHorizontal={!isFilmPortrait} repeatVertical={isFilmPortrait} />
             </div>
           )}
           <div className="lightbox-actions">
@@ -903,10 +905,6 @@ export function GalleryPage() {
               onPointerDown={handleLightboxPointerDown}
               onPointerUp={handleLightboxPointerUp}
               onPointerCancel={handleLightboxPointerCancel}>
-              {isFilmSection && isLightboxPortrait && lightboxAmbientSrc && !lightboxPreviewFailed && (
-                <div className="film-portrait-ambient" aria-hidden="true"
-                  style={{ backgroundImage: `url(${JSON.stringify(lightboxAmbientSrc)})` }} />
-              )}
               {lightboxPhoto && lightboxVisualSrc && !lightboxPreviewFailed ? (
                 <img
                   ref={lightboxImageRef}
@@ -924,7 +922,6 @@ export function GalleryPage() {
                     delete img.dataset.previewFallbackIndex;
                     setIsLightboxPortrait(img.naturalHeight > img.naturalWidth);
                     setLightboxAspectRatio(img.naturalWidth / img.naturalHeight);
-                    setLightboxAmbientSrc(img.naturalHeight > img.naturalWidth ? (img.currentSrc || img.src) : '');
                   }}
                   onError={(e) => {
                     if (advanceImageFallback(e.currentTarget, lightboxFallbackUrls)) return;

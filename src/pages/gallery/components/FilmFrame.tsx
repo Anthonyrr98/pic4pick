@@ -19,9 +19,10 @@ const frames = {
   },
 };
 
-export function FilmFrameEdges({ orientation = 'landscape', repeatHorizontal = false }: {
+export function FilmFrameEdges({ orientation = 'landscape', repeatHorizontal = false, repeatVertical = false }: {
   orientation?: 'landscape' | 'portrait';
   repeatHorizontal?: boolean;
+  repeatVertical?: boolean;
 }) {
   const frame = frames[orientation];
   return <>{Object.entries(frame.edges).map(([edge, viewBox]) => {
@@ -39,6 +40,21 @@ export function FilmFrameEdges({ orientation = 'landscape', repeatHorizontal = f
           {Array.from({ length: 12 }, (_, index) => (
             <svg key={index} className="film-negative-edge-tile" viewBox={tileViewBox}
               style={{ width: `calc(var(--film-edge-${edge}) * ${tileWidth / height})` }}
+              aria-hidden="true" focusable="false">
+              <image href={frame.src} width={frame.width} height={frame.height} />
+            </svg>
+          ))}
+        </div>
+      );
+    }
+    if (orientation === 'portrait' && repeatVertical && (edge === 'left' || edge === 'right')) {
+      const [, , width, height] = viewBox.split(' ').map(Number);
+      return (
+        <div key={edge} className={`film-negative-edge film-negative-edge--${edge} film-negative-edge--repeated-vertical`}
+          aria-hidden="true">
+          {Array.from({ length: 12 }, (_, index) => (
+            <svg key={index} className="film-negative-edge-tile" viewBox={viewBox}
+              style={{ width: '100%', height: `calc(var(--film-edge-${edge}) * ${height / width})` }}
               aria-hidden="true" focusable="false">
               <image href={frame.src} width={frame.width} height={frame.height} />
             </svg>

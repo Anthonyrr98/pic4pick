@@ -386,6 +386,7 @@
   pointer-events: none;
 }
 .film-negative-edge--repeated { display: flex; overflow: hidden; }
+.film-negative-edge--repeated-vertical { display: flex; flex-direction: column; overflow: hidden; }
 .film-negative-edge-tile { display: block; flex: none; height: 100%; }
 :root[data-theme='darkroom'] .lightbox-panel--film .lightbox-content-wrapper {
   position: absolute;
@@ -414,17 +415,6 @@
   height: 100%;
   object-fit: contain !important;
   border-radius: 0;
-}
-:root[data-theme='darkroom'] .lightbox-panel--film .lightbox-media.portrait-fit { isolation: isolate; }
-:root[data-theme='darkroom'] .lightbox-panel--film .lightbox-media.portrait-fit > img { background: transparent !important; }
-.film-portrait-ambient {
-  position: absolute;
-  inset: -40px;
-  z-index: -1;
-  background-size: cover;
-  background-position: center;
-  filter: blur(36px) brightness(0.48) saturate(0.75);
-  pointer-events: none;
 }
 :root[data-theme='darkroom'] .lightbox-panel--film .lightbox-watermark-frame {
   inset: auto;
@@ -577,6 +567,89 @@
     max-height: min(65dvh, calc(100% - 80px)) !important;
   }
   :root[data-theme='darkroom'] .lightbox-panel--film .spatial-scene-status { top: 70px; }
+}
+
+/* A portrait negative sits on the desk, with controls outside its aperture. */
+:root[data-theme='darkroom'] .lightbox-panel--film-portrait {
+  --film-edge-top: 12px;
+  --film-edge-bottom: 12px;
+  --film-edge-left: clamp(28px, 3.6vw, 48px);
+  --film-edge-right: var(--film-edge-left);
+  --portrait-stage-top: calc(64px + env(safe-area-inset-top, 0px));
+  --portrait-stage-bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+  --portrait-stage-height: calc(100dvh - var(--portrait-stage-top) - var(--portrait-stage-bottom));
+  --portrait-stage-width: calc(100dvw - 128px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px));
+  --portrait-photo-height: min(
+    calc(var(--portrait-stage-height) - var(--film-edge-top) - var(--film-edge-bottom)),
+    calc((var(--portrait-stage-width) - var(--film-edge-left) - var(--film-edge-right)) / var(--lightbox-aspect-ratio))
+  );
+  --portrait-photo-width: calc(var(--portrait-photo-height) * var(--lightbox-aspect-ratio));
+  --portrait-center-y: calc(var(--portrait-stage-top) + var(--portrait-stage-height) / 2);
+  background: linear-gradient(rgb(20 15 10 / 0.44), rgb(20 15 10 / 0.44)), url('/images/film-desktop.png') center / cover no-repeat !important;
+}
+:root[data-theme='darkroom'] .lightbox-panel--film-portrait::before { display: none; }
+:root[data-theme='darkroom'] .lightbox-panel--film-portrait > .lightbox-film-frame {
+  inset: auto;
+  left: calc(50% - var(--portrait-photo-width) / 2 - var(--film-edge-left));
+  top: calc(var(--portrait-center-y) - var(--portrait-photo-height) / 2 - var(--film-edge-top));
+  width: calc(var(--portrait-photo-width) + var(--film-edge-left) + var(--film-edge-right));
+  height: calc(var(--portrait-photo-height) + var(--film-edge-top) + var(--film-edge-bottom));
+  background: #0d0c09;
+  box-shadow: 0 14px 36px rgb(0 0 0 / 0.5), 0 2px 6px rgb(0 0 0 / 0.4);
+  z-index: 0;
+}
+:root[data-theme='darkroom'] .lightbox-panel--film-portrait .lightbox-content-wrapper {
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+:root[data-theme='darkroom'] .lightbox-panel--film-portrait .lightbox-media {
+  inset: auto;
+  left: calc(50% - var(--portrait-photo-width) / 2);
+  top: calc(var(--portrait-center-y) - var(--portrait-photo-height) / 2);
+  width: var(--portrait-photo-width) !important;
+  height: var(--portrait-photo-height) !important;
+}
+:root[data-theme='darkroom'] .lightbox-panel--film-portrait .lightbox-media::after { display: none; }
+:root[data-theme='darkroom'] .lightbox-panel--film-portrait .lightbox-watermark-frame {
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  aspect-ratio: auto;
+  transform: none;
+}
+:root[data-theme='darkroom'] .lightbox-panel--film-portrait .lightbox-actions {
+  top: calc(16px + env(safe-area-inset-top, 0px));
+  right: calc(20px + env(safe-area-inset-right, 0px));
+  max-width: calc(100% - 40px);
+}
+:root[data-theme='darkroom'] .lightbox-panel--film-portrait .lightbox-nav { top: var(--portrait-center-y); }
+:root[data-theme='darkroom'] .lightbox-panel--film-portrait .lightbox-nav-prev { left: calc(20px + env(safe-area-inset-left, 0px)); }
+:root[data-theme='darkroom'] .lightbox-panel--film-portrait .lightbox-nav-next { right: calc(20px + env(safe-area-inset-right, 0px)); }
+@media (max-width: 768px) {
+  :root[data-theme='darkroom'] .lightbox-panel--film-portrait {
+    --film-edge-top: 10px;
+    --film-edge-bottom: 10px;
+    --film-edge-left: 22px;
+    --film-edge-right: 22px;
+    --portrait-stage-top: calc(60px + env(safe-area-inset-top, 0px));
+    --portrait-stage-bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+    --portrait-stage-width: calc(100dvw - 24px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px));
+  }
+  :root[data-theme='darkroom'] .lightbox-panel--film-portrait .lightbox-actions {
+    top: calc(12px + env(safe-area-inset-top, 0px));
+    right: calc(12px + env(safe-area-inset-right, 0px));
+  }
+  :root[data-theme='darkroom'] .lightbox-panel--film-portrait .lightbox-nav {
+    top: auto;
+    bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+    width: 40px;
+    height: 40px;
+    min-height: 40px;
+    transform: none;
+  }
+  :root[data-theme='darkroom'] .lightbox-panel--film-portrait .lightbox-nav-prev { left: calc(50% - 48px); }
+  :root[data-theme='darkroom'] .lightbox-panel--film-portrait .lightbox-nav-next { right: calc(50% - 48px); }
 }
 
 @media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
