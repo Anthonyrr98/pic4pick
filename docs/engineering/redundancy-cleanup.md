@@ -52,3 +52,7 @@
 ## 批次 9：照片字段契约（P2-02）
 
 恢复点：`287e599`。修改 `server/server-enhanced.js`、`packages/shared/photoFields.js`，新增 `server/photoFields.js`。确认原字段序列逐字等价后，定义只保留一份，放在独立后端部署目录中的纯 JS 叶模块；共享入口转导出它，不引入任何 Express、凭据或 Node 运行代码，不改 Render/Docker 根目录。完整检查及 `miniapp` 的 `npm run build:weapp` 均通过。
+
+## 批次 10：资产安全清理片段（P2-09）
+
+恢复点：`7a1658f`。修改 `server/photoDeletion.js`、`server/photoUploads.js`，新增 `server/ossAssets.js`。提取资产归属、其他照片引用查询及忽略已不存在对象的删除步骤；旧 getPhotoOssAssets 出口仍转导出，锁、持久化任务、48 小时保留期、重试和日志语义保留。首次 lint 指出提取后遗留 import，在本批内删除后完整检查通过；原共享引用、进程重启、响应丢失和失败保留测试全部通过。没有执行真实删除。

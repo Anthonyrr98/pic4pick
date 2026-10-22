@@ -1,24 +1,9 @@
+import { getPhotoOssAssets, deleteUnreferencedOssAsset } from './ossAssets.js';
+export { getPhotoOssAssets } from './ossAssets.js';
+
 // Persist cleanup intent before deleting a record. The worker never removes an
 // object while its photo record (or another photo using that URL) still exists.
 const CLEANUP_PREFIX = 'oss_cleanup:';
-
-export const getPhotoOssAssets = (photo, bucket) => {
-  const assets = new Map();
-  for (const url of [photo.image_url, photo.thumbnail_url]) {
-    if (!url) continue;
-    try {
-      const parsed = new URL(url);
-      if (!parsed.hostname.endsWith('.aliyuncs.com')) continue;
-      if (bucket && !parsed.hostname.startsWith(`${bucket}.`)) continue;
-      const key = decodeURIComponent(parsed.pathname.slice(1));
-      if (!/^(origin|ore|pic4pick)\//.test(key) || key.includes('\\') || key.split('/').includes('..')) continue;
-      assets.set(key, { key, url });
-    } catch {
-      // Non-OSS images are not owned by this cleanup worker.
-    }
-  }
-  return [...assets.values()];
-};
 
 export const createPhotoDeletionService = ({ db, deleteObject, bucket, logger }) => {
   const activeJobs = new Set();
@@ -36,21 +21,8 @@ export const createPhotoDeletionService = ({ db, deleteObject, bucket, logger })
       // A failed/ambiguous database delete must leave all image bytes intact.
       if (await findPhoto(photoId)) return { pending: true };
       for (const { key, url } of assets) {
-        if (!getPhotoOssAssets({ image_url: url }, bucket).some((asset) => asset.key === key)) {
-          throw new Error('清理任务的 OSS 路径与当前存储配置不匹配');
-        }
-        // Match the object path even if another record uses HTTP, a signed URL,
-        // or an OSS image-processing query on the same underlying object.
-        const escapedKey = key.replaceAll('"', '\\"');
-        const references = await db('photos', new URLSearchParams({
-          select: 'id', or: `(image_url.like."*/${escapedKey}*",thumbnail_url.like."*/${escapedKey}*")`, limit: '1',
-        }));
-        if (references?.length) continue;
-        try {
-          await deleteObject(key);
-        } catch (error) {
-          if (error.code !== 'NoSuchKey' && error.status !== 404) throw error;
-        }
+        await deleteUnreferencedOssAsset({ asset: { key, url }, db, deleteObject, bucket,
+          mismatchMessage: '清理任务的 OSS 路径与当前存储配置不匹配' });
       }
       await db('app_settings', jobParams(photoId), { method: 'DELETE' });
       return { pending: false };

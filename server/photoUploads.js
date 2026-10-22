@@ -1,4 +1,4 @@
-import { getPhotoOssAssets } from './photoDeletion.js';
+import { deleteUnreferencedOssAsset } from './ossAssets.js';
 
 const UPLOAD_PREFIX = 'photo_upload:';
 const RETENTION_MS = 48 * 60 * 60 * 1000;
@@ -32,17 +32,8 @@ export const createPhotoUploadService = ({ db, deleteObject, bucket, logger, now
       // A save whose HTTP response was lost still owns its files.
       if (!await readPhoto(id)) {
         for (const asset of job.data.assets) {
-          if (!getPhotoOssAssets({ image_url: asset.url }, bucket).some(({ key }) => key === asset.key)) {
-            throw new Error('上传清理任务与当前 OSS 配置不匹配');
-          }
-          const escapedKey = asset.key.replaceAll('"', '\\"');
-          const references = await db('photos', new URLSearchParams({
-            select: 'id', or: `(image_url.like."*/${escapedKey}*",thumbnail_url.like."*/${escapedKey}*")`, limit: '1',
-          }));
-          if (references?.length) continue;
-          try { await deleteObject(asset.key); } catch (error) {
-            if (error.code !== 'NoSuchKey' && error.status !== 404) throw error;
-          }
+          await deleteUnreferencedOssAsset({ asset, db, deleteObject, bucket,
+            mismatchMessage: '上传清理任务与当前 OSS 配置不匹配' });
         }
       }
       await removeJob(id);
