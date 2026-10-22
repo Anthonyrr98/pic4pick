@@ -56,3 +56,7 @@
 ## 批次 10：资产安全清理片段（P2-09）
 
 恢复点：`7a1658f`。修改 `server/photoDeletion.js`、`server/photoUploads.js`，新增 `server/ossAssets.js`。提取资产归属、其他照片引用查询及忽略已不存在对象的删除步骤；旧 getPhotoOssAssets 出口仍转导出，锁、持久化任务、48 小时保留期、重试和日志语义保留。首次 lint 指出提取后遗留 import，在本批内删除后完整检查通过；原共享引用、进程重启、响应丢失和失败保留测试全部通过。没有执行真实删除。
+
+## 批次 11：选点标记复用（P2-04）
+
+恢复点：`4de82cd`。修改 `src/pages/Admin.jsx`，新增 `src/utils/locationMarker.js`、`scripts/location-marker.test.mjs`。合并上传/编辑初始标记、点击标记和搜索结果标记共五处重复创建代码，保留原尺寸、颜色、经纬顺序、弹窗开启及名称转义。地图生命周期、浏览器定位和上传/编辑表单独立状态保留，避免将不同提交流程强行合并。完整检查通过（113 项 Node 测试、23 项小程序测试），管理页浏览器回归通过。

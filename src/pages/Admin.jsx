@@ -27,7 +27,7 @@ import { useFileUpload } from '../hooks/useFileUpload';
 import { ConfigPanel } from '../components/admin/ConfigPanel';
 import { loadMapLibre } from '../utils/maplibreLoader';
 import { getDefaultMaplibreStyle, getMapStylePresetFromEnv } from '../utils/gaodeMapStyle';
-import { escapeHtml } from '../utils/security';
+import { addLocationMarker } from '../utils/locationMarker';
 import { PHOTO_CATEGORIES, normalizePhotoCategory } from '../utils/photoCategories';
 
 const tabs = PHOTO_CATEGORIES;
@@ -592,27 +592,7 @@ export function AdminPage() {
         const lat = selectedLocation?.lat || uploadForm.latitude;
         const lon = selectedLocation?.lon || uploadForm.longitude;
         
-        const markerEl = document.createElement('div');
-        markerEl.className = 'custom-marker';
-        markerEl.style.cssText = `
-          width: 30px;
-          height: 30px;
-          background: #e74c3c;
-          border: 3px solid white;
-          border-radius: 50%;
-          box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-          cursor: pointer;
-        `;
-
-        const popup = new maplibregl.Popup({ offset: 25 })
-          .setHTML(`纬度: ${escapeHtml(lat.toFixed(6))}<br>经度: ${escapeHtml(lon.toFixed(6))}`);
-
-        const marker = new maplibregl.Marker(markerEl)
-          .setLngLat([lon, lat])
-          .setPopup(popup)
-          .addTo(locationMapInstance.current);
-
-        marker.togglePopup();
+        const marker = addLocationMarker(maplibregl, locationMapInstance.current, lat, lon);
         locationMapInstance.current._marker = marker;
       }
 
@@ -627,27 +607,7 @@ export function AdminPage() {
         }
 
         // 添加新标记
-        const markerEl = document.createElement('div');
-        markerEl.className = 'custom-marker';
-        markerEl.style.cssText = `
-          width: 30px;
-          height: 30px;
-          background: #e74c3c;
-          border: 3px solid white;
-          border-radius: 50%;
-          box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-          cursor: pointer;
-        `;
-
-        const popup = new maplibregl.Popup({ offset: 25 })
-          .setHTML(`纬度: ${escapeHtml(lat.toFixed(6))}<br>经度: ${escapeHtml(lng.toFixed(6))}`);
-
-        const marker = new maplibregl.Marker(markerEl)
-          .setLngLat([lng, lat])
-          .setPopup(popup)
-          .addTo(locationMapInstance.current);
-
-        marker.togglePopup();
+        const marker = addLocationMarker(maplibregl, locationMapInstance.current, lat, lng);
         locationMapInstance.current._marker = marker;
       });
       });
@@ -844,29 +804,7 @@ export function AdminPage() {
       }
 
       // 添加新标记
-      const markerEl = document.createElement('div');
-      markerEl.className = 'custom-marker';
-      markerEl.style.cssText = `
-        width: 30px;
-        height: 30px;
-        background: #e74c3c;
-        border: 3px solid white;
-        border-radius: 50%;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-        cursor: pointer;
-      `;
-
-      const popup = new maplibregl.Popup({ offset: 25 })
-        .setHTML(
-          `${escapeHtml(result.name)}<br>纬度: ${escapeHtml(result.lat.toFixed(6))}<br>经度: ${escapeHtml(result.lon.toFixed(6))}`
-        );
-
-      const marker = new maplibregl.Marker(markerEl)
-        .setLngLat([result.lon, result.lat])
-        .setPopup(popup)
-        .addTo(mapInstance);
-
-      marker.togglePopup();
+      const marker = addLocationMarker(maplibregl, mapInstance, result.lat, result.lon, { label: result.name });
       mapInstance._marker = marker;
     }
 
@@ -946,27 +884,7 @@ export function AdminPage() {
         const lat = editSelectedLocation?.lat || editForm.latitude;
         const lon = editSelectedLocation?.lon || editForm.longitude;
         
-        const markerEl = document.createElement('div');
-        markerEl.className = 'custom-marker';
-        markerEl.style.cssText = `
-          width: 30px;
-          height: 30px;
-          background: #e74c3c;
-          border: 3px solid white;
-          border-radius: 50%;
-          box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-          cursor: pointer;
-        `;
-
-        const popup = new maplibregl.Popup({ offset: 25 })
-          .setHTML(`纬度: ${escapeHtml(lat.toFixed(6))}<br>经度: ${escapeHtml(lon.toFixed(6))}`);
-
-        const marker = new maplibregl.Marker(markerEl)
-          .setLngLat([lon, lat])
-          .setPopup(popup)
-          .addTo(editLocationMapInstance.current);
-
-        marker.togglePopup();
+        const marker = addLocationMarker(maplibregl, editLocationMapInstance.current, lat, lon);
         editLocationMapInstance.current._marker = marker;
       }
 
@@ -981,27 +899,7 @@ export function AdminPage() {
         }
 
         // 添加新标记
-        const markerEl = document.createElement('div');
-        markerEl.className = 'custom-marker';
-        markerEl.style.cssText = `
-          width: 30px;
-          height: 30px;
-          background: #e74c3c;
-          border: 3px solid white;
-          border-radius: 50%;
-          box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-          cursor: pointer;
-        `;
-
-        const popup = new maplibregl.Popup({ offset: 25 })
-          .setHTML(`纬度: ${escapeHtml(lat.toFixed(6))}<br>经度: ${escapeHtml(lng.toFixed(6))}`);
-
-        const marker = new maplibregl.Marker(markerEl)
-          .setLngLat([lng, lat])
-          .setPopup(popup)
-          .addTo(editLocationMapInstance.current);
-
-        marker.togglePopup();
+        const marker = addLocationMarker(maplibregl, editLocationMapInstance.current, lat, lng);
         editLocationMapInstance.current._marker = marker;
       });
       });
