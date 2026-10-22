@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import Taro from '@tarojs/taro'
 import { Button, Image, Input, Picker, Text, Textarea, View } from '@tarojs/components'
 import { PHOTO_CATEGORIES } from '../../../../packages/shared/photoCategories'
-import { currentPageSelection, filterAdminPhotos, reviewPatch, runPhotoBatch, type ReviewStatus, type AdminListControl } from '../../../../packages/shared/adminWorkflow'
+import { ADMIN_PAGE_SIZE, currentPageSelection, filterAdminPhotos, reviewPatch, runPhotoBatch, type ReviewStatus, type AdminListControl } from '../../../../packages/shared/adminWorkflow'
 import { login, verify, listAdminPhotos, updatePhoto, deletePhoto, choosePhoto, photoSubmission, type SelectedFile } from '../../platform/admin'
 import { readTable } from '../../platform/request'
 import { storage, STORAGE_KEYS } from '../../platform/storage'
@@ -55,8 +55,8 @@ export default function Admin() {
   const listTab = (['pending', 'approved', 'rejected'].includes(tab) ? tab : 'pending') as ReviewStatus
   const { page: requestedPage, query: search, category } = controls[listTab]
   const list = useMemo(() => filterAdminPhotos(rows, listTab, search, category), [rows, listTab, search, category])
-  const page = Math.min(requestedPage, Math.max(1, Math.ceil(list.length / 20)))
-  const current = list.slice((page - 1) * 20, page * 20)
+  const page = Math.min(requestedPage, Math.max(1, Math.ceil(list.length / ADMIN_PAGE_SIZE)))
+  const current = list.slice((page - 1) * ADMIN_PAGE_SIZE, page * ADMIN_PAGE_SIZE)
   const activeSelection = currentPageSelection(selected, current.map(row => row.id))
   const setControl = (patch: Partial<AdminListControl>) => { setControls(previous => ({ ...previous, [listTab]: { ...previous[listTab], ...patch } })); setSelected([]); setDeleteIds([]) }
   const switchTab = (next: string) => { if (operationLock.current) return; setTab(next); setSelected([]); setDeleteIds([]) }
@@ -112,7 +112,7 @@ export default function Admin() {
             {tab === 'approved' && <Button disabled={busy} onClick={() => void work(() => patch(row.id, { hidden: !row.hidden }))}>{row.hidden ? '公开' : '隐藏'}</Button>}
             <Button disabled={busy} onClick={() => { setDeleteIds([row.id]); setDeleteConfirm('') }}>删除</Button>
           </View></View>)}
-        <View className='pagination'><Button disabled={busy || page <= 1} onClick={() => setControl({ page: page - 1 })}>上一页</Button><Text>{page} / {Math.max(1, Math.ceil(list.length / 20))}</Text><Button disabled={busy || page * 20 >= list.length} onClick={() => setControl({ page: page + 1 })}>下一页</Button></View>
+        <View className='pagination'><Button disabled={busy || page <= 1} onClick={() => setControl({ page: page - 1 })}>上一页</Button><Text>{page} / {Math.max(1, Math.ceil(list.length / ADMIN_PAGE_SIZE))}</Text><Button disabled={busy || page * ADMIN_PAGE_SIZE >= list.length} onClick={() => setControl({ page: page + 1 })}>下一页</Button></View>
         <Button disabled={busy} onClick={() => void work(refresh)}>刷新</Button>
       </>}
     </>}

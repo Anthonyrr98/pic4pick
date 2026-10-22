@@ -60,3 +60,7 @@
 ## 批次 11：选点标记复用（P2-04）
 
 恢复点：`4de82cd`。修改 `src/pages/Admin.jsx`，新增 `src/utils/locationMarker.js`、`scripts/location-marker.test.mjs`。合并上传/编辑初始标记、点击标记和搜索结果标记共五处重复创建代码，保留原尺寸、颜色、经纬顺序、弹窗开启及名称转义。地图生命周期、浏览器定位和上传/编辑表单独立状态保留，避免将不同提交流程强行合并。完整检查通过（113 项 Node 测试、23 项小程序测试），管理页浏览器回归通过。
+
+## 批次 12：管理纯规则（P2-08）
+
+恢复点：`accce93`。修改 `src/pages/Admin.jsx`、`miniapp/src/admin/pages/index.tsx`、`packages/shared/adminWorkflow.ts`、`src/utils/gaodeMapStyle.ts`。复用搜索字段、页大小、当前页选择与原生无关的地图预设转换；保留本地分类、Web 审核兼容字段和批量失败处理的既有差异，不强行统一控制器。完整检查、管理页浏览器回归和小程序构建均通过。

@@ -29,6 +29,7 @@ import { loadMapLibre } from '../utils/maplibreLoader';
 import { getDefaultMaplibreStyle, getMapStylePresetFromEnv } from '../utils/gaodeMapStyle';
 import { addLocationMarker } from '../utils/locationMarker';
 import { PHOTO_CATEGORIES, normalizePhotoCategory } from '../utils/photoCategories';
+import { ADMIN_PAGE_SIZE, matchesAdminSearch, currentPageSelection } from '../../packages/shared/adminWorkflow';
 
 const tabs = PHOTO_CATEGORIES;
 
@@ -471,7 +472,7 @@ export function AdminPage() {
   const setFilterCategory = (category) => setListControls((prev) => ({
     ...prev, [listTab]: { ...prev[listTab], category, page: 1 },
   }));
-  const itemsPerPage = 20; // 每页显示20条
+  const itemsPerPage = ADMIN_PAGE_SIZE;
 
   // 筛选和搜索后的照片列表
   const filteredPhotos = useMemo(() => {
@@ -480,13 +481,7 @@ export function AdminPage() {
     // 搜索筛选
     if (searchQuery.trim()) {
       const query = searchQuery.trim().toLowerCase();
-      filtered = filtered.filter((item) => 
-        item.title?.toLowerCase().includes(query) ||
-        item.location?.toLowerCase().includes(query) ||
-        item.country?.toLowerCase().includes(query) ||
-        item.camera?.toLowerCase().includes(query) ||
-        item.lens?.toLowerCase().includes(query)
-      );
+      filtered = filtered.filter((item) => matchesAdminSearch(item, query));
     }
 
     // 分类筛选
@@ -507,7 +502,7 @@ export function AdminPage() {
     [paginatedPhotos, activeTab]
   );
   const selectedActivePhotoIds = useMemo(
-    () => activeVisiblePhotoIds.filter((id) => selectedPhotoIds.has(id)),
+    () => currentPageSelection(Array.from(selectedPhotoIds), activeVisiblePhotoIds),
     [activeVisiblePhotoIds, selectedPhotoIds]
   );
   const selectedActiveCount = selectedActivePhotoIds.length;

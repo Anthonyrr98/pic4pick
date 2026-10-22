@@ -4,11 +4,16 @@ export type ReviewStatus = 'pending' | 'approved' | 'rejected'
 export interface AdminListControl { page: number; query: string; category: string }
 export const ADMIN_PAGE_SIZE = 20
 
-export function filterAdminPhotos<T extends Record<string, any>>(rows: T[], status: ReviewStatus, query: string, category: string): T[] {
+export function matchesAdminSearch(row: Record<string, any>, query: string): boolean {
   const search = query.trim().toLowerCase()
+  return !search || ['title', 'location', 'country', 'camera', 'lens']
+    .some(key => String(row[key] || '').toLowerCase().includes(search))
+}
+
+export function filterAdminPhotos<T extends Record<string, any>>(rows: T[], status: ReviewStatus, query: string, category: string): T[] {
   return rows.filter(row => row.status === status
     && (!category || normalizePhotoCategory(row.category) === category)
-    && (!search || ['title', 'location', 'country', 'camera', 'lens'].some(key => String(row[key] || '').toLowerCase().includes(search))))
+    && matchesAdminSearch(row, query))
 }
 
 export function currentPageSelection(selected: string[], visibleIds: string[]) {
