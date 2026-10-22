@@ -337,6 +337,16 @@
 :root[data-theme='darkroom'] .lightbox-panel::before { background: var(--bg); backdrop-filter: none; }
 :root[data-theme='darkroom'] :is(.lightbox-media, .lightbox-media:hover) { box-shadow: none; }
 :root[data-theme='darkroom'] :is(.lightbox-story-chip, .lightbox-param-card) { border-radius: 3px; box-shadow: none; }
+:root[data-theme='darkroom'] .meta-popover {
+  background-image: none !important;
+  background-color: var(--panel-dark);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+:root[data-theme='darkroom'] .meta-popover::before { display: none; }
 :root[data-theme='darkroom'] :is(.lightbox-close, .lightbox-nav, .lightbox-action-group) { background: var(--panel); color: var(--text); border-color: var(--border); box-shadow: none; }
 :root[data-theme='darkroom'] .lightbox-action-group :is(.lightbox-download, .spatial-scene-toggle) { color: var(--text); }
 :root[data-theme='darkroom'] .theme-transition-wash { display: none; }
