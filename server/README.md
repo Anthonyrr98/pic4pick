@@ -1,5 +1,7 @@
 # Pic4Pick 后端服务器
 
+> 当前部署与上传契约以 [统一部署指南](../docs/deployment/platforms/backend-deployment-guide.md) 为准；下文部分平台示例保留历史背景，启动入口统一使用 server-enhanced.js。
+
 这是一个用于 Pic4Pick 项目的后端服务器，提供图片上传、存储和管理功能。
 
 ## 管理端作品删除与图片清理
@@ -214,7 +216,7 @@ const cos = new COS({
 
 ```bash
 npm install -g pm2
-pm2 start server.js --name pic4pick-server
+pm2 start server-enhanced.js --name pic4pick-server
 pm2 save
 pm2 startup
 ```
@@ -230,7 +232,7 @@ COPY package*.json ./
 RUN npm install --production
 COPY . .
 EXPOSE 3001
-CMD ["node", "server.js"]
+CMD ["node", "server-enhanced.js"]
 ```
 
 构建和运行：

@@ -1,4 +1,6 @@
 > 本文档已移动到 `docs/engineering/optimization-report.md`  
+
+> 历史文档：保留清理前方案与实施背景，不作为当前模块或功能清单。当前维护入口见 [项目文档](engineering/project-documentation.md) 和 [清理实施记录](engineering/redundancy-cleanup.md)。
 > 请访问：`./docs/engineering/optimization-report.md`
 
 （此文件保留为兼容旧链接的跳转页。）

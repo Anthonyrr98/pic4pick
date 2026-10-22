@@ -1,5 +1,7 @@
 # Code & Feature Audit — Pic4Pick
 
+> 本文保留清理前审计基准；已实施改动、验证、恢复点及需保留的兼容项见 [冗余清理实施记录](docs/engineering/redundancy-cleanup.md)。下述行号和文件存在性对应原审计工作区。
+
 审计日期：2026-10-22（Asia/Shanghai）  
 审计目录：`F:\Github\pic4pick`  
 HEAD：`8ef3cd2663f293461aecbf199989b5141eba22be`  

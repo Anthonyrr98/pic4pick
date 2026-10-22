@@ -1,5 +1,7 @@
 # Supabase Edge Functions 配置说明
 
+> 历史兼容实现：当前 Web 客户端显式禁用此签名直传入口，小程序也不使用。现行上传见 [受保护的后端上传](../../docs/deployment/platforms/backend-deployment-guide.md)；保留源码不代表本次已退役远程 API。以下步骤仅用于理解旧部署。
+
 ## 阿里云 OSS 签名直传函数
 
 `upload-oss` 不接收图片文件本体，只生成短期有效的阿里云 OSS `PUT` 签名 URL。浏览器随后直接把原图上传到 `origin/YYYY/MM/DD/`，把缩略图上传到 `ore/YYYY/MM/DD/`。日期目录按北京时间生成。这样图片流量不会经过 Supabase Edge Function，可显著减少 Supabase Egress。

@@ -1,5 +1,12 @@
 # Pic4Pick
 
+## 当前维护入口
+
+- [清理实施记录与逐项处置](engineering/redundancy-cleanup.md)
+- [图库模块](engineering/gallery-modularization.md) / [地图实现](engineering/map-refactor-guide.md)
+- [后端部署与上传](deployment/platforms/backend-deployment-guide.md)
+- [错误处理约定](development/error-handling.md)
+
 一个现代化的照片管理和展示平台，支持照片上传、审核、分类展示和地理位置探索。
 
 ## ✨ 功能特性
@@ -246,9 +253,3 @@ MIT License
 - [EXIFR](https://mutiny.cz/exifr/)
 
 ---
-
-# 当前维护入口
-
-- [冗余清理实施记录与逐项处置](engineering/redundancy-cleanup.md)
-- [错误处理约定](development/error-handling.md)
-

@@ -1,5 +1,7 @@
 # Supabase Edge Functions 配置说明
 
+> 历史兼容实现：当前 Web 客户端显式禁用此签名直传入口，小程序也不使用。现行上传见 [受保护的后端上传](../deployment/platforms/backend-deployment-guide.md)；保留源码不代表本次已退役远程 API。以下步骤仅用于理解旧部署。
+
 > 原文件位置：`supabase/functions/README.md`
 
 ## 阿里云 OSS 签名直传函数

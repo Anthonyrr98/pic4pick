@@ -1,17 +1,12 @@
-# Pic4Pick 项目完整文档（归档）
+# 项目文档入口
 
-> 原始文档来源：`PROJECT_DOCUMENTATION.md`
+旧完整项目文档为历史资料，当前维护信息按职责集中：
 
-该文档覆盖面很广（项目简介/架构/开发/API/部署/数据库/FAQ 等），与 `README.md`、`docs/development/DEVELOPMENT.md`、`docs/api/API.md`、`docs/deployment/*` 存在大量重复。
+- 开发：[开发指南](../development/DEVELOPMENT.md)。
+- 图库：[模块与入口](gallery-modularization.md)。
+- 地图：[实现与复用边界](map-refactor-guide.md)。
+- API：[API 文档](../api/API.md)。
+- 后端：[部署与上传契约](../deployment/platforms/backend-deployment-guide.md)。
+- 清理：[实施记录与逐项处置](redundancy-cleanup.md)。
 
-## 建议阅读替代路径
-
-- 入口与概览：`../../README.md`、`../index.md`
-- 开发：`../development/DEVELOPMENT.md`
-- API：`../api/API.md`
-- 部署：`../deployment/overview.md`、`../deployment/production.md`
-- OSS：`../storage/aliyun-oss.md`
-- 迁移：`../migration/domestic-database.md`
-
-> 如需保留原文（全文），我可以把 `PROJECT_DOCUMENTATION.md` 的内容完整搬运到这个文件，并把原文件变为跳转页。
-
+不再维护另一份重复的全项目模块清单。清理前全文和状态可从本地基线提交 f464f12 恢复。

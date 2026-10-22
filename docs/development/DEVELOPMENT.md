@@ -2,6 +2,8 @@
 
 本文档说明如何搭建开发环境、项目结构、代码规范和开发流程。
 
+当前图库、地图和共享层入口分别见 `docs/engineering/gallery-modularization.md`、`docs/engineering/map-refactor-guide.md`；统一验证运行 `npm run check`，包含 Web/小程序类型、lint、单测和 Web 内存构建。小程序完整构建在 miniapp 运行 `npm run build:weapp`。
+
 ## 📋 目录
 
 - [环境要求](#环境要求)
@@ -16,7 +18,7 @@
 
 ### 必需软件
 
-- **Node.js** >= 18.0.0
+- **Node.js** >= 22.12.0（与统一检查使用的 Node 22 保持一致）
 - **npm** >= 9.0.0
 - **Git**
 
@@ -36,8 +38,7 @@ Pic4Pick/
 │   ├── components/          # React 组件
 │   │   ├── admin/          # 管理后台组件
 │   │   │   ├── ConfigPanel.jsx
-│   │   │   └── ToolsPanel.jsx
-│   │   ├── ConfirmDialog.jsx
+│   │   │   └── MapStylePicker.jsx
 │   │   ├── ErrorBoundary.jsx
 │   │   └── ...
 │   ├── pages/              # 页面组件

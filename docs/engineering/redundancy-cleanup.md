@@ -80,3 +80,9 @@
 ## 批次 15：示例与运行代码分离（P3-07）
 
 恢复点：`4e77152`。删除 `src/utils/errorHandler.example.js`，在 `docs/development/error-handling.md` 保留现行用法，更新 `docs/README.md` 入口；修改 `src/utils/errorHandler.js` 去掉唯一由旧示例消费的 withErrorHandling、isNetworkError、isPermissionError 及无人读取的 showUserMessage 配置字段。实际错误处理、回滚/重试、错误边界均保留。完整检查通过。
+
+## 批次 16：文档唯一正文与现状（P2-10）
+
+恢复点：`fdd1e31`。修改地图/图库说明及其旧入口、后端部署指南及 server 旧入口、两份旧直传指南、项目文档导航、开发指南、server README、Edge 函数说明和历史报告提示；原审计只增加指向本记录的说明，保留原基准。
+
+旧大篇幅重复正文改为短跳转；当前指南以实际受保护 OSS、真实入口、共享模块和验证命令为准。历史方案标明非当前功能清单，不删除旧服务或远程函数。新增/修改的 33 个相对链接全部有效；完整检查通过。文档中原全文可从基线提交恢复。

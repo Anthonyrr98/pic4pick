@@ -1,5 +1,7 @@
 # 🚀 快速开始指南
 
+> 历史文档：保留清理前方案与实施背景，不作为当前模块或功能清单。当前维护入口见 [项目文档](engineering/project-documentation.md) 和 [清理实施记录](engineering/redundancy-cleanup.md)。
+
 ## ✅ 项目状态
 🟢 **生产就绪** - 所有问题已修复，可立即使用
 
