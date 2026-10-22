@@ -491,6 +491,28 @@
 :root[data-theme='darkroom'] .lightbox-panel--film .lightbox-meta[hidden] { display: none; }
 :root[data-theme='darkroom'] .lightbox-panel--film .lightbox-params-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 :root[data-theme='darkroom'] .lightbox-panel--film .lightbox-story-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.lightbox-story-chip--film-stock {
+  position: relative;
+  padding-right: 50%;
+  overflow: hidden;
+}
+.lightbox-film-stock-artwork {
+  position: absolute;
+  inset: 5px 0;
+  left: 50%;
+  overflow: hidden;
+  pointer-events: none;
+}
+.lightbox-film-stock-artwork img {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: auto;
+  height: 100%;
+  max-width: none;
+  transform: translateX(-50%);
+  object-fit: contain;
+}
 :root[data-theme='darkroom'] .lightbox-panel--film .lightbox-nav-prev { left: calc(var(--film-edge-left) + 6px); }
 :root[data-theme='darkroom'] .lightbox-panel--film .lightbox-nav-next { right: calc(var(--film-edge-right) + 6px); }
 :root[data-theme='darkroom'] .lightbox-panel--film:has(.meta-visible) .lightbox-nav { visibility: hidden; }

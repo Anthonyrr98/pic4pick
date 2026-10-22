@@ -280,6 +280,9 @@ export function GalleryPage() {
     : `${filteredPhotos.length} / ${allPhotos.length} 张作品`;
   const gallerySyncText = lastPhotoDataLoadedAt ? `更新于 ${formatSyncTime(lastPhotoDataLoadedAt)}` : '';
   const lightboxFilmStock = lightboxPhoto ? getFilmStockFromPhoto(lightboxPhoto) : '';
+  const lightboxFilmStockArtwork = isFilmSection && /^fuji\s+c200$/i.test(lightboxFilmStock)
+    ? '/images/film-stocks/fuji-c200.png'
+    : '';
   const lightboxShotInfo = lightboxPhoto
     ? getShotTimeInfo(lightboxPhoto.shotDate || lightboxPhoto.shot_date)
     : null;
@@ -305,6 +308,7 @@ export function GalleryPage() {
       label: '分类',
       value: CATEGORY_LABELS[lightboxPhoto.category] || '未分类',
       sub: lightboxFilmStock || String(lightboxPhoto.mood || '').trim() || '',
+      artwork: lightboxFilmStockArtwork,
     },
     {
       label: '喜欢',
@@ -944,10 +948,15 @@ export function GalleryPage() {
                 </div>
                 <div className="lightbox-story-grid">
                   {lightboxStoryItems.map((item) => (
-                    <div key={item.label} className="lightbox-story-chip">
+                    <div key={item.label} className={`lightbox-story-chip${item.artwork ? ' lightbox-story-chip--film-stock' : ''}`}>
                       <span>{item.label}</span>
                       <strong>{item.value}</strong>
                       {item.sub && <em>{item.sub}</em>}
+                      {item.artwork && (
+                        <div className="lightbox-film-stock-artwork" aria-hidden="true">
+                          <img src={item.artwork} alt="" decoding="async" />
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
