@@ -4,13 +4,13 @@ import 'react-datepicker/dist/react-datepicker.css';
 import { zhCN } from 'date-fns/locale';
 import exifr from 'exifr';
 import '../App.css';
-import { uploadImage, getUploadType, setUploadType, UPLOAD_TYPES, compressImage } from '../utils/upload';
+import { uploadImage, getUploadType, setUploadType, UPLOAD_TYPES } from '../utils/upload';
 import { getSupabaseClient } from '../utils/supabaseClient';
 import { UploadProgress } from '../components/UploadProgress';
 import { getEnvValue } from '../utils/envConfig';
 import { Storage, STORAGE_KEYS } from '../utils/storage';
 import { handleError, formatErrorMessage, ErrorType } from '../utils/errorHandler';
-import { mapSupabaseRowToPhoto, buildSupabasePayloadFromPhoto, getUploadTypeName, getAmapApiUrl } from '../utils/adminUtils';
+import { mapSupabaseRowToPhoto, buildSupabasePayloadFromPhoto, getAmapApiUrl } from '../utils/adminUtils';
 import { ensureHttps } from '../utils/urlUtils';
 import { login as loginWithApi, verifyToken } from '../utils/auth';
 import { ThemeSwitcher } from '../themes/ThemeSwitcher';
@@ -36,8 +36,8 @@ const tabs = PHOTO_CATEGORIES;
 const FILM_STOCK_TAG_PREFIX = 'film_stock:';
 
 const MAX_UPLOAD_FILE_SIZE = 100 * 1024 * 1024;
-const OPTIMIZE_UPLOAD_THRESHOLD = 6 * 1024 * 1024;
-const UPLOAD_OPTIMIZE_OPTIONS = { maxWidth: 2560, maxHeight: 2560, quality: 0.88 };
+
+
 const SUPPORTED_UPLOAD_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const SUPPORTED_UPLOAD_EXTENSIONS = new Set(['jpg', 'jpeg', 'png', 'webp']);
 const EMPTY_PHOTO_METADATA = {
@@ -74,32 +74,7 @@ const getUploadFileValidationError = (file) => {
   return '';
 };
 
-const maybeOptimizeUploadFile = async (file) => {
-  if (file.size < OPTIMIZE_UPLOAD_THRESHOLD || !SUPPORTED_UPLOAD_MIME_TYPES.has(file.type)) {
-    return { file, optimized: false };
-  }
 
-  try {
-    const optimizedFile = await compressImage(file, UPLOAD_OPTIMIZE_OPTIONS);
-    if (optimizedFile.size > 0 && optimizedFile.size < file.size * 0.92) {
-      return {
-        file: new File([optimizedFile], file.name, {
-          type: optimizedFile.type || file.type,
-          lastModified: file.lastModified,
-        }),
-        optimized: true,
-      };
-    }
-  } catch (error) {
-    handleError(error, {
-      context: 'maybeOptimizeUploadFile',
-      type: ErrorType.PARSE,
-      silent: true,
-    });
-  }
-
-  return { file, optimized: false };
-};
 
 const isLocalFrontend = () => {
   if (typeof window === 'undefined') return false;
@@ -186,7 +161,7 @@ const clearLocalPhotoCaches = () => {
   Storage.remove(REJECTED_STORAGE_KEY);
 };
 
-// getUploadTypeName 已移至 adminUtils.js
+
 
 export function AdminPage() {
   // === 原有状态 ===
@@ -289,7 +264,7 @@ export function AdminPage() {
     setUploadStatus,
   } = useFileUpload();
   // 默认使用阿里云 OSS
-  const [uploadType] = useState(UPLOAD_TYPES.ALIYUN_OSS);
+  const uploadType = UPLOAD_TYPES.ALIYUN_OSS;
 
   useEffect(() => {
     if (getUploadType() !== UPLOAD_TYPES.ALIYUN_OSS) {
@@ -1044,16 +1019,13 @@ export function AdminPage() {
     fileReadInProgressRef.current = true;
     setSubmitMessage({ type: 'info', text: '正在检查照片...' });
     // OSS keeps the byte-for-byte original; its backend creates the 2000px lightbox preview.
-    const shouldPreserveOriginal = uploadType === UPLOAD_TYPES.ALIYUN_OSS;
-    const { file: uploadFile, optimized } = shouldPreserveOriginal
-      ? { file, optimized: false }
-      : await maybeOptimizeUploadFile(file);
+    const uploadFile = file;
     if (!isCurrentSelection()) return;
     const fileMeta = {
       name: file.name,
       originalSize: file.size,
       uploadSize: uploadFile.size,
-      optimized,
+      optimized: false,
       type: (file.type || getFileExtension(file.name) || 'image').replace('image/', '').toUpperCase(),
     };
 
@@ -1443,7 +1415,7 @@ export function AdminPage() {
                 setUploadBytes({ uploaded, total });
               }
             },
-            Boolean(supabase) && uploadType === UPLOAD_TYPES.ALIYUN_OSS
+            Boolean(supabase)
           );
           const { url, thumbnailUrl: returnedThumb } = uploadAttempt.result;
           imageURL = url || imageURL;
@@ -1454,9 +1426,7 @@ export function AdminPage() {
             thumbnailURL = imageURL;
           }
           console.log('上传成功，返回 URL:', imageURL, '缩略图:', thumbnailURL);
-          if (uploadType !== UPLOAD_TYPES.BASE64) {
-            setSubmitMessage({ type: 'success', text: `照片已上传到 ${getUploadTypeName(uploadType)}` });
-          }
+          setSubmitMessage({ type: 'success', text: '照片已上传到 阿里云 OSS' });
         } catch (error) {
           const appError = handleError(error, {
             context: 'handleSubmit.upload',

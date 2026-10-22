@@ -1,4 +1,4 @@
-// 通用上传工具，支持多种存储方式
+// 管理员受保护的 OSS 上传，保留原图、稳定提交 ID 和实际进度。
 
 import { StorageString, STORAGE_KEYS } from './storage';
 import { handleError, ErrorType, safeSync } from './errorHandler';
@@ -9,10 +9,6 @@ import { watchOssUploadProgress } from './ossUploadProgress';
 
 // 上传方式类型
 export const UPLOAD_TYPES = {
-  BASE64: 'base64',           // 本地 base64（默认）
-  API: 'api',                 // 后端 API
-  CLOUDINARY: 'cloudinary',    // Cloudinary
-  SUPABASE: 'supabase',        // Supabase Storage
   ALIYUN_OSS: 'aliyun_oss',   // 阿里云 OSS
 };
 
@@ -123,289 +119,23 @@ export const uploadImage = async (file, filename, onProgress, uploadTypeOverride
     };
   };
 
-  let rawResult;
-  
-  switch (uploadType) {
-    case UPLOAD_TYPES.API:
-      rawResult = await uploadToAPI(file, filename, onProgress);
-      break;
-    
-    case UPLOAD_TYPES.CLOUDINARY:
-      rawResult = await uploadToCloudinary(file, filename, onProgress);
-      break;
-    
-    case UPLOAD_TYPES.SUPABASE:
-      rawResult = await uploadToSupabase(file, filename, onProgress);
-      break;
-    
-    case UPLOAD_TYPES.ALIYUN_OSS:
-      console.log('[uploadImage] 使用阿里云 OSS 上传');
-      rawResult = await uploadToAliyunOSS(file, filename, onProgress, options);
-      break;
-    
-    case UPLOAD_TYPES.BASE64:
-    default:
-      console.log('[uploadImage] 使用 Base64 本地存储');
-      rawResult = await uploadToBase64(file, onProgress);
-      break;
+  if (uploadType !== UPLOAD_TYPES.ALIYUN_OSS) {
+    throw new Error('当前仅支持阿里云 OSS 上传，请在管理后台重新提交。');
   }
+  const rawResult = await uploadToAliyunOSS(file, filename, onProgress, options);
 
   return normalizeResult(rawResult);
 };
 
-// 客户端图片压缩工具，用于生成较小的缩略图文件
-export const compressImage = (file, options = {}) => {
-  const { maxWidth = 2560, maxHeight = 2560, quality = 0.85 } = options;
 
-  return new Promise((resolve, reject) => {
-    try {
-      const img = new Image();
-      const url = URL.createObjectURL(file);
 
-      img.onload = () => {
-        let width = img.width;
-        let height = img.height;
 
-        const ratio = Math.min(maxWidth / width, maxHeight / height, 1);
-        width = Math.round(width * ratio);
-        height = Math.round(height * ratio);
 
-        const canvas = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) {
-          URL.revokeObjectURL(url);
-          reject(new Error('Canvas 不支持'));
-          return;
-        }
 
-        ctx.drawImage(img, 0, 0, width, height);
 
-        const mimeType = file.type || 'image/jpeg';
-        canvas.toBlob(
-          (blob) => {
-            URL.revokeObjectURL(url);
-            if (!blob) {
-              reject(new Error('图片压缩失败'));
-              return;
-            }
-            const compressedFile = new File([blob], file.name, { type: mimeType });
-            resolve(compressedFile);
-          },
-          mimeType,
-          quality
-        );
-      };
 
-      img.onerror = (e) => {
-        URL.revokeObjectURL(url);
-        reject(e);
-      };
 
-      img.src = url;
-    } catch (error) {
-      reject(error);
-    }
-  });
-};
 
-// Base64 上传（本地存储）
-const uploadToBase64 = async (file, onProgress) => {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    let isComplete = false;
-    const fileSize = file?.size || 0;
-    
-    // 模拟进度（Base64 转换很快，但为了用户体验还是显示进度）
-    if (onProgress) {
-      reportUploadProgress(onProgress, 10, 0, fileSize, { stage: 'preparing', label: '准备读取文件...' });
-      setTimeout(() => {
-        if (!isComplete) {
-          reportUploadProgress(onProgress, 50, Math.round(fileSize * 0.5), fileSize, { stage: 'transferring', label: '正在处理文件...' });
-        }
-      }, 50);
-      setTimeout(() => {
-        if (!isComplete) {
-          reportUploadProgress(onProgress, 90, Math.round(fileSize * 0.9), fileSize, { stage: 'finalizing', label: '正在完成...' });
-        }
-      }, 100);
-    }
-    
-    reader.onload = () => {
-      isComplete = true;
-      reportUploadProgress(onProgress, 100, fileSize, fileSize, { stage: 'complete', label: '上传完成' });
-      resolve(reader.result?.toString() || '');
-    };
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-};
-
-// 后端 API 上传
-const uploadToAPI = async (file, filename, onProgress) => {
-  const apiUrl = StorageString.get(STORAGE_KEYS.API_UPLOAD_URL, '/api/upload');
-  const formData = new FormData();
-  formData.append('file', file);
-  formData.append('filename', filename);
-  // 可选：启用图片优化
-  if (StorageString.get(STORAGE_KEYS.API_OPTIMIZE) === 'true') {
-    formData.append('optimize', 'true');
-  }
-  
-  return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    const progressReporter = createXhrProgressReporter(file, onProgress);
-    
-    xhr.upload.addEventListener('progress', progressReporter.handleTransferProgress);
-    xhr.upload.addEventListener('load', progressReporter.markWaitingForServer);
-    
-    xhr.addEventListener('load', () => {
-      progressReporter.markResponseReceived();
-      if (xhr.status >= 200 && xhr.status < 300) {
-        try {
-          const data = JSON.parse(xhr.responseText);
-          if (!data.success && !data.url) {
-            reject(new Error(data.error || '上传失败'));
-            return;
-          }
-          progressReporter.markComplete();
-          resolve(data.url || data.imageUrl || data.fileUrl);
-        } catch (error) {
-          const appError = handleError(error, {
-            context: 'uploadToAPI.parse',
-            type: ErrorType.PARSE,
-          });
-          reject(appError);
-        }
-      } else {
-        try {
-          const errorData = JSON.parse(xhr.responseText);
-          reject(new Error(errorData.error || `上传失败: ${xhr.statusText}`));
-        } catch {
-          reject(new Error(`上传失败: ${xhr.statusText}`));
-        }
-      }
-    });
-    
-    xhr.addEventListener('error', () => {
-      reject(new Error('网络错误：无法连接上传服务，请稍后重试'));
-    });
-    
-    xhr.addEventListener('abort', () => {
-      reject(new Error('上传已取消'));
-    });
-    
-    xhr.open('POST', apiUrl);
-    progressReporter.markPreparing();
-    xhr.send(formData);
-  });
-};
-
-// Cloudinary 上传
-const uploadToCloudinary = async (file, filename, onProgress) => {
-  const cloudName = StorageString.get(STORAGE_KEYS.CLOUDINARY_CLOUD_NAME, '');
-  const uploadPreset = StorageString.get(STORAGE_KEYS.CLOUDINARY_UPLOAD_PRESET, '');
-  
-  if (!cloudName || !uploadPreset) {
-    throw new Error('Cloudinary 配置不完整');
-  }
-  
-  const formData = new FormData();
-  formData.append('file', file);
-  formData.append('upload_preset', uploadPreset);
-  formData.append('folder', 'pic4pick');
-  
-  return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    const progressReporter = createXhrProgressReporter(file, onProgress);
-    
-    xhr.upload.addEventListener('progress', progressReporter.handleTransferProgress);
-    xhr.upload.addEventListener('load', progressReporter.markWaitingForServer);
-    
-    xhr.addEventListener('load', () => {
-      progressReporter.markResponseReceived();
-      if (xhr.status >= 200 && xhr.status < 300) {
-        try {
-          const data = JSON.parse(xhr.responseText);
-          progressReporter.markComplete();
-          resolve(data.secure_url || data.url);
-        } catch (error) {
-          const appError = handleError(error, {
-            context: 'uploadToAPI.parse',
-            type: ErrorType.PARSE,
-          });
-          reject(appError);
-        }
-      } else {
-        reject(new Error(`Cloudinary 上传失败: ${xhr.statusText}`));
-      }
-    });
-    
-    xhr.addEventListener('error', () => {
-      reject(new Error('网络错误：无法连接上传服务，请稍后重试'));
-    });
-    
-    xhr.addEventListener('abort', () => {
-      reject(new Error('上传已取消'));
-    });
-    
-    xhr.open('POST', `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`);
-    progressReporter.markPreparing();
-    xhr.send(formData);
-  });
-};
-
-// Supabase Storage 上传
-const uploadToSupabase = async (file, filename, onProgress) => {
-  const supabaseUrl = StorageString.get(STORAGE_KEYS.SUPABASE_URL, '');
-  const supabaseKey = StorageString.get(STORAGE_KEYS.SUPABASE_ANON_KEY, '');
-  const bucket = StorageString.get(STORAGE_KEYS.SUPABASE_BUCKET, 'pic4pick');
-  
-  if (!supabaseUrl || !supabaseKey) {
-    throw new Error('Supabase 配置不完整');
-  }
-  
-  const filePath = `pic4pick/${filename}`;
-  
-  return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    const progressReporter = createXhrProgressReporter(file, onProgress);
-    
-    xhr.upload.addEventListener('progress', progressReporter.handleTransferProgress);
-    xhr.upload.addEventListener('load', progressReporter.markWaitingForServer);
-    
-    xhr.addEventListener('load', () => {
-      progressReporter.markResponseReceived();
-      if (xhr.status >= 200 && xhr.status < 300) {
-        try {
-          JSON.parse(xhr.responseText);
-          progressReporter.markComplete();
-          resolve(`${supabaseUrl}/storage/v1/object/public/${bucket}/${filePath}`);
-        } catch {
-          progressReporter.markComplete();
-          resolve(`${supabaseUrl}/storage/v1/object/public/${bucket}/${filePath}`);
-        }
-      } else {
-        reject(new Error(`Supabase 上传失败: ${xhr.statusText}`));
-      }
-    });
-    
-    xhr.addEventListener('error', () => {
-      reject(new Error('网络错误：无法连接上传服务，请稍后重试'));
-    });
-    
-    xhr.addEventListener('abort', () => {
-      reject(new Error('上传已取消'));
-    });
-    
-    xhr.open('POST', `${supabaseUrl}/storage/v1/object/${bucket}/${filePath}`);
-    xhr.setRequestHeader('Authorization', `Bearer ${supabaseKey}`);
-    xhr.setRequestHeader('Content-Type', file.type);
-    progressReporter.markPreparing();
-    xhr.send(file);
-  });
-};
 
 /** 解析 localStorage / 环境变量中的 OSS 上传后端地址（不含 Supabase Edge 回退） */
 export const resolveOssBackendApiUrl = (path = '/api/upload/oss') => {

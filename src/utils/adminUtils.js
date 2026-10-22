@@ -2,7 +2,7 @@
  * Admin 页面工具函数
  */
 
-import { UPLOAD_TYPES, resolveOssBackendApiUrl } from './upload';
+import { resolveOssBackendApiUrl } from './upload';
 import { handleError, ErrorType } from './errorHandler';
 import { ensureHttps } from './urlUtils';
 import { getAuthToken } from './auth';
@@ -104,19 +104,7 @@ export const buildSupabasePayloadFromPhoto = (photo, statusOverride) => {
   return payload;
 };
 
-/**
- * 获取上传方式的中文名称
- */
-export const getUploadTypeName = (type) => {
-  const names = {
-    [UPLOAD_TYPES.BASE64]: '本地存储',
-    [UPLOAD_TYPES.API]: '后端 API',
-    [UPLOAD_TYPES.CLOUDINARY]: 'Cloudinary',
-    [UPLOAD_TYPES.SUPABASE]: 'Supabase',
-    [UPLOAD_TYPES.ALIYUN_OSS]: '阿里云 OSS',
-  };
-  return names[type] || '本地存储';
-};
+
 
 /**
  * 获取高德地图 API URL（根据环境选择代理或直接调用）

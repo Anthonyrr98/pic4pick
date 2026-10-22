@@ -114,3 +114,20 @@ test('Edge signing endpoints remain blocked before any file is sent', async () =
   await assert.rejects(client.uploadImage(file, file.name, null, client.UPLOAD_TYPES.ALIYUN_OSS), /签名直传已禁用/);
   assert.equal(f.requests.length, 0);
 });
+
+test('retired upload modes cannot silently fall back to embedding image bytes', async () => {
+  const f = fixture({ VITE_API_BASE_URL: 'https://current.example' });
+  await assert.rejects(client.uploadImage(file, file.name, null, 'base64'), /仅支持阿里云 OSS/);
+  assert.equal(f.requests.length, 0);
+});
+
+test('OSS uploads preserve large originals byte for byte', async (t) => {
+  const f = fixture({ VITE_API_BASE_URL: 'https://current.example' });
+  const bytes = Buffer.alloc(7 * 1024 * 1024, 173);
+  const original = new File([bytes], 'large.jpg', { type: 'image/jpeg' });
+  mockUploadResponse(t, f, 200, JSON.stringify({ success: true, url: 'https://images.example/original.jpg' }));
+  await client.uploadImage(original, original.name, null, client.UPLOAD_TYPES.ALIYUN_OSS);
+  const uploaded = f.requests[0].body.get('file');
+  assert.equal(uploaded.size, original.size);
+  assert.ok(Buffer.from(await uploaded.arrayBuffer()).equals(bytes));
+});
