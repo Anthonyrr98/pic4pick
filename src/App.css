@@ -561,7 +561,6 @@ main {
 /* 发现视图下：地图从header下方开始，铺满剩余空间 */
 .app-shell.explore-mode .explore-fullscreen #explore-view {
   top: auto;
-  padding-top: 0;
 }
 
 .app-shell.explore-mode .explore-fullscreen .map-wrapper {
@@ -773,10 +772,6 @@ main {
 
 .toggle-btn .toggle-label {
   transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
-.toggle-btn.active .toggle-label {
-  transform: translateY(-1px);
 }
 
 /* toggle 小图标与动画 */
@@ -1023,10 +1018,6 @@ main {
     font-size: 0.9rem;
     white-space: nowrap;
     min-width: fit-content;
-  }
-
-  .tab.active {
-    box-shadow: none;
   }
 
   .gallery-status-row {
@@ -2592,7 +2583,6 @@ main {
 }
 
 .form-grid {
-  display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 16px;
 }
@@ -2732,10 +2722,6 @@ main {
 }
 
 .pending-card small {
-  color: var(--muted);
-}
-
-.empty-hint {
   color: var(--muted);
 }
 
@@ -3671,7 +3657,6 @@ main {
 @media (max-width: 768px) {
   /* 统计卡片在移动端保持2列布局 */
   .admin-stats {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 16px;
     margin-bottom: 24px;
   }
@@ -3683,10 +3668,7 @@ main {
     padding: 0;
   }
   .lightbox-panel {
-    padding: 0 !important;
-    border-radius: 0 !important;
     border: none !important;
-    box-shadow: none !important;
     outline: none !important;
     max-width: 100%;
     width: 100%;
@@ -3700,15 +3682,12 @@ main {
     -webkit-backdrop-filter: blur(26px) saturate(170%);
   }
   .lightbox-panel::before {
-    border-radius: 0 !important;
     border: none !important;
     box-shadow: none !important;
   }
   .lightbox-content-wrapper {
     flex-direction: column;
     gap: 0 !important;
-    padding: 0 !important;
-    margin: 0 !important;
     border: none !important;
     outline: none !important;
     box-shadow: none !important;
@@ -3720,10 +3699,7 @@ main {
     max-height: 68vh;
     cursor: pointer;
     position: relative;
-    border-radius: 0 !important;
-    box-shadow: none !important;
     overflow: visible;
-    margin: 0 !important;
     padding: 0 !important;
     width: 100%;
     border: none !important;
@@ -3747,10 +3723,7 @@ main {
   /* 手机端：在照片底部添加一个小的向上箭头提示，表示可以点击查看参数 */
   .lightbox-media::after {
     content: '↑';
-    position: absolute;
     bottom: 16px;
-    left: 50%;
-    transform: translateX(-50%);
     width: 40px;
     height: 40px;
     background: rgba(0, 0, 0, 0.5);
@@ -3760,27 +3733,18 @@ main {
     display: flex;
     align-items: center;
     justify-content: center;
-    color: #fff;
     font-size: 1.2rem;
     opacity: 0.8;
     transition: opacity 0.3s ease, transform 0.3s ease;
-    pointer-events: none;
     z-index: 10;
   }
   /* 当参数区域显示时，隐藏提示箭头 */
-  .lightbox-content-wrapper.meta-visible .lightbox-media::after {
-    opacity: 0;
-    transform: translateX(-50%) translateY(10px);
-  }
   /* 手机端参数区：默认隐藏，点击照片后从下方滑入 */
   .lightbox-meta {
-    width: 100%;
     gap: 12px;
     padding: 0 16px 16px;
-    box-sizing: border-box;
     max-height: 0;
     overflow: hidden;
-    opacity: 0;
     transform: translateY(100%);
     transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1),
                 opacity 0.3s ease,
@@ -3788,8 +3752,6 @@ main {
   }
   .lightbox-meta.mobile-visible {
     max-height: 1000px;
-    opacity: 1;
-    transform: translateY(0);
   }
   .lightbox-title-section {
     padding-bottom: 10px;
@@ -3829,7 +3791,6 @@ main {
   .lightbox-actions {
     top: 14px;
     right: 14px;
-    gap: 8px;
   }
   .lightbox-download {
     height: 36px;
@@ -3844,7 +3805,6 @@ main {
   }
   .subtitle {
     font-size: 0.9rem;
-    margin-top: 8px;
   }
   .lightbox-params-grid {
     gap: 12px;
@@ -5733,7 +5693,6 @@ main {
     bottom: calc(18px + env(safe-area-inset-bottom, 0px));
     width: 48px;
     height: 5px;
-    border-radius: 999px;
     background: rgb(var(--panel-rgb) / 0.66);
     box-shadow: 0 2px 12px rgba(0, 0, 0, 0.38);
     opacity: 0.9;
