@@ -9,6 +9,9 @@
     "spatial:worker": "node scripts/spatial-gpu/worker.mjs",
     "deploy:oss": "node --env-file-if-exists=.env.oss.local scripts/deploy-oss.mjs",
     "lint": "eslint .",
+    "typecheck": "tsc --noEmit --incremental false",
+    "check": "node scripts/check-project.mjs",
+    "test:unit": "node --test server/*.test.js scripts/*.test.js scripts/*.test.mjs",
     "test:ui": "node scripts/ui-smoke.mjs",
     "test:gallery-cache": "node --test scripts/public-photo-data.test.mjs && node scripts/gallery-cache-smoke.mjs",
     "test:spatial": "node --test scripts/spatial-input.test.mjs scripts/precomputed-spatial-depth.test.mjs && node scripts/spatial-smoke.mjs",
@@ -50,6 +53,8 @@
     "playwright": "1.63.0",
     "supabase": "2.117.0",
     "terser": "5.51.2",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.46.1",
     "vite": "^7.2.4"
   }
 }

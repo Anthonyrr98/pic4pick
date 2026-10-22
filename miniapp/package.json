@@ -6,7 +6,7 @@
     "dev:weapp": "taro build --type weapp --watch",
     "build:weapp": "taro build --type weapp",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint src config",
+    "lint": "eslint src config tests",
     "test": "tsx --test tests/*.test.ts"
   },
   "dependencies": {

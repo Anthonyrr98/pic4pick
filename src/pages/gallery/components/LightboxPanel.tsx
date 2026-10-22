@@ -2,10 +2,8 @@
  * Lightbox 面板组件 - 显示照片详情和参数
  */
 
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { GalleryPhoto } from '../utils/photoDataUtils';
-import { getShotTimeInfo } from '../utils/timeUtils';
-import { decimalToDMS } from '../utils/geoUtils';
 
 export interface GeoInfo {
   place: string;
@@ -33,18 +31,12 @@ interface LightboxPanelProps {
 
 export const LightboxPanel: React.FC<LightboxPanelProps> = ({
   photo,
-  geoInfo,
-  likedPhotoIds,
   onClose,
-  onToggleLike,
   onOpenMetaPopover,
   showMobileMeta,
   onToggleMobileMeta,
 }) => {
   if (!photo) return null;
-
-  const liked = likedPhotoIds.includes(photo.id);
-  const likeCount = typeof photo.likes === 'number' ? photo.likes : 0;
 
   return (
     <div

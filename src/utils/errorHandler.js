@@ -110,10 +110,12 @@ export const createError = (message, type = ErrorType.UNKNOWN, severity = ErrorS
 /**
  * 处理错误
  * @param {Error|AppError|any} error - 错误对象
- * @param {Object} options - 处理选项
- * @param {string} options.context - 错误上下文（如函数名、操作名）
- * @param {boolean} options.silent - 是否静默处理（不输出日志）
- * @param {Function} options.onError - 自定义错误处理回调
+ * @param {Object} [options] - 处理选项
+ * @param {string} [options.context] - 错误上下文（如函数名、操作名）
+ * @param {boolean} [options.silent] - 是否静默处理（不输出日志）
+ * @param {Function} [options.onError] - 自定义错误处理回调
+ * @param {string} [options.type] - 调用方指定的错误类型
+ * @param {string} [options.severity] - 调用方指定的错误级别
  * @returns {AppError} 标准化的错误对象
  */
 export const handleError = (error, options = {}) => {

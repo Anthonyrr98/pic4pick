@@ -3,9 +3,10 @@ import globals from 'globals'
 import reactHooks from 'eslint-plugin-react-hooks'
 import reactRefresh from 'eslint-plugin-react-refresh'
 import { defineConfig, globalIgnores } from 'eslint/config'
+import tseslint from 'typescript-eslint'
 
 export default defineConfig([
-  globalIgnores(['dist']),
+  globalIgnores(['**/dist/**', '**/node_modules/**', '.artifacts/**', 'artifacts/**', 'logs/**', 'miniapp/**']),
   {
     files: ['src/**/*.{js,jsx}'],
     extends: [
@@ -29,7 +30,7 @@ export default defineConfig([
     },
   },
   {
-    files: ['api/**/*.js', 'server/**/*.js', 'scripts/**/*.js', '*.config.js'],
+    files: ['api/**/*.js', 'server/**/*.{js,mjs}', 'scripts/**/*.{js,mjs}', '*.config.js', 'check-amap-key.js'],
     extends: [js.configs.recommended],
     languageOptions: {
       ecmaVersion: 2020,
@@ -41,6 +42,22 @@ export default defineConfig([
     },
     rules: {
       'no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^[A-Z_]' }],
+    },
+  },
+  {
+    files: ['scripts/*smoke.mjs'],
+    languageOptions: { globals: globals.browser },
+  },
+  {
+    files: ['src/**/*.{ts,tsx}', 'packages/shared/**/*.{ts,js}'],
+    languageOptions: {
+      parser: tseslint.parser,
+      globals: { ...globals.browser, ...globals.es2022 },
+      parserOptions: { ecmaFeatures: { jsx: true }, sourceType: 'module' },
+    },
+    plugins: { '@typescript-eslint': tseslint.plugin },
+    rules: {
+      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', caughtErrors: 'none' }],
     },
   },
 ])

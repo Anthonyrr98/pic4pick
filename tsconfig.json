@@ -8,6 +8,8 @@
 
     /* Bundler mode */
     "moduleResolution": "bundler",
+    "allowJs": true,
+    "checkJs": false,
     "allowImportingTsExtensions": true,
     "isolatedModules": true,
     "moduleDetection": "force",

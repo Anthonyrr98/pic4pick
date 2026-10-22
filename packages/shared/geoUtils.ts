@@ -8,7 +8,6 @@ export const decimalToDMS = (decimal: number, isLatitude: boolean): string => {
   const degrees = Math.floor(absolute);
   const minutesFloat = (absolute - degrees) * 60;
   const minutes = Math.floor(minutesFloat);
-  const seconds = Math.round((minutesFloat - minutes) * 60);
 
   const direction = isLatitude ? (decimal >= 0 ? 'N' : 'S') : decimal >= 0 ? 'E' : 'W';
 

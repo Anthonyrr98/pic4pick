@@ -5,16 +5,13 @@
 import { useEffect, useState } from 'react';
 import exifr from 'exifr';
 import { GalleryPhoto } from '../utils/photoDataUtils';
+import type { BrowserLocation } from '../utils/photoFilterUtils';
+export type { BrowserLocation } from '../utils/photoFilterUtils';
 
 export interface ExifData {
   latitude: number;
   longitude: number;
   GPSAltitude?: number;
-}
-
-export interface BrowserLocation {
-  lat: number;
-  lon: number;
 }
 
 // 通过经纬度获取海拔（免费 API：Open-Meteo Elevation）
