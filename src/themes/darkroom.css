@@ -93,6 +93,42 @@
   --film-edge-bottom: 9.084cqw;
   --film-edge-left: 3.198cqw;
 }
+.film-negative--fuji-c200.film-negative--landscape {
+  --film-edge-top: 10.4167cqw;
+  --film-edge-bottom: 10.9375cqw;
+  --film-edge-left: 0px;
+  --film-edge-right: 0px;
+}
+.film-negative--fuji-c200.film-negative--portrait {
+  --film-edge-top: 0px;
+  --film-edge-bottom: 0px;
+  --film-edge-left: calc(100cqw * 168 / (1536 * var(--film-photo-ratio) + 328));
+  --film-edge-right: calc(100cqw * 160 / (1536 * var(--film-photo-ratio) + 328));
+}
+.film-negative--kodak-gold-200.film-negative--landscape {
+  --film-edge-top: 10.4167cqw;
+  --film-edge-bottom: 11.84896cqw;
+  --film-edge-left: 0px;
+  --film-edge-right: 0px;
+}
+.film-negative--kodak-gold-200.film-negative--portrait {
+  --film-edge-top: 0px;
+  --film-edge-bottom: 0px;
+  --film-edge-left: calc(100cqw * 182 / (1536 * var(--film-photo-ratio) + 342));
+  --film-edge-right: calc(100cqw * 160 / (1536 * var(--film-photo-ratio) + 342));
+}
+.film-negative--fuji-simple-ace.film-negative--landscape {
+  --film-edge-top: 10.4167cqw;
+  --film-edge-bottom: 12.890625cqw;
+  --film-edge-left: 0px;
+  --film-edge-right: 0px;
+}
+.film-negative--fuji-simple-ace.film-negative--portrait {
+  --film-edge-top: 0px;
+  --film-edge-bottom: 0px;
+  --film-edge-left: calc(100cqw * 198 / (1536 * var(--film-photo-ratio) + 358));
+  --film-edge-right: calc(100cqw * 160 / (1536 * var(--film-photo-ratio) + 358));
+}
 .film-negative-edge { position: absolute; display: block; pointer-events: none; z-index: 2; }
 .film-negative-edge--top { top: 0; left: 0; width: 100%; height: var(--film-edge-top); }
 .film-negative-edge--bottom { bottom: 0; left: 0; width: 100%; height: var(--film-edge-bottom); }
@@ -351,7 +387,7 @@
 :root[data-theme='darkroom'] .lightbox-action-group :is(.lightbox-download, .spatial-scene-toggle) { color: var(--text); }
 :root[data-theme='darkroom'] .theme-transition-wash { display: none; }
 
-/* The film frame fills the viewport; the complete photograph fits inside it. */
+/* Fit the film aperture to the complete photograph, without letterboxing. */
 :root[data-theme='darkroom']:has(.lightbox.active .lightbox-panel--film) { overflow: hidden; scrollbar-gutter: auto; }
 :root[data-theme='darkroom'] .lightbox { padding: 0; width: 100vw; width: 100dvw; height: 100vh; height: 100dvh; }
 :root[data-theme='darkroom'] .lightbox-panel--film {
@@ -359,6 +395,16 @@
   --film-edge-right: 18px;
   --film-edge-bottom: 44px;
   --film-edge-left: 18px;
+  --film-stage-top: 0px;
+  --film-stage-bottom: 0px;
+  --film-stage-height: calc(100dvh - var(--film-stage-top) - var(--film-stage-bottom));
+  --film-stage-width: 100dvw;
+  --film-photo-height: min(
+    calc(var(--film-stage-height) - var(--film-edge-top) - var(--film-edge-bottom)),
+    calc((var(--film-stage-width) - var(--film-edge-left) - var(--film-edge-right)) / var(--lightbox-aspect-ratio, 1.5))
+  );
+  --film-photo-width: calc(var(--film-photo-height) * var(--lightbox-aspect-ratio, 1.5));
+  --film-center-y: calc(var(--film-stage-top) + var(--film-stage-height) / 2);
   position: absolute;
   inset: 0;
   width: 100%;
@@ -367,17 +413,14 @@
   max-height: none;
   padding: 0;
   display: block;
-  background: #11100c !important;
+  background: linear-gradient(rgb(20 15 10 / 0.44), rgb(20 15 10 / 0.44)), url('/images/film-desktop.png') center / cover no-repeat !important;
   border: 0;
   border-radius: 0;
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
 }
 :root[data-theme='darkroom'] .lightbox-panel--film::before {
-  inset: var(--film-edge-top) var(--film-edge-right) var(--film-edge-bottom) var(--film-edge-left);
-  border-radius: 1px;
-  background: #1b1a17;
-  -webkit-backdrop-filter: none;
+  display: none;
 }
 .lightbox-panel > .lightbox-film-frame {
   position: absolute;
@@ -385,24 +428,36 @@
   z-index: 2;
   pointer-events: none;
 }
+:root[data-theme='darkroom'] .lightbox-panel--film > .lightbox-film-frame {
+  inset: auto;
+  left: calc(50% - var(--film-photo-width) / 2 - var(--film-edge-left));
+  top: calc(var(--film-center-y) - var(--film-photo-height) / 2 - var(--film-edge-top));
+  width: calc(var(--film-photo-width) + var(--film-edge-left) + var(--film-edge-right));
+  height: calc(var(--film-photo-height) + var(--film-edge-top) + var(--film-edge-bottom));
+  background: #0d0c09;
+  box-shadow: 0 14px 36px rgb(0 0 0 / 0.5), 0 2px 6px rgb(0 0 0 / 0.4);
+  z-index: 0;
+}
 .film-negative-edge--repeated { display: flex; overflow: hidden; }
 .film-negative-edge--repeated-vertical { display: flex; flex-direction: column; overflow: hidden; }
 .film-negative-edge-tile { display: block; flex: none; height: 100%; }
 :root[data-theme='darkroom'] .lightbox-panel--film .lightbox-content-wrapper {
   position: absolute;
-  inset: var(--film-edge-top) var(--film-edge-right) var(--film-edge-bottom) var(--film-edge-left);
+  inset: 0;
   display: block;
-  width: auto;
-  height: auto;
+  width: 100%;
+  height: 100%;
   margin: 0;
   padding: 0;
   overflow: hidden;
 }
 :root[data-theme='darkroom'] .lightbox-panel--film .lightbox-media {
   position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
+  inset: auto;
+  left: calc(50% - var(--film-photo-width) / 2);
+  top: calc(var(--film-center-y) - var(--film-photo-height) / 2);
+  width: var(--film-photo-width) !important;
+  height: var(--film-photo-height) !important;
   max-height: none;
   min-height: 0;
   flex: none;
@@ -417,13 +472,11 @@
   border-radius: 0;
 }
 :root[data-theme='darkroom'] .lightbox-panel--film .lightbox-watermark-frame {
-  inset: auto;
-  left: 50%;
-  top: 50%;
-  width: min(100%, calc((100dvh - var(--film-edge-top) - var(--film-edge-bottom)) * var(--lightbox-aspect-ratio, 1.5)));
-  height: auto;
-  aspect-ratio: var(--lightbox-aspect-ratio, 1.5);
-  transform: translate(-50%, -50%);
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  aspect-ratio: auto;
+  transform: none;
 }
 :root[data-theme='darkroom'] .lightbox-panel--film .lightbox-actions {
   position: absolute;
@@ -504,6 +557,7 @@
 :root[data-theme='darkroom'] .lightbox-panel--film .lightbox-meta[hidden] { display: none; }
 :root[data-theme='darkroom'] .lightbox-panel--film .lightbox-params-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 :root[data-theme='darkroom'] .lightbox-panel--film .lightbox-story-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+:root[data-theme='darkroom'] .lightbox-panel--film .lightbox-story-grid--footer .lightbox-story-chip { grid-column: 1 / -1; }
 .lightbox-story-chip--film-stock {
   position: relative;
   padding-right: 50%;
@@ -575,55 +629,17 @@
   --film-edge-bottom: 12px;
   --film-edge-left: clamp(28px, 3.6vw, 48px);
   --film-edge-right: var(--film-edge-left);
-  --portrait-stage-top: calc(64px + env(safe-area-inset-top, 0px));
-  --portrait-stage-bottom: calc(24px + env(safe-area-inset-bottom, 0px));
-  --portrait-stage-height: calc(100dvh - var(--portrait-stage-top) - var(--portrait-stage-bottom));
-  --portrait-stage-width: calc(100dvw - 128px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px));
-  --portrait-photo-height: min(
-    calc(var(--portrait-stage-height) - var(--film-edge-top) - var(--film-edge-bottom)),
-    calc((var(--portrait-stage-width) - var(--film-edge-left) - var(--film-edge-right)) / var(--lightbox-aspect-ratio))
-  );
-  --portrait-photo-width: calc(var(--portrait-photo-height) * var(--lightbox-aspect-ratio));
-  --portrait-center-y: calc(var(--portrait-stage-top) + var(--portrait-stage-height) / 2);
-  background: linear-gradient(rgb(20 15 10 / 0.44), rgb(20 15 10 / 0.44)), url('/images/film-desktop.png') center / cover no-repeat !important;
-}
-:root[data-theme='darkroom'] .lightbox-panel--film-portrait::before { display: none; }
-:root[data-theme='darkroom'] .lightbox-panel--film-portrait > .lightbox-film-frame {
-  inset: auto;
-  left: calc(50% - var(--portrait-photo-width) / 2 - var(--film-edge-left));
-  top: calc(var(--portrait-center-y) - var(--portrait-photo-height) / 2 - var(--film-edge-top));
-  width: calc(var(--portrait-photo-width) + var(--film-edge-left) + var(--film-edge-right));
-  height: calc(var(--portrait-photo-height) + var(--film-edge-top) + var(--film-edge-bottom));
-  background: #0d0c09;
-  box-shadow: 0 14px 36px rgb(0 0 0 / 0.5), 0 2px 6px rgb(0 0 0 / 0.4);
-  z-index: 0;
-}
-:root[data-theme='darkroom'] .lightbox-panel--film-portrait .lightbox-content-wrapper {
-  inset: 0;
-  width: 100%;
-  height: 100%;
-}
-:root[data-theme='darkroom'] .lightbox-panel--film-portrait .lightbox-media {
-  inset: auto;
-  left: calc(50% - var(--portrait-photo-width) / 2);
-  top: calc(var(--portrait-center-y) - var(--portrait-photo-height) / 2);
-  width: var(--portrait-photo-width) !important;
-  height: var(--portrait-photo-height) !important;
+  --film-stage-top: calc(64px + env(safe-area-inset-top, 0px));
+  --film-stage-bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+  --film-stage-width: calc(100dvw - 128px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px));
 }
 :root[data-theme='darkroom'] .lightbox-panel--film-portrait .lightbox-media::after { display: none; }
-:root[data-theme='darkroom'] .lightbox-panel--film-portrait .lightbox-watermark-frame {
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  aspect-ratio: auto;
-  transform: none;
-}
 :root[data-theme='darkroom'] .lightbox-panel--film-portrait .lightbox-actions {
   top: calc(16px + env(safe-area-inset-top, 0px));
   right: calc(20px + env(safe-area-inset-right, 0px));
   max-width: calc(100% - 40px);
 }
-:root[data-theme='darkroom'] .lightbox-panel--film-portrait .lightbox-nav { top: var(--portrait-center-y); }
+:root[data-theme='darkroom'] .lightbox-panel--film-portrait .lightbox-nav { top: var(--film-center-y); }
 :root[data-theme='darkroom'] .lightbox-panel--film-portrait .lightbox-nav-prev { left: calc(20px + env(safe-area-inset-left, 0px)); }
 :root[data-theme='darkroom'] .lightbox-panel--film-portrait .lightbox-nav-next { right: calc(20px + env(safe-area-inset-right, 0px)); }
 @media (max-width: 768px) {
@@ -632,9 +648,9 @@
     --film-edge-bottom: 10px;
     --film-edge-left: 22px;
     --film-edge-right: 22px;
-    --portrait-stage-top: calc(60px + env(safe-area-inset-top, 0px));
-    --portrait-stage-bottom: calc(64px + env(safe-area-inset-bottom, 0px));
-    --portrait-stage-width: calc(100dvw - 24px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px));
+    --film-stage-top: calc(60px + env(safe-area-inset-top, 0px));
+    --film-stage-bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+    --film-stage-width: calc(100dvw - 24px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px));
   }
   :root[data-theme='darkroom'] .lightbox-panel--film-portrait .lightbox-actions {
     top: calc(12px + env(safe-area-inset-top, 0px));
@@ -650,6 +666,26 @@
   }
   :root[data-theme='darkroom'] .lightbox-panel--film-portrait .lightbox-nav-prev { left: calc(50% - 48px); }
   :root[data-theme='darkroom'] .lightbox-panel--film-portrait .lightbox-nav-next { right: calc(50% - 48px); }
+}
+
+/* Stock artwork has perforations on two sides, with no extra side border. */
+:root[data-theme='darkroom'] .lightbox-panel--kodak-gold-200 { --film-strip-edge-ratio: 1.1375; }
+:root[data-theme='darkroom'] .lightbox-panel--fuji-simple-ace { --film-strip-edge-ratio: 1.2375; }
+:root[data-theme='darkroom'] .lightbox-panel--film:is(.lightbox-panel--fuji-c200, .lightbox-panel--kodak-gold-200, .lightbox-panel--fuji-simple-ace):not(.lightbox-panel--film-portrait) {
+  --film-edge-left: 0px;
+  --film-edge-right: 0px;
+  --film-edge-bottom: calc(var(--film-edge-top) * var(--film-strip-edge-ratio, 1.05));
+}
+:root[data-theme='darkroom'] .lightbox-panel--film-portrait:is(.lightbox-panel--fuji-c200, .lightbox-panel--kodak-gold-200, .lightbox-panel--fuji-simple-ace) {
+  --film-edge-top: 0px;
+  --film-edge-bottom: 0px;
+  --film-edge-right: clamp(28px, 3.6vw, 48px);
+  --film-edge-left: calc(var(--film-edge-right) * var(--film-strip-edge-ratio, 1.05));
+}
+@media (max-width: 768px) {
+  :root[data-theme='darkroom'] .lightbox-panel--film-portrait:is(.lightbox-panel--fuji-c200, .lightbox-panel--kodak-gold-200, .lightbox-panel--fuji-simple-ace) {
+    --film-edge-right: 22px;
+  }
 }
 
 @media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {

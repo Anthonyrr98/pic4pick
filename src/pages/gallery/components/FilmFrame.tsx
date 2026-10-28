@@ -1,8 +1,18 @@
 import type { CSSProperties, ReactNode } from 'react';
 
+type FrameArtwork = {
+  src: string;
+  width: number;
+  height: number;
+  edges: Partial<Record<'top' | 'right' | 'bottom' | 'left', string>>;
+  sourceWidth?: number;
+  sourceHeight?: number;
+  transform?: string;
+};
+
 // Crop the supplied artwork at render time. The opaque centre is never placed
 // over a photograph, and the source PNG files remain unchanged.
-const frames = {
+const frames: Record<'landscape' | 'portrait', FrameArtwork> = {
   landscape: {
     src: '/film-frames/135-landscape.png', width: 1536, height: 1024,
     edges: {
@@ -19,19 +29,80 @@ const frames = {
   },
 };
 
-export function FilmFrameEdges({ orientation = 'landscape', repeatHorizontal = false, repeatVertical = false }: {
+const fujiC200Frames: Record<'landscape' | 'portrait', FrameArtwork> = {
+  landscape: {
+    src: '/film-frames/fuji-c200.png', width: 1536, height: 1024,
+    edges: { top: '0 0 1536 160', bottom: '0 856 1536 168' },
+  },
+  portrait: {
+    src: '/film-frames/fuji-c200.png', width: 1024, height: 1536,
+    sourceWidth: 1536, sourceHeight: 1024,
+    transform: 'translate(1024 0) rotate(90)',
+    edges: { right: '864 0 160 1536', left: '0 0 168 1536' },
+  },
+};
+
+const kodakGold200Frames: Record<'landscape' | 'portrait', FrameArtwork> = {
+  landscape: {
+    src: '/film-frames/kodak-gold-200.png', width: 1536, height: 1024,
+    edges: { top: '0 0 1536 160', bottom: '0 842 1536 182' },
+  },
+  portrait: {
+    src: '/film-frames/kodak-gold-200.png', width: 1024, height: 1536,
+    sourceWidth: 1536, sourceHeight: 1024,
+    transform: 'translate(1024 0) rotate(90)',
+    edges: { right: '864 0 160 1536', left: '0 0 182 1536' },
+  },
+};
+
+const fujiSimpleAceFrames: Record<'landscape' | 'portrait', FrameArtwork> = {
+  landscape: {
+    src: '/film-frames/fuji-simple-ace.png', width: 1536, height: 1024,
+    edges: { top: '0 0 1536 160', bottom: '0 826 1536 198' },
+  },
+  portrait: {
+    src: '/film-frames/fuji-simple-ace.png', width: 1024, height: 1536,
+    sourceWidth: 1536, sourceHeight: 1024,
+    transform: 'translate(1024 0) rotate(90)',
+    edges: { right: '864 0 160 1536', left: '0 0 198 1536' },
+  },
+};
+
+const stockFrames = {
+  'fuji-c200': fujiC200Frames,
+  'kodak-gold-200': kodakGold200Frames,
+  'fuji-simple-ace': fujiSimpleAceFrames,
+};
+
+export const getFilmFrameStock = (filmStock = '') => {
+  const stock = filmStock.trim();
+  if (/^fuji\s*c200$/i.test(stock)) return 'fuji-c200';
+  if (/^kodak\s+gold\s*200$/i.test(stock)) return 'kodak-gold-200';
+  if (/^富士(?:胶片)?一次性相机$|^(?:fuji(?:film)?\s+)?simple\s*ace(?:\s*400)?$/i.test(stock)) return 'fuji-simple-ace';
+  return '';
+};
+
+function FrameImage({ frame }: { frame: FrameArtwork }) {
+  return <image href={frame.src} width={frame.sourceWidth ?? frame.width}
+    height={frame.sourceHeight ?? frame.height} transform={frame.transform} />;
+}
+
+export function FilmFrameEdges({ orientation = 'landscape', filmStock = '', repeatHorizontal = false, repeatVertical = false }: {
   orientation?: 'landscape' | 'portrait';
+  filmStock?: string;
   repeatHorizontal?: boolean;
   repeatVertical?: boolean;
 }) {
-  const frame = frames[orientation];
+  const stock = getFilmFrameStock(filmStock);
+  const frame = (stock ? stockFrames[stock] : frames)[orientation];
   return <>{Object.entries(frame.edges).map(([edge, viewBox]) => {
+    if (!viewBox) return null;
     // Wide panels repeat full strips so the perforations and lettering retain
     // their original proportions instead of stretching across the dialog.
     if (repeatHorizontal && (edge === 'top' || edge === 'bottom')) {
       const [x, y, width, height] = viewBox.split(' ').map(Number);
-      const leftCrop = Number(frame.edges.left.split(' ')[2]);
-      const rightCrop = Number(frame.edges.right.split(' ')[2]);
+      const leftCrop = Number(frame.edges.left?.split(' ')[2] ?? 0);
+      const rightCrop = Number(frame.edges.right?.split(' ')[2] ?? 0);
       const tileWidth = width - leftCrop - rightCrop;
       const tileViewBox = [x + leftCrop, y, tileWidth, height].join(' ');
       return (
@@ -41,13 +112,13 @@ export function FilmFrameEdges({ orientation = 'landscape', repeatHorizontal = f
             <svg key={index} className="film-negative-edge-tile" viewBox={tileViewBox}
               style={{ width: `calc(var(--film-edge-${edge}) * ${tileWidth / height})` }}
               aria-hidden="true" focusable="false">
-              <image href={frame.src} width={frame.width} height={frame.height} />
+              <FrameImage frame={frame} />
             </svg>
           ))}
         </div>
       );
     }
-    if (orientation === 'portrait' && repeatVertical && (edge === 'left' || edge === 'right')) {
+    if (repeatVertical && (edge === 'left' || edge === 'right')) {
       const [, , width, height] = viewBox.split(' ').map(Number);
       return (
         <div key={edge} className={`film-negative-edge film-negative-edge--${edge} film-negative-edge--repeated-vertical`}
@@ -56,7 +127,7 @@ export function FilmFrameEdges({ orientation = 'landscape', repeatHorizontal = f
             <svg key={index} className="film-negative-edge-tile" viewBox={viewBox}
               style={{ width: '100%', height: `calc(var(--film-edge-${edge}) * ${height / width})` }}
               aria-hidden="true" focusable="false">
-              <image href={frame.src} width={frame.width} height={frame.height} />
+              <FrameImage frame={frame} />
             </svg>
           ))}
         </div>
@@ -64,7 +135,7 @@ export function FilmFrameEdges({ orientation = 'landscape', repeatHorizontal = f
     }
     return <svg key={edge} className={`film-negative-edge film-negative-edge--${edge}`}
       viewBox={viewBox} preserveAspectRatio="none" aria-hidden="true" focusable="false">
-      <image href={frame.src} width={frame.width} height={frame.height} />
+      <FrameImage frame={frame} />
     </svg>;
   })}</>;
 }
@@ -79,18 +150,20 @@ export function FilmControlFrame() {
   );
 }
 
-export function FilmFrame({ enabled, aspectRatio, children }: {
+export function FilmFrame({ enabled, aspectRatio, filmStock = '', children }: {
   enabled: boolean;
   aspectRatio: number;
+  filmStock?: string;
   children: ReactNode;
 }) {
   if (!enabled) return <>{children}</>;
   const orientation = aspectRatio > 1 ? 'landscape' : 'portrait';
+  const stock = getFilmFrameStock(filmStock);
   return (
-    <div className={`film-negative film-negative--${orientation}`}
+    <div className={`film-negative film-negative--${orientation}${stock ? ` film-negative--${stock}` : ''}`}
       style={{ '--film-photo-ratio': aspectRatio } as CSSProperties}>
       {children}
-      <FilmFrameEdges orientation={orientation} />
+      <FilmFrameEdges orientation={orientation} filmStock={filmStock} />
     </div>
   );
 }

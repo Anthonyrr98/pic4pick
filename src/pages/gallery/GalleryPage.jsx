@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, useCallback } from 'react';
 import '../../App.css';
+import './galleryBackdrop.css';
 import { getSupabaseClient } from '../../utils/supabaseClient';
 import {
   BRAND_LOGO_EVENT,
@@ -30,7 +31,7 @@ import {
 } from '../../utils/urlUtils';
 import { TabStrip } from './components/TabStrip';
 import { PhotoGrid } from './components/PhotoGrid';
-import { FilmControlFrame, FilmFrameEdges } from './components/FilmFrame';
+import { FilmControlFrame, FilmFrameEdges, getFilmFrameStock } from './components/FilmFrame';
 import { LocationPanel } from './components/LocationPanel';
 import { ThemeSwitcher } from '../../themes/ThemeSwitcher';
 import { useTheme } from '../../themes/ThemeContext';
@@ -164,6 +165,25 @@ function GalleryLoadingState() {
   );
 }
 
+function LightboxStoryGrid({ items, className = '' }) {
+  return (
+    <div className={`lightbox-story-grid ${className}`}>
+      {items.map((item) => (
+        <div key={item.label} className={`lightbox-story-chip${item.artwork ? ' lightbox-story-chip--film-stock' : ''}`}>
+          <span>{item.label}</span>
+          <strong>{item.value}</strong>
+          {item.sub && <em>{item.sub}</em>}
+          {item.artwork && (
+            <div className="lightbox-film-stock-artwork" aria-hidden="true">
+              <img src={item.artwork} alt="" decoding="async" />
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function ExploreViewPending() {
   return (
     <section id="explore-view" className="screen active">
@@ -242,11 +262,21 @@ export function GalleryPage() {
 
   // 鈹€鈹€ 娲剧敓鏁版嵁
   const allPhotos = useMemo(() => approvedPhotos.filter((p) => !p.hidden), [approvedPhotos]);
-
   const filteredPhotos = useMemo(
     () => filterAndSortPhotos(allPhotos, activeFilter, browserLocation, calculateDistance),
     [allPhotos, activeFilter, browserLocation]
   );
+  const galleryBackdropPhoto = filteredPhotos[0];
+  const galleryBackdropSrc = galleryBackdropPhoto
+    ? getPreviewMediaUrl(galleryBackdropPhoto, { width: 1600, quality: 80, preferOriginal: true })
+    : '';
+  const galleryBackdropFallbacks = galleryBackdropPhoto
+    ? getPreviewMediaFallbackUrls(galleryBackdropPhoto, [
+        { width: 1080, quality: 80 },
+        { width: 720, quality: 80, format: false },
+      ])
+    : [];
+  const showGalleryBackdrop = Boolean(galleryBackdropSrc) && activeView === 'gallery-view' && !isFilmSection;
 
   const displayedPhotos = useMemo(
     () => filteredPhotos.slice(0, displayedCount),
@@ -281,6 +311,7 @@ export function GalleryPage() {
     : `${filteredPhotos.length} / ${allPhotos.length} 张作品`;
   const gallerySyncText = lastPhotoDataLoadedAt ? `更新于 ${formatSyncTime(lastPhotoDataLoadedAt)}` : '';
   const lightboxFilmStock = lightboxPhoto ? getFilmStockFromPhoto(lightboxPhoto) : '';
+  const lightboxFrameStock = isFilmSection ? getFilmFrameStock(lightboxFilmStock) : '';
   const lightboxFilmStockArtwork = isFilmSection && /^fuji\s+c200$/i.test(lightboxFilmStock)
     ? '/images/film-stocks/fuji-c200.png'
     : '';
@@ -313,12 +344,13 @@ export function GalleryPage() {
       value: CATEGORY_LABELS[lightboxPhoto.category] || '未分类',
       sub: lightboxFilmStock || String(lightboxPhoto.mood || '').trim() || '',
       artwork: lightboxFilmStockArtwork,
+      footer: isFilmSection,
     },
-    {
+    ...(isFilmSection ? [] : [{
       label: '喜欢',
       value: `${typeof lightboxPhoto.likes === 'number' ? lightboxPhoto.likes : 0}`,
       sub: '次',
-    },
+    }]),
   ] : [];
   const lightboxVisualSrc = lightboxPhoto
     ? getPreviewMediaUrl(lightboxPhoto, { width: 2000, quality: 94, preferOriginal: true })
@@ -700,7 +732,17 @@ export function GalleryPage() {
 
   // ── Render
   return (
-    <div className={`app-shell ${activeView === 'explore-view' ? 'explore-mode' : ''}`}>
+    <div className={`app-shell ${activeView === 'explore-view' ? 'explore-mode' : ''}${showGalleryBackdrop ? ' has-gallery-backdrop' : ''}`}>
+      {showGalleryBackdrop && (
+        <div className="gallery-backdrop" aria-hidden="true">
+          <img key={galleryBackdropSrc} src={galleryBackdropSrc} alt="" decoding="async" fetchPriority="low"
+            onError={(event) => {
+              if (!advanceImageFallback(event.currentTarget, galleryBackdropFallbacks)) {
+                event.currentTarget.style.visibility = 'hidden';
+              }
+            }} />
+        </div>
+      )}
       <header className="app-header">
         <div className={`brand ${activeView === 'explore-view' ? 'brand-anchor-only' : ''}`}>
           {brandLogo
@@ -827,7 +869,7 @@ export function GalleryPage() {
         }}
       >
         <div
-          className={`lightbox-panel${isFilmSection ? ' lightbox-panel--film' : ''}${isFilmPortrait ? ' lightbox-panel--film-portrait' : ''}`}
+          className={`lightbox-panel${isFilmSection ? ' lightbox-panel--film' : ''}${isFilmPortrait ? ' lightbox-panel--film-portrait' : ''}${lightboxFrameStock ? ` lightbox-panel--${lightboxFrameStock}` : ''}`}
           style={{
             backgroundImage: lightboxVisualSrc ? `url(${lightboxVisualSrc})` : 'none',
             '--lightbox-aspect-ratio': lightboxAspectRatio || undefined,
@@ -837,6 +879,7 @@ export function GalleryPage() {
           {isFilmSection && (
             <div className="lightbox-film-frame" aria-hidden="true">
               <FilmFrameEdges orientation={isFilmPortrait ? 'portrait' : 'landscape'}
+                filmStock={lightboxFilmStock}
                 repeatHorizontal={!isFilmPortrait} repeatVertical={isFilmPortrait} />
             </div>
           )}
@@ -954,20 +997,7 @@ export function GalleryPage() {
                   <h3 id="lightbox-title">{lightboxPhoto.title}</h3>
                   <p className="subtitle">{lightboxPhoto.country} · {lightboxPhoto.location}</p>
                 </div>
-                <div className="lightbox-story-grid">
-                  {lightboxStoryItems.map((item) => (
-                    <div key={item.label} className={`lightbox-story-chip${item.artwork ? ' lightbox-story-chip--film-stock' : ''}`}>
-                      <span>{item.label}</span>
-                      <strong>{item.value}</strong>
-                      {item.sub && <em>{item.sub}</em>}
-                      {item.artwork && (
-                        <div className="lightbox-film-stock-artwork" aria-hidden="true">
-                          <img src={item.artwork} alt="" decoding="async" />
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
+                <LightboxStoryGrid items={lightboxStoryItems.filter((item) => !item.footer)} />
                 <div className="lightbox-params-grid"
                   onClick={(e) => { if (window.innerWidth <= 768) e.stopPropagation(); }}>
                   {lightboxParamItems.map(([label, value, artwork]) => (
@@ -989,6 +1019,10 @@ export function GalleryPage() {
                     </div>
                   ))}
                 </div>
+                {isFilmSection && (
+                  <LightboxStoryGrid className="lightbox-story-grid--footer"
+                    items={lightboxStoryItems.filter((item) => item.footer)} />
+                )}
               </div>
             )}
           </div>

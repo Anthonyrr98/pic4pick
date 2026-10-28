@@ -165,7 +165,7 @@ export const PhotoGrid: React.FC<PhotoGridProps> = ({
             aria-label={`查看作品：${item.title || '未命名照片'}`}
             style={{ ['--stagger' as any]: index }}
           >
-            <FilmFrame enabled={filmFrames} aspectRatio={photoAspects[item.id] || 2 / 3}>
+            <FilmFrame enabled={filmFrames} aspectRatio={photoAspects[item.id] || 2 / 3} filmStock={filmStockLabel(item)}>
             {item.image ? (
               <>
                 <div
