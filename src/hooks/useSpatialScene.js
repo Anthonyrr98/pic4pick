@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { loadPrecomputedSpatialDepth, loadSpatialImage, prefetchPrecomputedSpatialDepth } from '../utils/spatialDepth';
 import { createSpatialRenderer, orientationToSpatialInput } from '../utils/spatialRenderer';
+import { createSpatialOrientationFilter } from '../utils/spatialMotion.js';
 
 export function useSpatialScene(photoId, imageRef, mediaRef, canvasRef) {
   const rendererRef = useRef(null);
@@ -155,36 +156,48 @@ export function useSpatialScene(photoId, imageRef, mediaRef, canvasRef) {
     if (!ready) return undefined;
     const media = mediaRef.current;
     let baseline = null;
-    let touching = false;
-    const reset = () => rendererRef.current?.setTarget(0, 0);
+    let touchPointer = null;
+    const orientationFilter = createSpatialOrientationFilter();
+    const reset = () => rendererRef.current?.setTarget(0, 0, { returning: true });
+    const recalibrate = () => { baseline = null; orientationFilter.reset(); reset(); };
     const move = (event) => {
-      if (event.pointerType !== 'mouse' && !touching) return;
+      if (event.pointerType === 'mouse' ? touchPointer !== null : event.pointerId !== touchPointer) return;
       const bounds = canvasRef.current.getBoundingClientRect();
+      if (!bounds.width || !bounds.height) return;
       rendererRef.current?.setTarget(
         ((event.clientX - bounds.left) / bounds.width - 0.5) * 2,
         ((event.clientY - bounds.top) / bounds.height - 0.5) * 2,
       );
     };
     const down = (event) => {
-      if (event.pointerType !== 'mouse') {
-        touching = true;
+      if (event.pointerType !== 'mouse' && event.isPrimary !== false && touchPointer === null) {
+        touchPointer = event.pointerId;
+        baseline = null;
+        orientationFilter.reset();
         media.setPointerCapture(event.pointerId);
       }
     };
-    const up = () => { touching = false; reset(); };
+    const up = (event) => {
+      if (event.pointerId !== touchPointer) return;
+      touchPointer = null;
+      // The resting phone angle may have changed during a drag.
+      recalibrate();
+    };
+    const leave = () => { if (touchPointer === null) reset(); };
     const orientation = (event) => {
-      if (document.hidden || touching || !Number.isFinite(event.beta) || !Number.isFinite(event.gamma)) return;
+      if (document.hidden || touchPointer !== null || !Number.isFinite(event.beta) || !Number.isFinite(event.gamma)) return;
       if (!baseline) { baseline = { beta: event.beta, gamma: event.gamma }; return; }
       const angle = window.screen.orientation?.angle ?? window.orientation ?? 0;
       const { x, y } = orientationToSpatialInput(event.beta, event.gamma, baseline, angle);
-      rendererRef.current?.setTarget(x, y);
+      const filtered = orientationFilter.sample(x, y);
+      if (filtered) rendererRef.current?.setTarget(filtered.x, filtered.y);
     };
-    const recalibrate = () => { baseline = null; reset(); };
     media.addEventListener('pointermove', move);
     media.addEventListener('pointerdown', down);
     media.addEventListener('pointerup', up);
     media.addEventListener('pointercancel', up);
-    media.addEventListener('pointerleave', reset);
+    media.addEventListener('lostpointercapture', up);
+    media.addEventListener('pointerleave', leave);
     if (motionAllowed) window.addEventListener('deviceorientation', orientation);
     window.addEventListener('orientationchange', recalibrate);
     document.addEventListener('visibilitychange', recalibrate);
@@ -193,7 +206,8 @@ export function useSpatialScene(photoId, imageRef, mediaRef, canvasRef) {
       media.removeEventListener('pointerdown', down);
       media.removeEventListener('pointerup', up);
       media.removeEventListener('pointercancel', up);
-      media.removeEventListener('pointerleave', reset);
+      media.removeEventListener('lostpointercapture', up);
+      media.removeEventListener('pointerleave', leave);
       window.removeEventListener('deviceorientation', orientation);
       window.removeEventListener('orientationchange', recalibrate);
       document.removeEventListener('visibilitychange', recalibrate);

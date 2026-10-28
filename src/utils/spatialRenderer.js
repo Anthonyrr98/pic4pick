@@ -1,4 +1,5 @@
 import { VERTEX, FRAGMENT, clampSpatialInput } from '../../packages/shared/spatialCore.js';
+import { getSpatialMotionProfile, spatialSmoothingAlpha } from './spatialMotion.js';
 export { clampSpatialInput, orientationToSpatialInput } from '../../packages/shared/spatialCore.js';
 
 export function createSpatialRenderer(canvas, image, depth) {
@@ -64,19 +65,30 @@ export function createSpatialRenderer(canvas, image, depth) {
     const offset = gl.getUniformLocation(program, 'u_offset');
     const target = { x: 0, y: 0 };
     const current = { x: 0, y: 0 };
+    const { strength } = getSpatialMotionProfile(depth);
+    let lastFrameAt = null;
+    let timeConstantMs = 120;
     const aspect = image.naturalWidth / image.naturalHeight;
-    const draw = () => {
+    const draw = (timestamp) => {
       frame = 0;
       if (disposed || document.hidden) return;
-      current.x += (target.x - current.x) * 0.12;
-      current.y += (target.y - current.y) * 0.12;
-      // Keep the stronger parallax within the shared shader's existing overscan.
-      gl.uniform2f(offset, current.x * 0.024, current.y * 0.016);
+      const alpha = spatialSmoothingAlpha(lastFrameAt === null ? 0 : timestamp - lastFrameAt, timeConstantMs);
+      lastFrameAt = timestamp;
+      current.x += (target.x - current.x) * alpha;
+      current.y += (target.y - current.y) * alpha;
+      const settled = Math.abs(target.x - current.x) + Math.abs(target.y - current.y) <= 0.001;
+      if (settled) { current.x = target.x; current.y = target.y; }
+      // Adaptive movement never exceeds the existing 2x amplitude/edge margin.
+      gl.uniform2f(offset, current.x * 0.024 * strength, current.y * 0.016 * strength);
       gl.drawArrays(gl.TRIANGLES, 0, 6);
-      if (Math.abs(target.x - current.x) + Math.abs(target.y - current.y) > 0.001) frame = requestAnimationFrame(draw);
+      if (!settled) frame = requestAnimationFrame(draw);
+      else lastFrameAt = null;
     };
     const invalidate = () => {
-      if (!frame && !disposed && !document.hidden) frame = requestAnimationFrame(draw);
+      if (!frame && !disposed && !document.hidden) {
+        lastFrameAt = performance.now();
+        frame = requestAnimationFrame(draw);
+      }
     };
     const resize = () => {
       const parent = canvas.parentElement;
@@ -92,18 +104,23 @@ export function createSpatialRenderer(canvas, image, depth) {
       gl.viewport(0, 0, canvas.width, canvas.height);
       cancelAnimationFrame(frame);
       frame = 0;
-      draw();
+      lastFrameAt = null;
+      draw(performance.now());
     };
     const observer = new ResizeObserver(resize);
     observer.observe(canvas.parentElement);
     const visibility = () => {
-      if (document.hidden) { cancelAnimationFrame(frame); frame = 0; }
+      if (document.hidden) { cancelAnimationFrame(frame); frame = 0; lastFrameAt = null; }
       else invalidate();
     };
     document.addEventListener('visibilitychange', visibility);
     resize();
     return {
-      setTarget(x, y) { target.x = clampSpatialInput(x); target.y = clampSpatialInput(y); invalidate(); },
+      setTarget(x, y, { returning = false } = {}) {
+        target.x = clampSpatialInput(x); target.y = clampSpatialInput(y);
+        timeConstantMs = returning ? 180 : 120;
+        invalidate();
+      },
       dispose() { observer.disconnect(); document.removeEventListener('visibilitychange', visibility); dispose(); },
     };
   } catch (error) {
