@@ -1,6 +1,33 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { createPhotoAddressResolver, photoAddressKey } from '../src/utils/photoAddress.js';
+import { compactPhotoAddress, createPhotoAddressResolver, photoAddressKey } from '../src/utils/photoAddress.js';
+
+const longParkAddress = '北京市朝阳区奥运村街道北京奥林匹克公园北园-花田野趣奥林匹克森林公园北园';
+test('compact address removes administrative prefixes and repeated park hierarchy without changing the full response', () => {
+  const result = { formattedAddress: longParkAddress, addressComponent: { province: '北京市', city: '北京市', district: '朝阳区', township: '奥运村街道', building: [], neighborhood: [] } };
+  assert.equal(compactPhotoAddress(result), '北京奥林匹克公园北园');
+  assert.equal(result.formattedAddress, longParkAddress);
+});
+
+test('named area must contain the coordinate; nearby POIs and missing distances cannot masquerade as the location', () => {
+  const area = { formattedAddress: longParkAddress, aois: [
+    { name: '相邻小区', distance: '10', area: '100' },
+    { name: '不确定的景点', distance: [], area: '1' },
+    { name: '无效距离', distance: -1, area: '1' },
+    { name: '奥林匹克森林公园', distance: '0', area: '100000' },
+    { name: '奥林匹克森林公园北园', distance: 0, area: 20000 },
+  ], pois: [{ name: '附近便利店', distance: 1 }] };
+  assert.equal(compactPhotoAddress(area), '奥林匹克森林公园北园');
+});
+
+test('structured building and road addresses remain meaningful; empty and overseas results stay intact', () => {
+  assert.equal(compactPhotoAddress({ addressComponent: { neighborhood: { name: '幸福小区' }, building: { name: '1号楼' } } }), '幸福小区 · 1号楼');
+  assert.equal(compactPhotoAddress({ addressComponent: { street: '中关村大街', streetNumber: '27号' } }), '中关村大街27号');
+  assert.equal(compactPhotoAddress({ addressComponent: { streetNumber: { street: '复兴路', number: '10号' } } }), '复兴路10号');
+  const overseas = '10 Downing Street, London SW1A 2AA, United Kingdom';
+  assert.equal(compactPhotoAddress({ formattedAddress: overseas }), overseas);
+  assert.equal(compactPhotoAddress({ formattedAddress: [] }), '');
+});
 
 const point = { longitude: 116.379311, latitude: 40.024718 };
 const sdkFixture = ({ deferred = false, pluginRequired = false, failConversion = false } = {}) => {

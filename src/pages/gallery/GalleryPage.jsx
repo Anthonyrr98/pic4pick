@@ -378,7 +378,8 @@ export function GalleryPage() {
     const refLon = browserLocation?.lon ?? 116.4074;
     const distance = calculateDistance(refLat, refLon, Number(lat), Number(lon));
     return {
-      place: photoAddress.value?.address || [lightboxPhoto.country, lightboxPhoto.location].filter(Boolean).join(' · '),
+      place: photoAddress.value?.label || photoAddress.value?.address || [lightboxPhoto.country, lightboxPhoto.location].filter(Boolean).join(' · '),
+      fullAddress: photoAddress.value?.address || '',
       mapLatitude: photoAddress.value?.latitude ?? Number(lat),
       mapLongitude: photoAddress.value?.longitude ?? Number(lon),
       latDms: decimalToDMS(Number(lat), true),
@@ -1120,9 +1121,15 @@ export function GalleryPage() {
                       <div className="photo-location-address" aria-live="polite" aria-busy={photoAddress.loading} style={{ marginBottom: '16px', padding: '12px',
                         background: 'rgba(255,255,255,0.7)', backdropFilter: 'blur(10px)',
                         borderRadius: '8px', border: '1px solid rgba(255,255,255,0.3)' }}>
-                        <p style={{ margin: 0, fontSize: '0.95rem', color: 'var(--text)', fontWeight: '500' }}>
+                        <p className="photo-location-label" style={{ margin: 0, fontSize: '0.95rem', color: 'var(--text)', fontWeight: '500' }}>
                           {getGeoInfo.place}
                         </p>
+                        {getGeoInfo.fullAddress && (getGeoInfo.fullAddress !== getGeoInfo.place || getGeoInfo.fullAddress.length > 24) && (
+                          <details className="photo-address-details" key={`${lightboxPhoto.id}:${getGeoInfo.fullAddress}`}>
+                            <summary>完整地址</summary>
+                            <p>{getGeoInfo.fullAddress}</p>
+                          </details>
+                        )}
                         {photoAddress.loading && <p className="meta-card-sub" style={{ margin: '4px 0 0' }}>正在查询详细地址…</p>}
                       </div>
                       <div className="meta-card-grid">

@@ -9,3 +9,14 @@
   font-size: 12px;
 }
 .photo-location-address { overflow-wrap: anywhere; }
+.photo-location-label {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+.photo-address-details { margin-top: 4px; font-size: 12px; line-height: 1.6; }
+.photo-address-details summary { width: fit-content; min-height: 28px; padding: 4px 0; box-sizing: border-box; color: var(--text); cursor: pointer; opacity: 0.7; }
+.photo-address-details summary:hover { opacity: 1; }
+.photo-address-details summary:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; border-radius: 3px; }
+.photo-address-details p { margin: 4px 0 0; font-size: 12px; font-weight: 400; line-height: 1.7; }
