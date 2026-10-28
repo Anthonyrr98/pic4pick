@@ -376,9 +376,7 @@ export function GalleryPage() {
     const refLon = browserLocation?.lon ?? 116.4074;
     const distance = calculateDistance(refLat, refLon, Number(lat), Number(lon));
     return {
-      place: `${lightboxPhoto.country || ''}${
-        lightboxPhoto.location ? ' 路 ' + lightboxPhoto.location : ''
-      }`,
+      place: [lightboxPhoto.country, lightboxPhoto.location].filter(Boolean).join(' · '),
       latDms: decimalToDMS(Number(lat), true),
       lonDms: decimalToDMS(Number(lon), false),
       lat: Number(lat).toFixed(6),
