@@ -55,39 +55,35 @@ export const useAltitudeFromCoords = (lat?: number | null, lon?: number | null) 
 
 // 从图片读取 EXIF 数据
 export const useExifData = (photo: GalleryPhoto | null) => {
-  const [exifData, setExifData] = useState<ExifData | null>(null);
+  const [loaded, setLoaded] = useState<{ image: string; data: ExifData | null } | null>(null);
+  const image = photo?.image;
 
   useEffect(() => {
-    if (!photo?.image) {
-      setExifData(null);
-      return;
-    }
+    if (!image) return;
+    let cancelled = false;
 
     const loadExif = async () => {
       try {
-        const exif = await exifr.parse(photo.image, {
+        const exif = await exifr.parse(image, {
           gps: true,
           translateKeys: false,
         });
-        if (exif?.GPSLatitude && exif?.GPSLongitude) {
-          setExifData({
-            latitude: exif.GPSLatitude,
-            longitude: exif.GPSLongitude,
-            GPSAltitude: exif.GPSAltitude,
-          });
-        } else {
-          setExifData(null);
-        }
+        const latitude = exif?.latitude ?? exif?.GPSLatitude;
+        const longitude = exif?.longitude ?? exif?.GPSLongitude;
+        const valid = Number.isFinite(latitude) && Number.isFinite(longitude)
+          && Math.abs(latitude) <= 90 && Math.abs(longitude) <= 180;
+        if (!cancelled) setLoaded({ image, data: valid ? { latitude, longitude, GPSAltitude: exif.GPSAltitude } : null });
       } catch (error) {
         console.log('无法读取EXIF数据，使用照片数据中的地理位置');
-        setExifData(null);
+        if (!cancelled) setLoaded({ image, data: null });
       }
     };
 
     loadExif();
-  }, [photo]);
+    return () => { cancelled = true; };
+  }, [image]);
 
-  return exifData;
+  return loaded?.image === image ? loaded?.data ?? null : null;
 };
 
 // 获取浏览器位置

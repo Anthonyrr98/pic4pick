@@ -1,0 +1,11 @@
+.photo-map-info { width: 160px; max-width: 160px; line-height: 1.5; }
+.photo-map-info strong { display: block; margin-bottom: 3px; }
+.photo-map-info-address {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}
+.photo-location-address { overflow-wrap: anywhere; }

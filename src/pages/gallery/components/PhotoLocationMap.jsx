@@ -3,6 +3,7 @@ import { useGaodeMapInit } from '../hooks/useMapInit';
 import { loadMapLibre } from '../../../utils/maplibreLoader';
 import { escapeHtml } from '../../../utils/security';
 import { handleError, ErrorType } from '../../../utils/errorHandler';
+import './PhotoLocationMap.css';
 
 const createMarkerElement = (kind, label) => {
   const element = document.createElement('button');
@@ -19,7 +20,9 @@ const createMarkerElement = (kind, label) => {
 
 export function PhotoLocationMap({ geoInfo, title }) {
   const containerRef = useRef(null);
-  const { latitude, longitude, place, browserLocation } = geoInfo;
+  const { place, browserLocation } = geoInfo;
+  const latitude = geoInfo.mapLatitude ?? geoInfo.latitude;
+  const longitude = geoInfo.mapLongitude ?? geoInfo.longitude;
   const browserLatitude = browserLocation?.lat;
   const browserLongitude = browserLocation?.lon;
   const { mapInstance, maplibreInstance, isMapReady, mapProvider, resizeMap } = useGaodeMapInit(
@@ -39,7 +42,7 @@ export function PhotoLocationMap({ geoInfo, title }) {
     const position = [longitude, latitude];
     const hasBrowserLocation = browserLatitude != null && browserLongitude != null;
     const currentPosition = [browserLongitude, browserLatitude];
-    const content = `<strong>${escapeHtml(title || '照片位置')}</strong><br>${escapeHtml(place)}`;
+    const content = `<div class="photo-map-info"><strong>${escapeHtml(title || '照片位置')}</strong><span class="photo-map-info-address">${escapeHtml(place)}</span></div>`;
 
     const drawMarkers = async () => {
       if (mapProvider === 'amap' && mapInstance.current) {

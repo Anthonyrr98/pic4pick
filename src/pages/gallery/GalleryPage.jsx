@@ -22,6 +22,7 @@ import { usePhotoData, useLikePhoto } from './hooks/usePhotoData';
 import { useExifData, useBrowserLocation, useAltitudeFromCoords } from './hooks/useExifAndLocation';
 import { preloadConfiguredMap } from '../../utils/amapLoader';
 import { PhotoLocationMap } from './components/PhotoLocationMap';
+import { usePhotoAddress } from './hooks/usePhotoAddress';
 import {
   getDirectMediaUrl,
   getOriginalMediaUrl,
@@ -258,6 +259,7 @@ export function GalleryPage() {
   const exifData = useExifData(lightboxPhoto);
   const geoLat = exifData?.latitude ?? lightboxPhoto?.latitude ?? null;
   const geoLon = exifData?.longitude ?? lightboxPhoto?.longitude ?? null;
+  const photoAddress = usePhotoAddress(geoLat, geoLon, exifData ? 'gps' : 'autonavi', metaPopover?.tab === 'geo');
   const altitudeFromApi = useAltitudeFromCoords(geoLat, geoLon);
 
   // 鈹€鈹€ 娲剧敓鏁版嵁
@@ -376,7 +378,9 @@ export function GalleryPage() {
     const refLon = browserLocation?.lon ?? 116.4074;
     const distance = calculateDistance(refLat, refLon, Number(lat), Number(lon));
     return {
-      place: [lightboxPhoto.country, lightboxPhoto.location].filter(Boolean).join(' · '),
+      place: photoAddress.value?.address || [lightboxPhoto.country, lightboxPhoto.location].filter(Boolean).join(' · '),
+      mapLatitude: photoAddress.value?.latitude ?? Number(lat),
+      mapLongitude: photoAddress.value?.longitude ?? Number(lon),
       latDms: decimalToDMS(Number(lat), true),
       lonDms: decimalToDMS(Number(lon), false),
       lat: Number(lat).toFixed(6),
@@ -387,7 +391,7 @@ export function GalleryPage() {
       distance: distance != null ? `${distance.toLocaleString()} km` : '未知',
       browserLocation,
     };
-  }, [lightboxPhoto, exifData, browserLocation, altitudeFromApi]);
+  }, [lightboxPhoto, exifData, browserLocation, altitudeFromApi, photoAddress.value]);
 
   // 鈹€鈹€ 浜嬩欢澶勭悊
   const handleViewChange = useCallback((view) => {
@@ -1113,12 +1117,13 @@ export function GalleryPage() {
                   {getGeoInfo ? (
                     <>
                       <PhotoLocationMap geoInfo={getGeoInfo} title={lightboxPhoto?.title} />
-                      <div style={{ marginBottom: '16px', padding: '12px',
+                      <div className="photo-location-address" aria-live="polite" aria-busy={photoAddress.loading} style={{ marginBottom: '16px', padding: '12px',
                         background: 'rgba(255,255,255,0.7)', backdropFilter: 'blur(10px)',
                         borderRadius: '8px', border: '1px solid rgba(255,255,255,0.3)' }}>
                         <p style={{ margin: 0, fontSize: '0.95rem', color: 'var(--text)', fontWeight: '500' }}>
                           {getGeoInfo.place}
                         </p>
+                        {photoAddress.loading && <p className="meta-card-sub" style={{ margin: '4px 0 0' }}>正在查询详细地址…</p>}
                       </div>
                       <div className="meta-card-grid">
                         <article className="meta-card">
