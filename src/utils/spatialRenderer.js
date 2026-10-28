@@ -70,7 +70,8 @@ export function createSpatialRenderer(canvas, image, depth) {
       if (disposed || document.hidden) return;
       current.x += (target.x - current.x) * 0.12;
       current.y += (target.y - current.y) * 0.12;
-      gl.uniform2f(offset, current.x * 0.012, current.y * 0.008);
+      // Keep the stronger parallax within the shared shader's existing overscan.
+      gl.uniform2f(offset, current.x * 0.024, current.y * 0.016);
       gl.drawArrays(gl.TRIANGLES, 0, 6);
       if (Math.abs(target.x - current.x) + Math.abs(target.y - current.y) > 0.001) frame = requestAnimationFrame(draw);
     };
