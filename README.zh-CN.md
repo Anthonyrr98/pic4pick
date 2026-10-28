@@ -17,12 +17,14 @@ Pic4Pick 是 **Light of Anthony** 的摄影作品集与内容管理系统。项�
 
 - 响应式摄影图库，适配桌面、iPad 和手机
 - 最新、随览、附近、远方、胶片五种作品浏览方式
+- 页头与图库共用当前浏览列表第一张照片的模糊背景，随筛选切换
 - 纸白画廊与暖调胶片两套全局主题，保存访客的外观偏好（[说明](./docs/global-themes.md)）
 - 保留原始宽高比的高清灯箱预览
 - 可开关的空间场景：SharpDepth + UniDepth 在 GPU 后台预计算景深，支持鼠标、手机倾斜与拖动视差（[说明](./docs/spatial-scenes.md)）
 - 支持键盘、触摸滑动和无障碍对话框操作
 - 地图发现视图，支持城市作品集、地点标记与可配置地图样式
 - EXIF、拍摄日期、器材和胶片信息展示
+- 胶片图库卡片与灯箱按胶卷类型自动匹配边框
 - 管理员登录、作品上传、审核、重新提交、编辑、隐藏和删除
 - 品牌文案与 Logo 定制、相机和镜头预设、JSON 导入导出
 - 支持最大 100 MB 的原图上传
@@ -229,6 +231,24 @@ npx supabase db advisors --linked --type performance
 后端单独保留收到的文件字节，生成预览不会重新编码这份文件。上传表单可以在发送前优化大文件；需要未压缩的源文件时，应选择保留原图。“下载原图”指向实际存储的上传文件。
 
 上传使用稳定的提交 ID 与 SHA-256 指纹支持失败重试。删除作品时清理图片资源并删除关联景深记录；未被引用的景深文件由在线 GPU worker 后续清理。
+
+## 图库背景与胶片边框
+
+在最新、随览、附近和远方模式下，页头与图库共用当前列表第一张照片的模糊背景，切换浏览方式时同步更新。普通灯箱面板以当前打开的照片作为背景色调来源；胶片模式使用独立的桌面背景。
+
+胶片图库卡片与灯箱使用相同的胶卷类型映射：
+
+| 胶卷类型 | 边框素材 |
+| --- | --- |
+| `Fuji C200` | [`public/film-frames/fuji-c200.png`](./public/film-frames/fuji-c200.png) |
+| `Kodak Gold 200` | [`public/film-frames/kodak-gold-200.png`](./public/film-frames/kodak-gold-200.png) |
+| `富士一次性相机` / `FUJIFILM SIMPLE ACE 400` | [`public/film-frames/fuji-simple-ace.png`](./public/film-frames/fuji-simple-ace.png) |
+
+上传或编辑胶片照片时，选择胶片分类并保留正确的胶卷类型：前端字段为 `filmStock`，存储字段为 `film_stock`，同时兼容已有的 `film_stock:` 标签。新照片会自动使用对应边框，无需按照片 ID 单独设置；其他胶卷暂用默认边框。
+
+边框只使用素材的胶片边缘，中间的不透明区域不会覆盖照片。横竖照片均保留完整画面与原始宽高比，竖图将边框旋转，使齿孔位于左右两侧。胶片灯箱将分类与胶卷信息放在相机、镜头卡片下方，并隐藏喜欢次数卡片。
+
+新增胶卷素材时，在 [`FilmFrame.tsx`](./src/pages/gallery/components/FilmFrame.tsx) 的 `getFilmFrameStock` 和素材配置中扩展映射，并在 [`darkroom.css`](./src/themes/darkroom.css) 中适配横竖方向的图库与灯箱尺寸。上传及边框维护约定见 [`AGENTS.md`](./AGENTS.md)。
 
 ## 空间场景
 

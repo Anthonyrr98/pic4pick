@@ -21,12 +21,14 @@ separated.
 
 - Responsive photography gallery for desktop, iPad, and mobile
 - Latest, random, nearby, faraway, and film browsing modes
+- Shared header/gallery backdrop based on the first photo in the active browsing mode
 - Paper Gallery and Warm Analog themes with persistent visitor preferences ([details](./docs/global-themes.md))
 - High-resolution lightbox that preserves each photograph's aspect ratio
 - Optional spatial scenes powered by SharpDepth + UniDepth GPU precomputation, with mouse parallax, phone tilt, and drag controls ([details](./docs/spatial-scenes.md))
 - Keyboard navigation, touch gestures, and accessible modal behavior
 - Map-based geographic exploration with city collections, location markers, and configurable map styles
 - EXIF, capture date, camera, lens, and film stock presentation
+- Film gallery and lightbox frames matched automatically to the photo's film stock
 - Protected admin login, upload, review, resubmit, edit, hide, and delete workflows
 - Custom branding, camera/lens presets, and JSON import/export
 - Original image uploads up to 100 MB
@@ -254,6 +256,38 @@ original** resolves to the stored upload, rather than the lightbox preview.
 Uploads use a stable submission ID and SHA-256 fingerprint to support retries.
 Deleting a photograph cleans up its image assets and removes associated depth
 records; the GPU worker later removes unreferenced depth files while online.
+
+## Gallery Backgrounds and Film Frames
+
+In latest, random, nearby, and faraway modes, the header and gallery share a
+blurred background from the first photo in the current list. Switching modes
+updates that background. Standard lightbox panels take their tint from the
+photo currently open; film mode uses a separate desk background.
+
+Film cards and lightboxes select their frame from the photo's film stock:
+
+| Film stock | Frame artwork |
+| --- | --- |
+| `Fuji C200` | [`public/film-frames/fuji-c200.png`](./public/film-frames/fuji-c200.png) |
+| `Kodak Gold 200` | [`public/film-frames/kodak-gold-200.png`](./public/film-frames/kodak-gold-200.png) |
+| `富士一次性相机` / `FUJIFILM SIMPLE ACE 400` | [`public/film-frames/fuji-simple-ace.png`](./public/film-frames/fuji-simple-ace.png) |
+
+When uploading or editing a film photo, select the film category and retain its
+film stock (`filmStock` in the frontend, `film_stock` in storage). Existing
+`film_stock:` tags remain supported. New photos automatically use the same
+mapping; frames are not assigned by photo ID. Other stocks use the default frame.
+
+Only the artwork's film edges surround the complete photograph; its opaque
+centre never covers the image. Landscape and portrait photos retain their
+original aspect ratio, with portrait frames rotated to put the perforations
+along the sides. Film lightbox details place the category and stock below the
+camera/lens cards and omit the like-count card.
+
+To add another stock, extend `getFilmFrameStock` and its artwork configuration in
+[`FilmFrame.tsx`](./src/pages/gallery/components/FilmFrame.tsx), then update the
+frame geometry in [`darkroom.css`](./src/themes/darkroom.css) for both orientations
+and both gallery cards and lightboxes. See [`AGENTS.md`](./AGENTS.md) for the
+project's upload and frame conventions.
 
 ## Spatial Scenes
 
