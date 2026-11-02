@@ -1,0 +1,186 @@
+.lightbox-panel > .lightbox-accessible-title {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+:root[data-theme] .lightbox-panel--photo-only .lightbox-media::after { display: none; }
+.lightbox-navigation { display: contents; }
+
+:root[data-theme] .lightbox-action-group { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+:root[data-theme] .lightbox-action-group .lightbox-details-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 999px 0 0 999px;
+  background: transparent;
+  font-size: 0.82rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+:root[data-theme] .lightbox-action-group .lightbox-details-trigger svg { width: 18px; height: 18px; flex-shrink: 0; }
+:root[data-theme] .lightbox-action-group .spatial-scene-toggle { border-left: 1px solid rgb(var(--ink-rgb) / 0.16); border-radius: 0; }
+:root[data-theme] .lightbox-action-group .lightbox-details-trigger:hover { background: rgb(var(--panel-rgb) / 0.35); }
+:root[data-theme] .lightbox-action-group .lightbox-details-trigger:focus-visible { outline-offset: -4px; }
+:root[data-theme='darkroom'] .lightbox-panel--film .lightbox-actions .lightbox-action-group { grid-template-columns: repeat(3, 36px); }
+:root[data-theme='darkroom'] .lightbox-panel--film .lightbox-action-group .lightbox-details-trigger { padding: 0; border-radius: 2px; }
+
+:root:has(.lightbox.active) { overflow: hidden; scrollbar-gutter: auto; }
+
+:root[data-theme] .lightbox-panel--photo-only:not(.lightbox-panel--film) {
+  --photo-stage-top: 76px;
+  --photo-stage-bottom: 76px;
+  --photo-stage-side: 24px;
+  --photo-radius: 24px;
+  --photo-stage-height: calc(100dvh - var(--photo-stage-top) - env(safe-area-inset-top, 0px) - var(--photo-stage-bottom) - env(safe-area-inset-bottom, 0px));
+  position: fixed;
+  inset: 0;
+  width: 100dvw !important;
+  height: 100dvh !important;
+  min-height: 0;
+  max-width: none !important;
+  max-height: none !important;
+  box-sizing: border-box;
+  padding: calc(var(--photo-stage-top) + env(safe-area-inset-top, 0px)) var(--photo-stage-side) calc(var(--photo-stage-bottom) + env(safe-area-inset-bottom, 0px)) !important;
+  display: flex !important;
+  flex-direction: column;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  background-color: var(--bg);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+:root[data-theme] .lightbox-panel--photo-only:not(.lightbox-panel--film)::before {
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+:root[data-theme] .lightbox-panel--photo-only:not(.lightbox-panel--film) .lightbox-actions {
+  position: absolute !important;
+  top: calc(16px + env(safe-area-inset-top, 0px));
+  right: calc(var(--photo-stage-side) + env(safe-area-inset-right, 0px));
+}
+
+:root[data-theme] .lightbox-panel--photo-only:not(.lightbox-panel--film) .lightbox-content-wrapper {
+  position: relative;
+  inset: auto;
+  display: flex !important;
+  flex: 1;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+:root[data-theme] .lightbox-panel--photo-only:not(.lightbox-panel--film) .lightbox-media {
+  position: relative;
+  inset: auto;
+  flex: none !important;
+  width: min(100%, calc(var(--photo-stage-height) * var(--lightbox-aspect-ratio, 1.5))) !important;
+  height: auto !important;
+  max-height: 100% !important;
+  aspect-ratio: var(--lightbox-aspect-ratio, 1.5);
+  align-self: center;
+  border-radius: var(--photo-radius) !important;
+  overflow: hidden !important;
+  clip-path: inset(0 round var(--photo-radius));
+  isolation: isolate;
+  transform: none !important;
+  background: transparent !important;
+}
+
+:root[data-theme] .lightbox-panel--photo-only:not(.lightbox-panel--film) .lightbox-media img {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: contain !important;
+  border-radius: inherit !important;
+  background: transparent !important;
+}
+
+:root[data-theme] .lightbox-panel--photo-only:not(.lightbox-panel--film) .lightbox-watermark-frame {
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  transform: none;
+}
+
+:root[data-theme] .lightbox-panel--photo-only:not(.lightbox-panel--film) .lightbox-nav {
+  position: static !important;
+  width: 40px;
+  height: 40px;
+  min-height: 40px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  transform: none !important;
+  border: 0;
+  border-radius: 999px 0 0 999px;
+  color: var(--text);
+  background: transparent;
+  box-shadow: none;
+  opacity: 1;
+  text-shadow: none;
+  line-height: 1;
+}
+
+:root[data-theme] .lightbox-panel--photo-only:not(.lightbox-panel--film) .lightbox-navigation {
+  position: absolute;
+  z-index: 70;
+  top: auto;
+  bottom: calc((var(--photo-stage-bottom) - 42px) / 2 + env(safe-area-inset-bottom, 0px));
+  left: 0;
+  right: 0;
+  width: max-content;
+  margin-inline: auto;
+  transform: none;
+  display: inline-grid;
+  grid-template-columns: repeat(2, 40px);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: rgb(var(--panel-rgb) / 0.84);
+  box-shadow: var(--shadow-soft);
+}
+
+:root[data-theme] .lightbox-panel--photo-only:not(.lightbox-panel--film) .lightbox-navigation::after { content: ''; position: absolute; top: 8px; bottom: 8px; left: 50%; width: 1px; transform: translateX(-50%); background: var(--border); pointer-events: none; }
+:root[data-theme] .lightbox-panel--photo-only:not(.lightbox-panel--film) .lightbox-nav-next { border-radius: 0 999px 999px 0; }
+:root[data-theme] .lightbox-navigation .lightbox-nav svg { display: block; width: 20px; height: 20px; }
+:root[data-theme] .lightbox-panel--photo-only:not(.lightbox-panel--film) .lightbox-nav:hover { background: var(--surface-hover); }
+:root[data-theme] .lightbox-panel--photo-only:not(.lightbox-panel--film) .lightbox-nav:focus-visible { outline: 2px solid var(--accent); outline-offset: -4px; }
+
+@media (max-width: 768px) {
+  :root[data-theme] .lightbox-panel--photo-only:not(.lightbox-panel--film) {
+    --photo-stage-top: 68px;
+    --photo-stage-bottom: 76px;
+    --photo-stage-side: 12px;
+    --photo-radius: 18px;
+  }
+}
+
+@media (max-width: 600px) {
+  :root[data-theme] .lightbox-panel--photo-only:not(.lightbox-panel--film) .lightbox-action-group button {
+    padding: 0 10px !important;
+    font-size: 12px !important;
+  }
+  :root[data-theme] .lightbox-panel--photo-only:not(.lightbox-panel--film) .lightbox-action-group button > svg {
+    display: none;
+  }
+}

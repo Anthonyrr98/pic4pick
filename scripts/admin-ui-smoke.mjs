@@ -13,6 +13,9 @@ const makePhotos = (status, count, title) => Array.from({ length: count }, (_, i
   image_url: image, thumbnail_url: image,
 }));
 const photos = [...makePhotos('approved', 3, '已审核作品'), ...makePhotos('pending', 41, '待审作品'), ...makePhotos('rejected', 25, '退回作品')];
+photos.find((photo) => photo.id === 'approved-2').film_stock = 'Fuji C200';
+photos.find((photo) => photo.id === 'pending-2').film_stock = 'Kodak Gold 200';
+photos.find((photo) => photo.id === 'rejected-2').tags = '旅行, film_stock:FUJIFILM SIMPLE ACE 400';
 const writes = [];
 let heldSave = null;
 let holdSave = false;
@@ -166,6 +169,46 @@ try {
   assert.equal(filteredCount, photos.filter((photo) => photo.status === 'pending' && photo.category === 'film').length);
   await page.getByRole('button', { name: '清除筛选', exact: true }).click();
 
+  // Historical stocks from all review states are selectable; new input survives reloads.
+  await openTab('上传作品');
+  const chooseFilmCategory = async () => {
+    await page.locator('.admin-upload-form .category-select-display').click();
+    await page.locator('.admin-upload-form .admin-dropdown-item').filter({ hasText: /^胶片$/ }).dispatchEvent('mousedown');
+  };
+  await chooseFilmCategory();
+  const filmInput = page.getByRole('combobox', { name: '胶卷', exact: true });
+  await filmInput.focus();
+  for (const name of ['Fuji C200', 'Kodak Gold 200', 'FUJIFILM SIMPLE ACE 400']) {
+    assert.equal(await page.getByRole('option', { name, exact: true }).count(), 1);
+  }
+  await page.getByRole('option', { name: 'Kodak Gold 200', exact: true }).click();
+  assert.equal(await filmInput.inputValue(), 'Kodak Gold 200');
+  await filmInput.fill('  Ilford HP5 Plus 400  ');
+  await filmInput.press('Tab');
+  assert.ok(await page.evaluate(() => JSON.parse(localStorage.getItem('admin_film_stock_options')).includes('Ilford HP5 Plus 400')));
+  await page.reload({ waitUntil: 'networkidle' });
+  await chooseFilmCategory();
+  await filmInput.focus();
+  assert.equal(await page.getByRole('option', { name: 'Ilford HP5 Plus 400', exact: true }).count(), 1);
+  await filmInput.fill('hp5');
+  assert.equal(await page.getByRole('option').count(), 1);
+  await filmInput.press('ArrowDown');
+  await filmInput.press('Enter');
+  assert.equal(await filmInput.inputValue(), 'Ilford HP5 Plus 400');
+  await filmInput.fill('');
+  await filmInput.press('Escape');
+  assert.equal(await filmInput.getAttribute('aria-expanded'), 'false');
+  await openTab('已审核');
+  await items.filter({ hasText: photos.find((photo) => photo.id === 'approved-2').title }).getByRole('button', { name: /编辑/ }).click();
+  const editFilm = modal.getByRole('combobox', { name: '胶卷', exact: true });
+  assert.equal(await editFilm.inputValue(), 'Fuji C200');
+  await editFilm.fill('hp5');
+  await modal.getByRole('option', { name: 'Ilford HP5 Plus 400', exact: true }).click();
+  await modal.getByRole('button', { name: '保存', exact: true }).click();
+  await modal.waitFor({ state: 'hidden' });
+  assert.equal(photos.find((photo) => photo.id === 'approved-2').film_stock, 'Ilford HP5 Plus 400');
+  assert.match(photos.find((photo) => photo.id === 'approved-2').tags, /film_stock:Ilford HP5 Plus 400/);
+
   if (artifactDir) await mkdir(artifactDir, { recursive: true });
   for (const width of [320, 390, 768, 1440]) {
     await page.setViewportSize({ width, height: 900 });
@@ -194,7 +237,7 @@ try {
     if (artifactDir) await page.screenshot({ path: path.join(artifactDir, `admin-${width}.png`), fullPage: true });
   }
   assert.deepEqual(errors, []);
-  console.log('Admin UI checks passed: save locking and retry, review continuity, filtering, pagination, batch scope, and responsive header.');
+  console.log('Admin UI checks passed: save locking and retry, review continuity, filtering, pagination, batch scope, film-stock history, and responsive header.');
 } catch (error) {
   console.error({ messages: await page.locator('.admin-message').allTextContents(), writes: writes.length, pending: photos.filter((photo) => photo.status === 'pending').length, selection: await page.locator('.batch-selected-count').allTextContents() });
   throw error;

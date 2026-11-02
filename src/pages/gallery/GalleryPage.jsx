@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, useCallback } from 'react';
 import '../../App.css';
 import './galleryBackdrop.css';
+import './photoLightbox.css';
 import { getSupabaseClient } from '../../utils/supabaseClient';
 import {
   BRAND_LOGO_EVENT,
@@ -21,7 +22,7 @@ import { filterAndSortPhotos } from './utils/photoFilterUtils';
 import { usePhotoData, useLikePhoto } from './hooks/usePhotoData';
 import { useExifData, useBrowserLocation, useAltitudeFromCoords } from './hooks/useExifAndLocation';
 import { preloadConfiguredMap } from '../../utils/amapLoader';
-import { PhotoLocationMap } from './components/PhotoLocationMap';
+import { PhotoDetailsSheet } from './components/PhotoDetailsSheet';
 import { usePhotoAddress } from './hooks/usePhotoAddress';
 import {
   getDirectMediaUrl,
@@ -61,7 +62,7 @@ const ExploreView = lazy(() =>
 );
 
 const LIGHTBOX_IMAGE_WIDTHS = [1080, 1600, 2000, 2400];
-const LIGHTBOX_IMAGE_SIZES = '(max-width: 768px) 100vw, (max-width: 1200px) 72vw, 980px';
+const LIGHTBOX_IMAGE_SIZES = '(max-width: 768px) calc(100vw - 24px), calc(100vw - 48px)';
 const LIGHTBOX_IMAGE_FALLBACKS = [
   { width: 2000, quality: 92 },
   { width: 1600, quality: 90 },
@@ -73,54 +74,6 @@ const getLightboxPreloadWidth = () => {
   if (window.innerWidth <= 768) return 1080;
   if (window.innerWidth <= 1200) return 1600;
   return window.devicePixelRatio > 1 ? 2400 : 2000;
-};
-
-function ApertureIcon(props) {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" {...props}>
-      <path
-        d="M12 3.9C7.5 3.9 3.9 7.5 3.9 12c0 4.5 3.6 8.1 8.1 8.1 4.5 0 8.1-3.6 8.1-8.1-0.15-4.5-3.75-8.1-8.1-8.1z m5.1 3.15L14.7 11.1 11.25 4.95c2.1-0.3 4.35 0.45 5.85 2.1zM14.25 12l-0.6 0.9-0.6 1.05h-2.25l-0.15-0.45-0.9-1.5 0.3-0.6 0.75-1.35h2.25l0.9 1.65 0.3 0.3zM10.2 5.1l2.4 4.05H5.4c0.9-2.1 2.7-3.6 4.8-4.05z m-3.9 11.1C4.95 14.4 4.5 12.15 5.1 10.05h4.65l-0.45 0.9-3 5.25z m0.6 0.75l2.4-4.05 0.6 1.05 3 5.1c-2.25 0.3-4.5-0.6-6-2.1z m6.9 1.95l-2.4-4.05h7.2c-1.05 1.95-2.7 3.45-4.8 4.05z m0.3-4.95l0.3-0.6 3.3-5.55c1.35 1.8 1.65 4.05 1.05 6.15H14.1z"
-        fill="currentColor"
-      />
-    </svg>
-  );
-}
-
-function FocalLengthIcon(props) {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" {...props}>
-      <path d="M9.06 2.94H2.13a0.705 0.705 0 1 1 0-1.41h6.93a0.705 0.705 0 1 1 0 1.41zM2.13 9.6a0.705 0.705 0 0 1-0.705-0.705V2.33a0.705 0.705 0 1 1 1.41 0v6.57a0.705 0.705 0 0 1-0.705 0.7zM21.86 2.94h-6.93a0.705 0.705 0 1 1 0-1.41h6.93a0.705 0.705 0 1 1 0 1.41zM21.89 9.6a0.705 0.705 0 0 1-0.705-0.705V2.33a0.705 0.705 0 1 1 1.41 0v6.57a0.705 0.705 0 0 1-0.705 0.7zM21.89 22.47h-6.93a0.705 0.705 0 1 1 0-1.41h6.93a0.705 0.705 0 1 1 0 1.41zM21.89 22.39a0.705 0.705 0 0 1-0.705-0.705v-6.57a0.705 0.705 0 1 1 1.41 0v6.57a0.705 0.705 0 0 1-0.705 0.705zM9.08 22.47H2.15a0.705 0.705 0 1 1 0-1.41h6.93a0.705 0.705 0 1 1 0 1.41zM2.13 22.39a0.705 0.705 0 0 1-0.705-0.705v-6.57a0.705 0.705 0 1 1 1.41 0v6.57a0.705 0.705 0 0 1-0.705 0.705zM16.6 12.69H7.08a0.705 0.705 0 1 1 0-1.41h9.52a0.705 0.705 0 1 1 0 1.41zM11.84 17.45a0.705 0.705 0 0 1-0.705-0.705V7.23a0.705 0.705 0 1 1 1.41 0v9.52a0.705 0.705 0 0 1-0.705 0.7z" fill="currentColor" />
-    </svg>
-  );
-}
-
-function ShutterIcon(props) {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" {...props}>
-      <path d="M12.03 20.08a7.19 7.19 0 0 1-5.09-2.11 7.15 7.15 0 0 1-2.11-5.09 7.2 7.2 0 0 1 7.2-7.2c1.92 0 3.73 0.75 5.09 2.11a7.15 7.15 0 0 1 2.11 5.09 7.2 7.2 0 0 1-7.2 7.2zm0-13.34a6.14 6.14 0 0 0-6.14 6.14 6.1 6.1 0 0 0 1.8 4.34 6.14 6.14 0 0 0 10.48-4.34A6.14 6.14 0 0 0 12.03 6.74z" fill="currentColor" />
-      <path d="M12.03 14.14a1.27 1.27 0 1 1 0-2.54 1.27 1.27 0 0 1 0 2.54zm0-2.06a0.79 0.79 0 1 0 0 1.58 0.79 0.79 0 0 0 0-1.58z" fill="currentColor" />
-      <path d="M15.65 9.62l0.2 0.24-5.56 4.67-0.2-0.24 5.56-4.67Z" fill="currentColor" />
-      <path d="M12.03 12.88m-0.86 0a0.67 0.67 0 1 0 1.72 0 0.67 0.67 0 1 0-1.72 0Z" fill="#FFFFFF" />
-      <path d="M9.89 4.57h4.28v0.61H9.89z" fill="currentColor" />
-      <path d="M16.78 5.86l2.12 2.12-0.43 0.43-2.12-2.12z" fill="currentColor" />
-    </svg>
-  );
-}
-
-function IsoIcon(props) {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" {...props}>
-      <path d="M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2zM5.5 7.5h2v-2H9v2h2v1.5H9v2H7.5v-2h-2V7.5zM19 19H5l14-14v14z m-2-2v-1.5h-5V17h5z" fill="currentColor" />
-    </svg>
-  );
-}
-
-const CATEGORY_LABELS = {
-  latest: '最新',
-  random: '随览',
-  nearby: '附近',
-  far: '远方',
-  film: '胶片',
 };
 
 const formatSyncTime = (timestamp) => {
@@ -166,25 +119,6 @@ function GalleryLoadingState() {
   );
 }
 
-function LightboxStoryGrid({ items, className = '' }) {
-  return (
-    <div className={`lightbox-story-grid ${className}`}>
-      {items.map((item) => (
-        <div key={item.label} className={`lightbox-story-chip${item.artwork ? ' lightbox-story-chip--film-stock' : ''}`}>
-          <span>{item.label}</span>
-          <strong>{item.value}</strong>
-          {item.sub && <em>{item.sub}</em>}
-          {item.artwork && (
-            <div className="lightbox-film-stock-artwork" aria-hidden="true">
-              <img src={item.artwork} alt="" decoding="async" />
-            </div>
-          )}
-        </div>
-      ))}
-    </div>
-  );
-}
-
 function ExploreViewPending() {
   return (
     <section id="explore-view" className="screen active">
@@ -217,9 +151,7 @@ export function GalleryPage() {
 
   // 鈹€鈹€ Lightbox 鐘舵€?
   const [lightboxPhoto, setLightboxPhoto] = useState(null);
-  const [metaPopover, setMetaPopover] = useState(null);
-  const metaPopoverRef = useRef(null);
-  const [showMobileMeta, setShowMobileMeta] = useState(false);
+  const [showPhotoDetails, setShowPhotoDetails] = useState(false);
   const [isLightboxPortrait, setIsLightboxPortrait] = useState(false);
   const [lightboxAspectRatio, setLightboxAspectRatio] = useState(null);
   const [lightboxPreviewFailed, setLightboxPreviewFailed] = useState(false);
@@ -255,11 +187,11 @@ export function GalleryPage() {
     supabaseError,
   } = usePhotoData(supabase);
   const { likedPhotoIds, handleToggleLike } = useLikePhoto(supabase, setApprovedPhotos);
-  const browserLocation = useBrowserLocation();
+  const { browserLocation, requestLocation, locationStatus } = useBrowserLocation();
   const exifData = useExifData(lightboxPhoto);
   const geoLat = exifData?.latitude ?? lightboxPhoto?.latitude ?? null;
   const geoLon = exifData?.longitude ?? lightboxPhoto?.longitude ?? null;
-  const photoAddress = usePhotoAddress(geoLat, geoLon, exifData ? 'gps' : 'autonavi', metaPopover?.tab === 'geo');
+  const photoAddress = usePhotoAddress(geoLat, geoLon, exifData ? 'gps' : 'autonavi', Boolean(showPhotoDetails));
   const altitudeFromApi = useAltitudeFromCoords(geoLat, geoLon);
 
   // 鈹€鈹€ 娲剧敓鏁版嵁
@@ -323,37 +255,6 @@ export function GalleryPage() {
   const lightboxShotInfo = lightboxPhoto
     ? getShotTimeInfo(lightboxPhoto.shotDate || lightboxPhoto.shot_date)
     : null;
-  const lightboxParamItems = lightboxPhoto ? [
-    ...(isFilmSection ? [] : [
-      ['焦距', lightboxPhoto.focal], ['光圈', lightboxPhoto.aperture],
-      ['快门', lightboxPhoto.shutter], ['ISO', lightboxPhoto.iso],
-    ]),
-    ['相机', lightboxPhoto.camera, lightboxCameraArtwork], ['镜头', lightboxPhoto.lens],
-  ] : [];
-  const lightboxStoryItems = lightboxPhoto ? [
-    {
-      label: '拍摄',
-      value: lightboxShotInfo?.dateText || '未设置',
-      sub: lightboxShotInfo?.yearsAgoText,
-    },
-    {
-      label: '评分',
-      value: `${Math.max(1, Math.min(10, Number(lightboxPhoto.rating) || 7))}/10`,
-      sub: '作品评级',
-    },
-    {
-      label: '分类',
-      value: CATEGORY_LABELS[lightboxPhoto.category] || '未分类',
-      sub: lightboxFilmStock || String(lightboxPhoto.mood || '').trim() || '',
-      artwork: lightboxFilmStockArtwork,
-      footer: isFilmSection,
-    },
-    ...(isFilmSection ? [] : [{
-      label: '喜欢',
-      value: `${typeof lightboxPhoto.likes === 'number' ? lightboxPhoto.likes : 0}`,
-      sub: '次',
-    }]),
-  ] : [];
   const lightboxVisualSrc = lightboxPhoto
     ? getPreviewMediaUrl(lightboxPhoto, { width: 2000, quality: 94, preferOriginal: true })
     : '';
@@ -373,10 +274,11 @@ export function GalleryPage() {
     const lat = exifData?.latitude ?? lightboxPhoto.latitude;
     const lon = exifData?.longitude ?? lightboxPhoto.longitude;
     const altitude = exifData?.GPSAltitude ?? lightboxPhoto.altitude ?? altitudeFromApi;
-    if (lat == null || lon == null || isNaN(lat) || isNaN(lon)) return null;
-    const refLat = browserLocation?.lat ?? 39.9042;
-    const refLon = browserLocation?.lon ?? 116.4074;
-    const distance = calculateDistance(refLat, refLon, Number(lat), Number(lon));
+    if (lat == null || lon == null || !Number.isFinite(Number(lat)) || !Number.isFinite(Number(lon))
+      || Math.abs(Number(lat)) > 90 || Math.abs(Number(lon)) > 180) return null;
+    const distance = browserLocation
+      ? calculateDistance(browserLocation.lat, browserLocation.lon, Number(lat), Number(lon))
+      : null;
     return {
       place: photoAddress.value?.label || photoAddress.value?.address || [lightboxPhoto.country, lightboxPhoto.location].filter(Boolean).join(' · '),
       fullAddress: photoAddress.value?.address || '',
@@ -419,15 +321,13 @@ export function GalleryPage() {
 
   const openLightboxPhoto = useCallback((photo) => {
     lightboxReturnFocusRef.current = document.activeElement;
-    setMetaPopover(null);
-    setShowMobileMeta(false);
+    setShowPhotoDetails(false);
     setLightboxAspectRatio(null);
     setLightboxPhoto(photo);
   }, []);
 
   const closeLightbox = useCallback(() => {
-    setMetaPopover(null);
-    setShowMobileMeta(false);
+    setShowPhotoDetails(false);
     setLightboxPhoto(null);
     window.requestAnimationFrame(() => lightboxReturnFocusRef.current?.focus?.());
   }, []);
@@ -437,8 +337,7 @@ export function GalleryPage() {
     const nextIndex = (lightboxIndex + direction + lightboxSequence.length) % lightboxSequence.length;
     const nextPhoto = lightboxSequence[nextIndex];
     if (!nextPhoto) return;
-    setMetaPopover(null);
-    setShowMobileMeta(false);
+    setShowPhotoDetails(false);
     setLightboxAspectRatio(null);
     setLightboxPhoto(nextPhoto);
   }, [canNavigateLightbox, lightboxIndex, lightboxSequence]);
@@ -449,9 +348,8 @@ export function GalleryPage() {
       x: event.clientX,
       y: event.clientY,
       at: Date.now(),
-      dismissedMeta: isFilmSection && showMobileMeta,
     };
-  }, [isFilmSection, showMobileMeta]);
+  }, []);
 
   const handleLightboxPointerUp = useCallback((event) => {
     const start = lightboxPointerRef.current;
@@ -471,42 +369,14 @@ export function GalleryPage() {
       return;
     }
 
-    if (window.innerWidth <= 768 && absX < 14 && absY < 14 && elapsed < 500 && !start.dismissedMeta) {
-      setShowMobileMeta((prev) => !prev);
-    }
   }, [goToAdjacentLightboxPhoto, spatialScene.ready]);
 
   const handleLightboxPointerCancel = useCallback(() => {
     lightboxPointerRef.current = null;
   }, []);
 
-  const openMetaPopover = useCallback((tab, event) => {
-    const { clientX, clientY } = event;
-    const offset = 18;
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-    const ew = tab === 'geo' ? 520 : 260;
-    const eh = tab === 'geo' ? Math.min(600, vh * 0.9) : 220;
-    let x, y;
-    if (tab === 'geo') {
-      x = clientX + offset;
-      if (x + ew > vw - 24) x = clientX - ew - offset;
-      if (x < 12) x = Math.max(12, (vw - ew) / 2);
-      if (x + ew > vw - 12) x = vw - ew - 12;
-      y = clientY + offset;
-      if (y + eh > vh - 24) y = clientY - eh - offset;
-      if (y < 12) y = Math.max(12, (vh - eh) / 2);
-      if (y + eh > vh - 12) y = vh - eh - 12;
-    } else {
-      x = clientX + offset;
-      y = clientY + offset - 12;
-      if (x + ew > vw - 24) x = clientX - ew - offset;
-      if (x < 12) x = 12;
-      if (y + eh > vh - 24) y = clientY - eh - offset;
-      if (y < 12) y = 12;
-      if (y + eh > vh - 12) y = vh - eh - 12;
-    }
-    setMetaPopover({ tab, x, y });
+  const openPhotoDetails = useCallback(() => {
+    setShowPhotoDetails(true);
   }, []);
 
   const handleDownloadOriginal = useCallback(async () => {
@@ -534,47 +404,12 @@ export function GalleryPage() {
   }, [lightboxPhoto]);
 
   // 鈹€鈹€ Effects
-  useEffect(() => {
-    if (!metaPopover) return;
-    const el = metaPopoverRef.current;
-    if (!el) return;
-
-    const raf = (window.requestAnimationFrame || ((cb) => setTimeout(cb, 0)));
-    const viewportPadding = 12;
-
-    raf(() => {
-      const node = metaPopoverRef.current;
-      if (!node) return;
-
-      const rect = node.getBoundingClientRect();
-      const vw = window.innerWidth;
-      const vh = window.innerHeight;
-
-      let nextX = metaPopover.x;
-      let nextY = metaPopover.y;
-
-      if (rect.left < viewportPadding) nextX += viewportPadding - rect.left;
-      if (rect.right > vw - viewportPadding) nextX -= rect.right - (vw - viewportPadding);
-      if (rect.top < viewportPadding) nextY += viewportPadding - rect.top;
-      if (rect.bottom > vh - viewportPadding) nextY -= rect.bottom - (vh - viewportPadding);
-
-      // Avoid tiny sub-pixel loops.
-      nextX = Math.round(nextX);
-      nextY = Math.round(nextY);
-
-      if (nextX !== metaPopover.x || nextY !== metaPopover.y) {
-        setMetaPopover((p) => (p ? { ...p, x: nextX, y: nextY } : p));
-      }
-    });
-  }, [metaPopover]);
-
   useEffect(() => { setDisplayedCount(12); }, [activeFilter]);
 
   useEffect(() => {
     setLightboxPreviewFailed(false);
     if (lightboxPhoto) {
-      setShowMobileMeta(false);
-      setIsLightboxPortrait(false);
+        setIsLightboxPortrait(false);
     }
   }, [lightboxPhoto]);
 
@@ -630,19 +465,19 @@ export function GalleryPage() {
   useEffect(() => {
     const handleKey = (e) => {
       if (e.key === 'Escape') {
-        if (metaPopover) setMetaPopover(null);
+        if (showPhotoDetails) setShowPhotoDetails(false);
         else closeLightbox();
         return;
       }
 
-      if (!metaPopover && lightboxPhoto && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+      if (!showPhotoDetails && lightboxPhoto && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
         e.preventDefault();
         goToAdjacentLightboxPhoto(e.key === 'ArrowRight' ? 1 : -1);
       }
     };
-    if (lightboxPhoto || metaPopover) window.addEventListener('keydown', handleKey);
+    if (lightboxPhoto || showPhotoDetails) window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
-  }, [closeLightbox, goToAdjacentLightboxPhoto, lightboxPhoto, metaPopover]);
+  }, [closeLightbox, goToAdjacentLightboxPhoto, lightboxPhoto, showPhotoDetails]);
 
   useEffect(() => {
     if (!lightboxPhoto || !canNavigateLightbox) return;
@@ -861,20 +696,13 @@ export function GalleryPage() {
         aria-modal={lightboxPhoto ? 'true' : undefined}
         aria-labelledby={lightboxPhoto ? 'lightbox-title' : undefined}
         tabIndex={lightboxPhoto ? -1 : undefined}
-        onPointerDownCapture={(event) => {
-          if (isFilmSection && showMobileMeta &&
-            !event.target.closest('.lightbox-meta, .lightbox-info-toggle, .meta-popover')) {
-            setShowMobileMeta(false);
-          }
-        }}
         onClick={(e) => {
           if (e.target === e.currentTarget) closeLightbox();
         }}
       >
         <div
-          className={`lightbox-panel${isFilmSection ? ' lightbox-panel--film' : ''}${isFilmPortrait ? ' lightbox-panel--film-portrait' : ''}${lightboxFrameStock ? ` lightbox-panel--${lightboxFrameStock}` : ''}`}
+          className={`lightbox-panel lightbox-panel--photo-only${isFilmSection ? ' lightbox-panel--film' : ''}${isFilmPortrait ? ' lightbox-panel--film-portrait' : ''}${lightboxFrameStock ? ` lightbox-panel--${lightboxFrameStock}` : ''}`}
           style={{
-            backgroundImage: lightboxVisualSrc ? `url(${lightboxVisualSrc})` : 'none',
             '--lightbox-aspect-ratio': lightboxAspectRatio || undefined,
           }}
           onClick={(e) => e.stopPropagation()}
@@ -886,26 +714,17 @@ export function GalleryPage() {
                 repeatHorizontal={!isFilmPortrait} repeatVertical={isFilmPortrait} />
             </div>
           )}
+          {lightboxPhoto && <h2 id="lightbox-title" className="lightbox-accessible-title">{lightboxPhoto.title || '未命名照片'}</h2>}
           <div className="lightbox-actions">
-            {isFilmSection && lightboxPhoto && (
-              <button
-                type="button"
-                className="lightbox-info-toggle"
-                aria-label="照片信息"
-                title="照片信息"
-                aria-expanded={showMobileMeta}
-                aria-controls="lightbox-photo-details"
-                onClick={() => setShowMobileMeta((visible) => !visible)}
-              >
-                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                  <circle cx="12" cy="12" r="9" />
-                  <path d="M12 11v6m0-10v1" />
-                </svg>
-                <span>照片信息</span>
-              </button>
-            )}
             {lightboxPhoto && (
               <div className="lightbox-action-group" role="group" aria-label="照片操作">
+                <button type="button" className="lightbox-details-trigger" aria-label="基本参数" title="基本参数"
+                  aria-haspopup="dialog" aria-expanded={Boolean(showPhotoDetails)} onClick={openPhotoDetails}>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" aria-hidden="true">
+                    <path d="M7 6h13M7 12h13M7 18h13M3 6h.01M3 12h.01M3 18h.01" />
+                  </svg>
+                  <span>基本参数</span>
+                </button>
                 <SpatialSceneControls scene={spatialScene} disabled={lightboxPreviewFailed || !lightboxAspectRatio} />
                 <button className="lightbox-download" aria-label="下载原图" title="下载原图" onClick={handleDownloadOriginal}>
                   <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
@@ -920,7 +739,7 @@ export function GalleryPage() {
             </button>
           </div>
           {canNavigateLightbox && (
-            <>
+            <div className="lightbox-navigation" role="group" aria-label="照片切换">
               <button
                 type="button"
                 className="lightbox-nav lightbox-nav-prev"
@@ -930,7 +749,9 @@ export function GalleryPage() {
                   goToAdjacentLightboxPhoto(-1);
                 }}
               >
-                &lsaquo;
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="m15 6-6 6 6 6" />
+                </svg>
               </button>
               <button
                 type="button"
@@ -941,11 +762,13 @@ export function GalleryPage() {
                   goToAdjacentLightboxPhoto(1);
                 }}
               >
-                &rsaquo;
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="m9 6 6 6-6 6" />
+                </svg>
               </button>
-            </>
+            </div>
           )}
-          <div className={`lightbox-content-wrapper ${showMobileMeta ? 'meta-visible' : ''}`}>
+          <div className="lightbox-content-wrapper">
             <div ref={lightboxMediaRef} className={`lightbox-media ${isLightboxPortrait ? 'portrait-fit' : ''} ${lightboxAspectRatio ? 'aspect-fit' : ''} ${spatialScene.ready ? 'spatial-scene-active' : ''}`}
               style={lightboxAspectRatio ? { '--lightbox-aspect-ratio': lightboxAspectRatio } : undefined}
               onPointerDown={handleLightboxPointerDown}
@@ -993,179 +816,16 @@ export function GalleryPage() {
                 </span>
               )}
             </div>
-            {lightboxPhoto && (
-              <div id="lightbox-photo-details" className={`lightbox-meta ${showMobileMeta ? 'mobile-visible' : ''}`}
-                hidden={isFilmSection && !showMobileMeta}>
-                <div className="lightbox-title-section">
-                  <h3 id="lightbox-title">{lightboxPhoto.title}</h3>
-                  <p className="subtitle">{lightboxPhoto.country} · {lightboxPhoto.location}</p>
-                </div>
-                <LightboxStoryGrid items={lightboxStoryItems.filter((item) => !item.footer)} />
-                <div className="lightbox-params-grid"
-                  onClick={(e) => { if (window.innerWidth <= 768) e.stopPropagation(); }}>
-                  {lightboxParamItems.map(([label, value, artwork]) => (
-                    <div key={label} className={`lightbox-param-card${artwork ? ' lightbox-param-card--camera-artwork' : ''}`}
-                      onClick={(e) => openMetaPopover('basic', e)}>
-                      <span className="param-label">
-                        {label}
-                        {label === '焦距' && <FocalLengthIcon className="param-label-icon" />}
-                        {label === '光圈' && <ApertureIcon className="param-label-icon" />}
-                        {label === '快门' && <ShutterIcon className="param-label-icon param-label-icon-shutter" />}
-                        {label === 'ISO' && <IsoIcon className="param-label-icon" />}
-                      </span>
-                      <span className={`param-value ${label === '相机' || label === '镜头' ? 'param-value-equipment' : ''}`}>{value}</span>
-                      {artwork && (
-                        <div className="lightbox-camera-artwork" aria-hidden="true">
-                          <img src={artwork} alt="" decoding="async" />
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-                {isFilmSection && (
-                  <LightboxStoryGrid className="lightbox-story-grid--footer"
-                    items={lightboxStoryItems.filter((item) => item.footer)} />
-                )}
-              </div>
-            )}
+
           </div>
         </div>
 
-        {lightboxPhoto && metaPopover && (
-          <div className="meta-popover-backdrop"
-            onClick={(e) => { e.stopPropagation(); setMetaPopover(null); }}>
-            <aside
-              className="meta-popover"
-              ref={metaPopoverRef}
-              style={{
-                left: `${metaPopover.x}px`, top: `${metaPopover.y}px`,
-                backgroundImage: lightboxVisualSrc ? `url(${lightboxVisualSrc})` : 'none',
-                maxWidth: metaPopover.tab === 'geo' ? '520px' : '320px',
-                maxHeight: metaPopover.tab === 'geo' ? '85vh' : 'auto',
-                overflowY: metaPopover.tab === 'geo' ? 'auto' : 'hidden',
-                overflowX: 'hidden',
-              }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <header className="meta-sidepanel-header">
-                <div className="meta-tabs">
-                  <button
-                    className={`meta-tab ${metaPopover.tab === 'basic' ? 'active' : ''}`}
-                    onClick={() => setMetaPopover((p) => ({ ...p, tab: 'basic' }))}
-                  >基本参数</button>
-                  <button
-                    className={`meta-tab ${metaPopover.tab === 'geo' ? 'active' : ''}`}
-                    onClick={() => setMetaPopover((p) => ({ ...p, tab: 'geo' }))}
-                  >地理位置</button>
-                </div>
-                <button className="meta-close" onClick={() => setMetaPopover(null)} aria-label="关闭">×</button>
-              </header>
-
-              {metaPopover.tab === 'basic' && (
-                <div className="meta-panel-body">
-                  <div className="meta-card-grid">
-                    <article className="meta-card">
-                      <p className="meta-card-label">评级</p>
-                      {(() => {
-                        const rating = lightboxPhoto?.rating ?? 7;
-                        const clamped = Math.max(1, Math.min(10, rating));
-                        return (
-                          <div className="meta-rating-circle">
-                            <div className="meta-rating-number">{clamped}</div>
-                            <div className="meta-rating-stars-circle">
-                              {Array.from({ length: clamped }, (_, i) => {
-                                const angle = (360 / clamped) * i;
-                                const r = 28;
-                                const x = Math.cos((angle - 90) * Math.PI / 180) * r;
-                                const y = Math.sin((angle - 90) * Math.PI / 180) * r;
-                                return (
-                                  <span key={i} className="meta-star-circle" style={{
-                                    position: 'absolute',
-                                    left: `calc(50% + ${x}px)`, top: `calc(50% + ${y}px)`,
-                                    transform: 'translate(-50%, -50%)',
-                                  }}>★</span>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        );
-                      })()}
-                    </article>
-                    <article className="meta-card">
-                      <p className="meta-card-label">拍摄于</p>
-                      {(() => {
-                        const { yearsAgoText, dateText } = getShotTimeInfo(lightboxPhoto.shotDate || lightboxPhoto.shot_date);
-                        return (<><p className="meta-card-main">{yearsAgoText}</p><p className="meta-card-sub">{dateText}</p></>);
-                      })()}
-                    </article>
-                    {isFilmSection ? lightboxParamItems.map(([label, value]) => (
-                      <article key={label} className="meta-card">
-                        <p className="meta-card-label">{label}</p>
-                        <p className="meta-card-main">{value}</p>
-                      </article>
-                    )) : <>
-                    <article className="meta-card"><p className="meta-card-label">光圈</p><p className="meta-card-main">{lightboxPhoto.aperture}</p></article>
-                    <article className="meta-card"><p className="meta-card-label">快门</p><p className="meta-card-main">{lightboxPhoto.shutter}</p></article>
-                    <article className="meta-card"><p className="meta-card-label">焦距</p><p className="meta-card-main">{lightboxPhoto.focal}</p></article>
-                    <article className="meta-card"><p className="meta-card-label">感光度</p><p className="meta-card-main">{lightboxPhoto.iso}</p></article>
-                    </>}
-                  </div>
-                </div>
-              )}
-
-              {metaPopover.tab === 'geo' && (
-                <div className="meta-panel-body" style={{ maxHeight: 'calc(90vh - 80px)', overflowY: 'auto' }}>
-                  {getGeoInfo ? (
-                    <>
-                      <PhotoLocationMap geoInfo={getGeoInfo} title={lightboxPhoto?.title} />
-                      <div className="photo-location-address" aria-live="polite" aria-busy={photoAddress.loading} style={{ marginBottom: '16px', padding: '12px',
-                        background: 'rgba(255,255,255,0.7)', backdropFilter: 'blur(10px)',
-                        borderRadius: '8px', border: '1px solid rgba(255,255,255,0.3)' }}>
-                        <p className="photo-location-label" style={{ margin: 0, fontSize: '0.95rem', color: 'var(--text)', fontWeight: '500' }}>
-                          {getGeoInfo.place}
-                        </p>
-                        {getGeoInfo.fullAddress && (getGeoInfo.fullAddress !== getGeoInfo.place || getGeoInfo.fullAddress.length > 24) && (
-                          <details className="photo-address-details" key={`${lightboxPhoto.id}:${getGeoInfo.fullAddress}`}>
-                            <summary>完整地址</summary>
-                            <p>{getGeoInfo.fullAddress}</p>
-                          </details>
-                        )}
-                        {photoAddress.loading && <p className="meta-card-sub" style={{ margin: '4px 0 0' }}>正在查询详细地址…</p>}
-                      </div>
-                      <div className="meta-card-grid">
-                        <article className="meta-card">
-                          <p className="meta-card-label">纬度</p>
-                          <p className="meta-card-main">{getGeoInfo.latDms}</p>
-                          <p className="meta-card-sub">{getGeoInfo.lat}</p>
-                        </article>
-                        <article className="meta-card">
-                          <p className="meta-card-label">经度</p>
-                          <p className="meta-card-main">{getGeoInfo.lonDms}</p>
-                          <p className="meta-card-sub">{getGeoInfo.lon}</p>
-                        </article>
-                        <article className="meta-card">
-                          <p className="meta-card-label">海拔</p>
-                          <p className="meta-card-main">{getGeoInfo.altitude}</p>
-                        </article>
-                        <article className="meta-card">
-                          <p className="meta-card-label">距离</p>
-                          <p className="meta-card-main">{getGeoInfo.distance}</p>
-                          {getGeoInfo.browserLocation && <p className="meta-card-sub">距当前位置</p>}
-                        </article>
-                      </div>
-                    </>
-                  ) : (
-                    <div className="meta-card-grid">
-                      <article className="meta-card meta-card-wide">
-                        <p className="meta-card-label">地点</p>
-                        <p className="meta-card-main">暂无地理位置信息</p>
-                      </article>
-                    </div>
-                  )}
-                </div>
-              )}
-            </aside>
-          </div>
+        {lightboxPhoto && showPhotoDetails && (
+          <PhotoDetailsSheet photo={lightboxPhoto} geoInfo={getGeoInfo} address={photoAddress}
+            shotInfo={lightboxShotInfo} filmStock={lightboxFilmStock} isFilm={isFilmSection}
+            cameraArtwork={lightboxCameraArtwork} filmStockArtwork={lightboxFilmStockArtwork}
+            locationStatus={locationStatus} onRequestLocation={requestLocation}
+            onClose={() => setShowPhotoDetails(false)} />
         )}
       </div>
     </div>

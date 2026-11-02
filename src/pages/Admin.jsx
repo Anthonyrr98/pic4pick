@@ -25,6 +25,8 @@ import { useGearOptions } from '../hooks/useGearOptions';
 import { useBrandConfig } from '../hooks/useBrandConfig';
 import { useFileUpload } from '../hooks/useFileUpload';
 import { ConfigPanel } from '../components/admin/ConfigPanel';
+import { FilmStockInput } from '../components/admin/FilmStockInput';
+import { collectFilmStockOptions } from '../utils/filmStockOptions';
 import { loadMapLibre } from '../utils/maplibreLoader';
 import { getDefaultMaplibreStyle, getMapStylePresetFromEnv } from '../utils/gaodeMapStyle';
 import { addLocationMarker } from '../utils/locationMarker';
@@ -313,6 +315,21 @@ export function AdminPage() {
   );
 
   const pendingReviewCount = useMemo(() => adminUploads.length, [adminUploads]);
+
+  const [rememberedFilmStocks, setRememberedFilmStocks] = useState(() => (
+    collectFilmStockOptions(Storage.get(STORAGE_KEYS.ADMIN_FILM_STOCK_OPTIONS, []))
+  ));
+  const filmStockOptions = useMemo(() => collectFilmStockOptions([
+    ...adminUploads, ...approvedPhotos, ...rejectedPhotos, ...rememberedFilmStocks,
+  ]), [adminUploads, approvedPhotos, rejectedPhotos, rememberedFilmStocks]);
+  const rememberFilmStock = useCallback((value) => {
+    if (!value.trim()) return;
+    const options = collectFilmStockOptions([
+      ...collectFilmStockOptions(Storage.get(STORAGE_KEYS.ADMIN_FILM_STOCK_OPTIONS, [])), value,
+    ]);
+    Storage.set(STORAGE_KEYS.ADMIN_FILM_STOCK_OPTIONS, options);
+    setRememberedFilmStocks(options);
+  }, []);
 
   // 调试：在开发环境打印高德 KEY 是否存在
   useEffect(() => {
@@ -1462,6 +1479,8 @@ export function AdminPage() {
       status: 'pending',
     };
 
+    if (newUpload.category === 'film') rememberFilmStock(newUpload.filmStock);
+
     setAdminUploads((prev) => [newUpload, ...prev.filter((item) => item.id !== newUpload.id)]);
     setUploadProgress(99);
     setUploadStatus(supabase ? '正在同步作品信息...' : '正在完成提交...');
@@ -1880,6 +1899,7 @@ export function AdminPage() {
 
     const session = editSessionRef.current;
     const isCurrentEdit = () => editSessionRef.current === session;
+    if (editForm.category === 'film') rememberFilmStock(editForm.filmStock);
     editSaveInProgressRef.current = true;
     setIsSavingEdit(true);
     try {
@@ -3251,13 +3271,11 @@ export function AdminPage() {
                   {uploadForm.category === 'film' && (
                     <div className="form-group full-width">
                       <label>胶卷</label>
-                      <input
-                        type="text"
-                        name="filmStock"
-                        placeholder="例如：Kodak Portra 400"
+                      <FilmStockInput
                         value={uploadForm.filmStock}
-                        onChange={handleFormChange}
-                        autoComplete="off"
+                        onChange={(filmStock) => setUploadForm((prev) => ({ ...prev, filmStock }))}
+                        options={filmStockOptions}
+                        onRemember={rememberFilmStock}
                       />
                     </div>
                   )}
@@ -3580,7 +3598,7 @@ export function AdminPage() {
                         )}
                         <span className="item-tag" style={{
                           position: 'absolute',
-                          top: '8px',
+                          bottom: '8px',
                           right: '8px',
                           background: 'rgba(255, 193, 7, 0.9)',
                           color: '#000',
@@ -3756,7 +3774,7 @@ export function AdminPage() {
                         )}
                         <span className="item-tag" style={{
                           position: 'absolute',
-                          top: '8px',
+                          bottom: '8px',
                           right: '8px',
                           background: '#dc2626',
                           color: '#fff',
@@ -4398,12 +4416,11 @@ export function AdminPage() {
                     <div className="form-group" style={{ gridColumn: '1 / -1' }}>
                       <label>胶卷</label>
                       <div style={{ position: 'relative' }}>
-                        <input
-                          type="text"
-                          placeholder="例如: Kodak Portra 400"
+                        <FilmStockInput
                           value={editForm.filmStock}
-                          onChange={(e) => setEditForm((prev) => ({ ...prev, filmStock: e.target.value }))}
-                          autoComplete="off"
+                          onChange={(filmStock) => setEditForm((prev) => ({ ...prev, filmStock }))}
+                          options={filmStockOptions}
+                          onRemember={rememberFilmStock}
                           style={{
                             width: '100%',
                             padding: '10px',

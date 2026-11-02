@@ -166,25 +166,6 @@ main {
   pointer-events: none;
 }
 
-.app-loading-progress {
-  position: relative;
-  width: min(260px, 58vw);
-  height: 4px;
-  overflow: hidden;
-  border-radius: 999px;
-  background: rgba(17, 18, 24, 0.12);
-  box-shadow: inset 0 1px 2px rgba(17, 18, 24, 0.08);
-}
-
-.app-loading-progress span {
-  position: absolute;
-  inset: 0 auto 0 0;
-  width: 46%;
-  border-radius: inherit;
-  background: linear-gradient(90deg, rgba(17, 18, 24, 0.82), rgba(207, 165, 106, 0.92));
-  animation: app-loading-progress 1.35s ease-in-out infinite;
-}
-
 .app-loading-screen p {
   margin: 0;
   color: rgb(var(--ink-rgb) / 0.58);
@@ -216,18 +197,6 @@ main {
   }
 }
 
-@keyframes app-loading-progress {
-  0% {
-    transform: translateX(-105%);
-  }
-  55% {
-    transform: translateX(85%);
-  }
-  100% {
-    transform: translateX(220%);
-  }
-}
-
 @media (max-width: 520px) {
   .app-loading-screen {
     gap: 18px;
@@ -245,8 +214,7 @@ main {
 
 @media (prefers-reduced-motion: reduce) {
   .app-loading-mark,
-  .app-loading-sheen,
-  .app-loading-progress span {
+  .app-loading-sheen {
     animation: none;
   }
 
@@ -5100,6 +5068,7 @@ main {
 }
 
 .item-image {
+  position: relative;
   width: 120px;
   height: 120px;
   border-radius: 12px;

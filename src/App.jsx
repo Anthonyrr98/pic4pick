@@ -42,9 +42,6 @@ function AppLoading({ exiting = false } = {}) {
         />
         <span className="app-loading-sheen" />
       </div>
-      <div className="app-loading-progress" aria-hidden="true">
-        <span />
-      </div>
       <p>胶片正在装入时光…</p>
     </div>
   );

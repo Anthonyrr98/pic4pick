@@ -29,6 +29,9 @@ export const STORAGE_KEYS = {
   
   // 常用镜头选项
   ADMIN_LENS_OPTIONS: 'admin_lens_options',
+
+  // 已输入的胶卷型号；已保存照片中的型号也会自动加入候选项。
+  ADMIN_FILM_STOCK_OPTIONS: 'admin_film_stock_options',
   
   // 品牌 Logo
   BRAND_LOGO: 'camarts_brand_logo',

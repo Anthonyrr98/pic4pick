@@ -381,8 +381,6 @@ html { background: var(--bg); scrollbar-color: var(--muted) var(--bg); }
 :root[data-theme] .admin-login-back:hover { color: var(--text); }
 :root[data-theme] .app-loading-screen { background: radial-gradient(ellipse at 50% 38%, rgb(var(--accent-rgb) / 0.1), transparent 58%), var(--bg); }
 :root[data-theme] .app-loading-screen p { color: var(--muted); }
-:root[data-theme] .app-loading-progress { background: var(--border); }
-:root[data-theme] .app-loading-progress span { background: var(--accent); }
 
 @media (max-width: 1024px) {
   .theme-trigger-label { display: none; }

@@ -13,40 +13,26 @@ async function checkResponsiveLightbox(page) {
   for (const [width, height] of [[978, 956], [769, 700], [1024, 768], [1025, 768], [1280, 720], [884, 956], [820, 1180]]) {
     await page.setViewportSize({ width, height });
     const layout = await page.getByRole('dialog').evaluate((dialog) => {
-      const title = dialog.querySelector('#lightbox-title').getBoundingClientRect();
       const actions = dialog.querySelector('.lightbox-actions').getBoundingClientRect();
       const media = dialog.querySelector('.lightbox-media').getBoundingClientRect();
+      const panel = dialog.querySelector('.lightbox-panel').getBoundingClientRect();
       const image = dialog.querySelector('.lightbox-media img');
       return {
-        overlaps: title.left < actions.right && title.right > actions.left
-          && title.top < actions.bottom && title.bottom > actions.top,
+        oldMetadata: Boolean(dialog.querySelector('#lightbox-photo-details')),
+        toolbarInside: actions.top >= 0 && actions.bottom <= innerHeight,
         frameRatio: media.width / media.height,
         imageRatio: image.naturalWidth / image.naturalHeight,
+        fullscreen: panel.left === 0 && panel.top === 0 && panel.width === innerWidth && panel.height === innerHeight,
+        roundedClip: getComputedStyle(dialog.querySelector('.lightbox-media')).clipPath.includes('round'),
       };
     });
-    if (layout.overlaps) throw new Error(`Lightbox title overlaps the toolbar at ${width}x${height}`);
+    if (layout.oldMetadata) throw new Error(`Old metadata panel remains at ${width}x${height}`);
+    if (!layout.toolbarInside) throw new Error(`Toolbar extends beyond ${width}x${height}`);
+    if (!layout.fullscreen || !layout.roundedClip) throw new Error(`Fullscreen stage or photo corner clipping failed at ${width}x${height}`);
     if (Math.abs(layout.frameRatio - layout.imageRatio) > 0.02) {
       throw new Error(`Lightbox image ratio changed at ${width}x${height}`);
     }
-    if (width <= 1024 && height > width) {
-      await page.locator('.lightbox-param-card').last().scrollIntoViewIfNeeded();
-      const scrolledLayout = await page.getByRole('dialog').evaluate((dialog) => {
-        const panel = dialog.querySelector('.lightbox-panel');
-        const frame = panel.getBoundingClientRect();
-        const lastCard = panel.querySelector('.lightbox-param-card:last-child').getBoundingClientRect();
-        const toolbar = panel.querySelector('.lightbox-actions').getBoundingClientRect();
-        const backdrop = getComputedStyle(panel, '::before');
-        const backdropBottom = frame.top + panel.clientTop + parseFloat(backdrop.top)
-          + parseFloat(backdrop.height) - panel.scrollTop;
-        return {
-          cardInside: lastCard.top >= frame.top && lastCard.bottom <= Math.min(frame.bottom, backdropBottom) + 1,
-          toolbarInside: toolbar.top >= frame.top && toolbar.bottom <= frame.bottom,
-        };
-      });
-      if (!scrolledLayout.cardInside) throw new Error(`Tablet metadata extends beyond its backdrop at ${width}x${height}`);
-      if (!scrolledLayout.toolbarInside) throw new Error(`Tablet toolbar scrolls out of the panel at ${width}x${height}`);
-      await page.locator('.lightbox-content-wrapper').evaluate((wrapper) => { wrapper.scrollTop = 0; });
-    }
+
   }
   await page.setViewportSize(originalViewport);
 }
@@ -182,18 +168,18 @@ try {
   const tabletLayout = await tabletDialog.evaluate((element) => {
     const wrapper = element.querySelector('.lightbox-content-wrapper');
     const media = element.querySelector('.lightbox-media').getBoundingClientRect();
-    const meta = element.querySelector('.lightbox-meta').getBoundingClientRect();
+    const panel = element.querySelector('.lightbox-panel').getBoundingClientRect();
     const image = element.querySelector('.lightbox-media img');
     return {
       direction: getComputedStyle(wrapper).flexDirection,
       mediaWidth: media.width,
-      metaWidth: meta.width,
+      centered: Math.abs((media.left + media.right) / 2 - (panel.left + panel.right) / 2) < 2,
+      metadataHidden: !element.querySelector('#lightbox-photo-details'),
       frameRatio: media.width / media.height,
       imageRatio: image.naturalWidth / image.naturalHeight,
     };
   });
-  if (tabletLayout.direction !== 'column') throw new Error('iPad portrait lightbox did not switch to a stacked layout');
-  if (tabletLayout.mediaWidth < tabletLayout.metaWidth * 0.9) throw new Error('iPad lightbox photograph is too small beside its metadata');
+  if (!tabletLayout.centered || !tabletLayout.metadataHidden) throw new Error('iPad photograph is not centered without metadata');
   if (Math.abs(tabletLayout.frameRatio - tabletLayout.imageRatio) > 0.02) {
     throw new Error('iPad lightbox frame does not preserve the original image ratio');
   }

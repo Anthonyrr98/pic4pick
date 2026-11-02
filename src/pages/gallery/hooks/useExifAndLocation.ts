@@ -2,7 +2,7 @@
  * EXIF 数据读取和浏览器位置获取 Hooks
  */
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import exifr from 'exifr';
 import { GalleryPhoto } from '../utils/photoDataUtils';
 import type { BrowserLocation } from '../utils/photoFilterUtils';
@@ -89,17 +89,21 @@ export const useExifData = (photo: GalleryPhoto | null) => {
 // 获取浏览器位置
 export const useBrowserLocation = () => {
   const [browserLocation, setBrowserLocation] = useState<BrowserLocation | null>(null);
+  const [locationStatus, setLocationStatus] = useState<'idle' | 'loading' | 'ready' | 'denied' | 'error' | 'unsupported'>('idle');
 
-  useEffect(() => {
+  const requestLocation = useCallback(() => {
     if ('geolocation' in navigator) {
+      setLocationStatus('loading');
       navigator.geolocation.getCurrentPosition(
         (position) => {
           setBrowserLocation({
             lat: position.coords.latitude,
             lon: position.coords.longitude,
           });
+          setLocationStatus('ready');
         },
         (error) => {
+          setLocationStatus(error.code === 1 ? 'denied' : 'error');
           console.log('无法获取浏览器位置:', error.message);
         },
         {
@@ -109,8 +113,12 @@ export const useBrowserLocation = () => {
           maximumAge: 600000,
         }
       );
+    } else {
+      setLocationStatus('unsupported');
     }
   }, []);
 
-  return browserLocation;
+  useEffect(() => { requestLocation(); }, [requestLocation]);
+
+  return { browserLocation, requestLocation, locationStatus };
 };

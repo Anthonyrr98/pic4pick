@@ -5,7 +5,7 @@ import { escapeHtml } from '../../../utils/security';
 import { handleError, ErrorType } from '../../../utils/errorHandler';
 import './PhotoLocationMap.css';
 
-const createMarkerElement = (kind, label) => {
+const createMarkerElement = (kind, label, thumbnail) => {
   const element = document.createElement('button');
   element.type = 'button';
   element.className = 'photo-map-marker-target';
@@ -15,10 +15,18 @@ const createMarkerElement = (kind, label) => {
   dot.className = 'photo-map-marker-dot';
   dot.setAttribute('aria-hidden', 'true');
   element.appendChild(dot);
+  if (thumbnail && kind === 'photo') {
+    const image = document.createElement('img');
+    image.src = thumbnail;
+    image.alt = '';
+    image.className = 'photo-map-marker-thumbnail';
+    image.addEventListener('error', () => image.remove(), { once: true });
+    element.appendChild(image);
+  }
   return element;
 };
 
-export function PhotoLocationMap({ geoInfo, title }) {
+export function PhotoLocationMap({ geoInfo, title, thumbnail, compact = false }) {
   const containerRef = useRef(null);
   const { place, browserLocation } = geoInfo;
   const latitude = geoInfo.mapLatitude ?? geoInfo.latitude;
@@ -49,7 +57,7 @@ export function PhotoLocationMap({ geoInfo, title }) {
         const map = mapInstance.current;
         const AMap = window.AMap;
         const addMarker = (coordinates, kind, html, label) => {
-          const element = createMarkerElement(kind, label);
+          const element = createMarkerElement(kind, label, thumbnail);
           const marker = new AMap.Marker({
             position: coordinates, content: element,
             offset: new AMap.Pixel(-22, -22), map,
@@ -60,7 +68,7 @@ export function PhotoLocationMap({ geoInfo, title }) {
             popup.open(map, coordinates);
           };
           element.addEventListener('click', open);
-          open();
+          if (!compact) open();
           cleanup.push(() => { popup.close(); element.removeEventListener('click', open); marker.setMap(null); });
         };
         addMarker(position, 'photo', content, `照片拍摄地点：${title || place}`);
@@ -80,7 +88,7 @@ export function PhotoLocationMap({ geoInfo, title }) {
       if (cancelled || !maplibreInstance.current) return;
       const map = maplibreInstance.current;
       const addMarker = (coordinates, kind, html, label) => {
-        const element = createMarkerElement(kind, label);
+        const element = createMarkerElement(kind, label, thumbnail);
         const popup = new maplibregl.Popup({ offset: 14 }).setHTML(html);
         const marker = new maplibregl.Marker({ element })
           .setLngLat(coordinates).addTo(map);
@@ -89,7 +97,7 @@ export function PhotoLocationMap({ geoInfo, title }) {
           popup.setLngLat(coordinates).addTo(map);
         };
         element.addEventListener('click', open);
-        open();
+        if (!compact) open();
         cleanup.push(() => { popup.remove(); element.removeEventListener('click', open); marker.remove(); });
       };
       addMarker(position, 'photo', content, `照片拍摄地点：${title || place}`);
@@ -118,9 +126,9 @@ export function PhotoLocationMap({ geoInfo, title }) {
       cancelled = true;
       cleanup.forEach(remove => remove());
     };
-  }, [isMapReady, mapProvider, mapInstance, maplibreInstance, latitude, longitude, place, title, browserLatitude, browserLongitude]);
+  }, [isMapReady, mapProvider, mapInstance, maplibreInstance, latitude, longitude, place, title, browserLatitude, browserLongitude, thumbnail, compact]);
 
-  return <div ref={containerRef} className="photo-location-map" style={{
+  return <div ref={containerRef} className="photo-location-map" style={compact ? undefined : {
     width: '100%', height: '240px', minHeight: '240px',
     marginBottom: '16px', borderRadius: '8px',
     overflow: 'hidden', border: '1px solid var(--border)',
