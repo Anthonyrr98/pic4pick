@@ -17,6 +17,7 @@
     "test:motion": "node scripts/motion-smoke.mjs",
     "test:discovery-motion": "node scripts/discovery-motion-smoke.mjs",
     "test:entry-motion": "node scripts/entry-motion-smoke.mjs",
+    "test:gallery-layout": "node scripts/gallery-layout-smoke.mjs",
     "test:gallery-cache": "node --test scripts/public-photo-data.test.mjs && node scripts/gallery-cache-smoke.mjs",
     "test:gallery-scroll": "node scripts/gallery-scroll-smoke.mjs",
     "test:spatial": "node --test scripts/spatial-input.test.mjs scripts/spatial-motion.test.mjs scripts/precomputed-spatial-depth.test.mjs && node scripts/spatial-smoke.mjs",

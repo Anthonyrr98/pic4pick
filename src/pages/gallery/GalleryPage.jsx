@@ -142,6 +142,7 @@ export function GalleryPage() {
 
   // 鈹€鈹€ 瑙嗗浘 & 绛涢€夌姸鎬?
   const [activeFilter, setActiveFilter] = useState('latest');
+  const prepareLayoutRef = useRef(null);
   const [activeView, setActiveView] = useState('gallery-view');
   const shellRef = useRef(null);
   useGalleryHeaderEntry(shellRef, activeView === 'gallery-view');
@@ -192,6 +193,13 @@ export function GalleryPage() {
   const [displayedCount, setDisplayedCount] = useState(12);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const loadMoreRef = useRef(null);
+  const changeFilter = useCallback(filter => {
+    if (filter === activeFilter) return;
+    prepareLayoutRef.current?.(filter);
+    // Commit the new filter and its first page together, before Flip measures.
+    setDisplayedCount(12);
+    setActiveFilter(filter);
+  }, [activeFilter]);
 
   // 鈹€鈹€ 鏁版嵁 Hooks
   const {
@@ -424,7 +432,6 @@ export function GalleryPage() {
   }, [lightboxPhoto]);
 
   // 鈹€鈹€ Effects
-  useEffect(() => { setDisplayedCount(12); }, [activeFilter]);
 
   useEffect(() => {
     const baseTitle = brandText.siteTitle || 'light of anthony';
@@ -645,7 +652,7 @@ export function GalleryPage() {
         )}
 
         <section id="gallery-view" className={`screen ${activeView === 'gallery-view' ? 'active' : ''}`}>
-          <TabStrip activeFilter={activeFilter} onFilterChange={setActiveFilter} />
+          <TabStrip activeFilter={activeFilter} onFilterChange={changeFilter} />
           <div className="gallery-status-row" aria-live="polite">
             <span className="gallery-count">{galleryStatusText}</span>
             {gallerySyncText && (
@@ -669,6 +676,8 @@ export function GalleryPage() {
               loadMoreRef={loadMoreRef}
               totalCount={filteredPhotos.length}
               filmFrames={isFilmSection}
+              filterKey={activeFilter}
+              prepareLayoutRef={prepareLayoutRef}
             />
           ) : (
             <div className="empty-state">

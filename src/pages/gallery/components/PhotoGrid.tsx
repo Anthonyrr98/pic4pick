@@ -10,6 +10,8 @@ import { FilmFrame } from './FilmFrame';
 import { advanceImageFallback } from '../../../utils/imageFallback';
 import { usePhotoCardMotion } from '../../../hooks/usePhotoCardMotion';
 import { usePhotoGridEntry } from '../../../hooks/useGalleryEntryMotion';
+import { useFilmDevelopMotion } from '../../../hooks/useFilmDevelopMotion';
+import { useGalleryLayoutMotion } from '../../../hooks/useGalleryLayoutMotion';
 
 // Keep enough source pixels for high-DPI displays; 360px previews looked soft after cover cropping.
 const GRID_IMAGE_WIDTHS = [540, 720, 900, 1200, 1440];
@@ -38,6 +40,8 @@ interface PhotoGridProps {
   totalCount: number;
   filmFrames?: boolean;
   isActive?: boolean;
+  filterKey?: string;
+  prepareLayoutRef?: React.MutableRefObject<((nextFilter: string) => void) | null>;
 }
 
 interface PhotoCardProps {
@@ -206,10 +210,13 @@ const PhotoCard = memo(function PhotoCard({
 export const PhotoGrid: React.FC<PhotoGridProps> = ({
   photos, likedPhotoIds, onPhotoClick, onToggleLike, hasMore, isLoadingMore,
   onLoadMore, loadMoreRef, totalCount, filmFrames = false, isActive = true,
+  filterKey = '', prepareLayoutRef,
 }) => {
   const gridRef = useRef<HTMLDivElement>(null);
   usePhotoCardMotion(gridRef, isActive, filmFrames);
   usePhotoGridEntry(gridRef, isActive, photos);
+  useFilmDevelopMotion(gridRef, isActive, filmFrames);
+  useGalleryLayoutMotion(gridRef, isActive, filterKey, prepareLayoutRef, filmFrames);
   const eagerImageCount = typeof window !== 'undefined' && window.innerWidth <= 768 ? 4 : 6;
   const likedIds = new Set(likedPhotoIds);
 

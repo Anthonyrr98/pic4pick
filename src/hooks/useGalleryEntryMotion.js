@@ -53,10 +53,12 @@ function useEntryMotion(rootRef, active, revision, kind) {
     const visibilityChanged = () => { if (document.hidden) finish(); };
     preference.addEventListener('change', preferenceChanged);
     document.addEventListener('visibilitychange', visibilityChanged);
+    root.addEventListener('gallerylayoutstart', finish);
     return () => {
       running.forEach(tween => tween.kill()); running.clear(); seen.clear();
       preference.removeEventListener('change', preferenceChanged);
       document.removeEventListener('visibilitychange', visibilityChanged);
+      root.removeEventListener('gallerylayoutstart', finish);
       updateRef.current = null;
     };
   }, { scope: rootRef });

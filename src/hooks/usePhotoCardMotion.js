@@ -17,7 +17,7 @@ export function usePhotoCardMotion(rootRef, enabled, filmFrames) {
       active = null;
     };
     const move = event => {
-      if (event.pointerType !== 'mouse' || !preference.matches) return;
+      if (event.pointerType !== 'mouse' || !preference.matches || root.hasAttribute('data-layout-motion')) return;
       const card = event.target.closest('.photo-card');
       if (!card || !root.contains(card)) return;
       const image = filmFrames ? null : card.querySelector('img');
@@ -69,6 +69,7 @@ export function usePhotoCardMotion(rootRef, enabled, filmFrames) {
     root.addEventListener('pointermove', move);
     root.addEventListener('pointerout', leave);
     root.addEventListener('pointercancel', reset);
+    root.addEventListener('gallerylayoutstart', reset);
     window.addEventListener('scroll', reset, true);
     window.addEventListener('resize', reset);
     document.addEventListener('visibilitychange', reset);
@@ -79,6 +80,7 @@ export function usePhotoCardMotion(rootRef, enabled, filmFrames) {
       root.removeEventListener('pointermove', move);
       root.removeEventListener('pointerout', leave);
       root.removeEventListener('pointercancel', reset);
+      root.removeEventListener('gallerylayoutstart', reset);
       window.removeEventListener('scroll', reset, true);
       window.removeEventListener('resize', reset);
       document.removeEventListener('visibilitychange', reset);
