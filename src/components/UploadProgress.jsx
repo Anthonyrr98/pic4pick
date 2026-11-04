@@ -1,11 +1,12 @@
-import { useLayoutEffect, useRef } from 'react';
+import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { gsap } from 'gsap';
 import { useGSAP } from '@gsap/react';
+import { useAnimatedPresence } from '../hooks/useAnimatedPresence';
 import './UploadProgress.css';
 
 gsap.registerPlugin(useGSAP);
 
-export function UploadProgress({ progress, fileName, isVisible, uploadedBytes, totalBytes, statusLabel }) {
+export function UploadProgress({ progress, fileName, isVisible, uploadedBytes, totalBytes, statusLabel, outcome }) {
   const rootRef = useRef(null);
   const fillRef = useRef(null);
   const percentageRef = useRef(null);
@@ -13,11 +14,17 @@ export function UploadProgress({ progress, fileName, isVisible, uploadedBytes, t
   const updateRef = useRef(null);
   const visible = isVisible && progress !== null;
   const target = Number.isFinite(progress) ? Math.min(100, Math.max(0, progress)) : 0;
-  const targetRef = useRef(target);
-  useLayoutEffect(() => { targetRef.current = target; }, [target]);
+  const current = useMemo(() => ({ target, fileName, uploadedBytes, totalBytes, statusLabel, outcome }),
+    [target, fileName, uploadedBytes, totalBytes, statusLabel, outcome]);
+  const [retained, setRetained] = useState(current);
+  useLayoutEffect(() => { if (visible) setRetained(current); }, [visible, current]);
+  const displayed = visible ? current : retained;
+  const present = useAnimatedPresence(visible, rootRef, { variant: 'notice' });
+  const targetRef = useRef(displayed.target);
+  useLayoutEffect(() => { targetRef.current = displayed.target; }, [displayed.target]);
 
   useGSAP(() => {
-    if (!visible) return;
+    if (!present) return;
     const media = gsap.matchMedia();
     media.add({ reduce: '(prefers-reduced-motion: reduce)', animate: '(prefers-reduced-motion: no-preference)' }, context => {
       let lastInteger = -1;
@@ -43,11 +50,21 @@ export function UploadProgress({ progress, fileName, isVisible, uploadedBytes, t
       return () => { updateRef.current = null; };
     }, rootRef);
     return () => media.revert();
-  }, { scope: rootRef, dependencies: [visible, fileName], revertOnUpdate: true });
+  }, { scope: rootRef, dependencies: [present, displayed.fileName], revertOnUpdate: true });
 
-  useGSAP(() => { updateRef.current?.(target); }, { dependencies: [target, visible, fileName] });
+  useGSAP(() => { updateRef.current?.(displayed.target); },
+    { dependencies: [displayed.target, present, displayed.fileName] });
+  useGSAP(() => {
+    if (!present || !visible) return;
+    const media = gsap.matchMedia();
+    media.add('(prefers-reduced-motion: no-preference)', () => {
+      gsap.fromTo(rootRef.current.querySelector('.upload-progress-label'), { opacity: 0.4, y: 3 },
+        { opacity: 1, y: 0, duration: 0.18, clearProps: 'opacity,transform' });
+    }, rootRef);
+    return () => media.revert();
+  }, { scope: rootRef, dependencies: [present, visible, displayed.statusLabel, displayed.outcome], revertOnUpdate: true });
 
-  if (!visible) {
+  if (!present) {
     return null;
   }
 
@@ -59,26 +76,32 @@ export function UploadProgress({ progress, fileName, isVisible, uploadedBytes, t
   };
 
   return (
+    <div className="upload-progress-anchor" data-state={visible ? 'open' : 'closing'}
+      data-outcome={displayed.outcome || 'uploading'}>
     <div className="upload-progress-container" ref={rootRef}>
       <div className="upload-progress-header">
-        <span className="upload-progress-label">{statusLabel || '上传中...'}</span>
+        <span className="upload-progress-label" role="status">
+          {displayed.outcome && <span className="upload-progress-result" aria-hidden="true">{displayed.outcome === 'success' ? '✓ ' : '! '}</span>}
+          {displayed.statusLabel || '上传中...'}
+        </span>
         <span className="upload-progress-percentage" ref={percentageRef}>0%</span>
       </div>
-      {fileName && (
-        <div className="upload-progress-filename">{fileName}</div>
+      {displayed.fileName && (
+        <div className="upload-progress-filename">{displayed.fileName}</div>
       )}
-      {uploadedBytes && totalBytes && (
+      {Boolean(displayed.uploadedBytes && displayed.totalBytes) && (
         <div className="upload-progress-bytes">
-          {formattedBytes(uploadedBytes)} / {formattedBytes(totalBytes)}
+          {formattedBytes(displayed.uploadedBytes)} / {formattedBytes(displayed.totalBytes)}
         </div>
       )}
-      <div className="upload-progress-bar" ref={barRef} role="progressbar" aria-label={statusLabel || '上传进度'}
+      <div className="upload-progress-bar" ref={barRef} role="progressbar" aria-label={displayed.statusLabel || '上传进度'}
         aria-valuemin={0} aria-valuemax={100} aria-valuenow={0}>
         <div 
           className="upload-progress-fill" 
           ref={fillRef}
         />
       </div>
+    </div>
     </div>
   );
 }

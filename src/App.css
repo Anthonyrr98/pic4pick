@@ -1160,8 +1160,7 @@ main {
   }
 
   .photo-card .like-badge-heart svg,
-  .photo-card .like-badge::before,
-  .photo-card .like-badge::after {
+  .photo-card .like-badge-burst {
     animation: none !important;
     transform: none !important;
     transition: none !important;
@@ -1219,14 +1218,12 @@ main {
   stroke: rgba(255, 255, 255, 0.95);
   stroke-width: 1.7;
   filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.8));
-  transition: transform 0.18s ease, fill 0.18s ease, stroke 0.18s ease;
+  transition: fill 0.18s ease, stroke 0.18s ease;
 }
 
 .like-badge.liked .like-badge-heart svg {
   fill: #ff4b6a;
   stroke: #ffe5ee;
-  transform: scale(1.12);
-  animation: like-pop 320ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .like-badge-count {
@@ -1235,79 +1232,33 @@ main {
   margin-left: 2px; /* 让数字紧贴在心形后面 */
 }
 
-@keyframes like-pop {
-  0% {
-    transform: scale(0.85);
-    opacity: 0.3;
-  }
-  60% {
-    transform: scale(1.28);
-    opacity: 1;
-  }
-  100% {
-    transform: scale(1.12);
-  }
+/* Only direct interactions animate these layers through useLikeFeedback. */
+.like-badge-heart,
+.like-badge-count {
+  display: inline-block;
 }
 
-/* 点赞小礼花效果 */
-.like-badge::before,
-.like-badge::after {
-  content: '';
+.photo-card .caption .like-badge-burst {
   position: absolute;
   inset: 0;
   border-radius: inherit;
   pointer-events: none;
   opacity: 0;
+  mix-blend-mode: screen;
 }
 
-.like-badge.liked::before {
-  opacity: 1;
+.like-badge-burst--outer {
   background:
     radial-gradient(circle at 20% 0%, rgba(255, 255, 255, 0.8) 0, transparent 45%),
     radial-gradient(circle at 80% 0%, rgba(255, 227, 252, 0.9) 0, transparent 55%),
     radial-gradient(circle at 0% 60%, rgba(255, 182, 193, 0.85) 0, transparent 55%),
     radial-gradient(circle at 100% 70%, rgba(255, 255, 255, 0.9) 0, transparent 55%);
-  mix-blend-mode: screen;
-  animation: like-burst 0.45s ease-out forwards;
 }
 
-.like-badge.liked::after {
-  opacity: 1;
+.like-badge-burst--inner {
   background:
     radial-gradient(circle at 10% 20%, rgba(255, 255, 255, 0.9) 0, transparent 35%),
     radial-gradient(circle at 90% 30%, rgba(255, 215, 235, 0.9) 0, transparent 40%);
-  mix-blend-mode: screen;
-  animation: like-burst-soft 0.5s ease-out forwards;
-}
-
-@keyframes like-burst {
-  0% {
-    transform: scale(0.5);
-    opacity: 0;
-  }
-  40% {
-    transform: scale(1.2);
-    opacity: 1;
-  }
-  100% {
-    transform: scale(1.4);
-    opacity: 0;
-  }
-}
-
-@keyframes like-burst-soft {
-  0% {
-    transform: scale(0.6);
-    opacity: 0;
-  }
-  60% {
-    transform: scale(1.1);
-    opacity: 0.8;
-  }
-  100% {
-    transform: scale(1.3);
-    opacity: 0;
-  }
 }
 
 #explore-view {
@@ -1833,6 +1784,21 @@ main {
   gap: 2px;
 }
 
+.location-panel-photo {
+  display: block;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.location-panel-photo:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: -3px;
+}
+
 .location-panel-grid img {
   width: 100%;
   height: 100%;
@@ -2254,6 +2220,10 @@ main {
   color: var(--accent-strong);
   border: 1px solid rgba(207, 165, 106, 0.2);
 }
+
+.admin-message[data-motion='message'] { animation: none; }
+.admin-message-copy { display: block; }
+.edit-modal-backdrop:focus { outline: none; }
 
 .admin-message.error {
   background: rgba(212, 138, 72, 0.1);

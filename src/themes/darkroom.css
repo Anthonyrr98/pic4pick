@@ -327,7 +327,7 @@
   box-shadow: none;
   backdrop-filter: none;
 }
-:root[data-theme='darkroom'] .photo-card .like-badge span { color: inherit; opacity: 1; }
+:root[data-theme='darkroom'] .photo-card .like-badge span:not(.like-badge-burst) { color: inherit; opacity: 1; }
 :root[data-theme='darkroom'] .photo-card .like-badge.liked { color: #964927; background: rgb(190 117 76 / 0.12); }
 :root[data-theme='darkroom'] .photo-card .like-badge.liked svg { stroke: none; fill: currentColor; }
 :root[data-theme='darkroom'] .photo-card:focus-visible { outline-color: var(--accent); outline-offset: 5px; }

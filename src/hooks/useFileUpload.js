@@ -10,6 +10,7 @@ export const useFileUpload = () => {
   const [uploadingFileName, setUploadingFileName] = useState(null);
   const [uploadBytes, setUploadBytes] = useState({ uploaded: 0, total: 0 });
   const [uploadStatus, setUploadStatus] = useState('');
+  const [uploadOutcome, setUploadOutcome] = useState(null);
 
   // 返回所有状态和函数
   return {
@@ -18,12 +19,14 @@ export const useFileUpload = () => {
     uploadingFileName,
     uploadBytes,
     uploadStatus,
+    uploadOutcome,
     // 导出 setter 函数，供外部手动控制状态
     setIsUploading,
     setUploadProgress,
     setUploadingFileName,
     setUploadBytes,
     setUploadStatus,
+    setUploadOutcome,
   };
 };
 

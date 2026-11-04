@@ -7,7 +7,9 @@ gsap.registerPlugin(useGSAP);
 
 // Retain the dialog until its reverse animation finishes. Opening again
 // plays the same timeline forward from its current position.
-export function useAnimatedPresence(open, rootRef, { panelSelector, onExited, variant = 'dialog' } = {}) {
+/** @param {{ panelSelector?: string, onExited?: () => void, variant?: 'dialog' | 'menu' | 'notice' }} options */
+export function useAnimatedPresence(open, rootRef, options = {}) {
+  const { panelSelector, onExited, variant = 'dialog' } = options;
   const [present, setPresent] = useState(open);
   const openRef = useRef(open);
   const exitedRef = useRef(onExited);
@@ -38,8 +40,9 @@ export function useAnimatedPresence(open, rootRef, { panelSelector, onExited, va
       const timeline = gsap.timeline({ paused: true, onReverseComplete: finishExit,
         onComplete: () => { enteredRef.current = true; } });
       const menu = variant === 'menu';
-      timeline.fromTo(root, { opacity: 0, ...(menu ? { y: MENU_MOTION.offset } : {}) },
-        { opacity: 1, ...(menu ? { y: 0 } : {}), duration: menu ? MENU_MOTION.duration : 0.18, ease: 'power2.out' });
+      const notice = variant === 'notice';
+      timeline.fromTo(root, { opacity: 0, ...(menu || notice ? { y: menu ? MENU_MOTION.offset : -10 } : {}) },
+        { opacity: 1, ...(menu || notice ? { y: 0 } : {}), duration: menu ? MENU_MOTION.duration : 0.18, ease: 'power2.out' });
       if (menu) timeline.fromTo(root.querySelectorAll('.theme-option'), { opacity: 0, y: 4 },
         { opacity: 1, y: 0, duration: MENU_MOTION.itemDuration, stagger: MENU_MOTION.itemGap,
           ease: MENU_MOTION.ease }, 0.03);

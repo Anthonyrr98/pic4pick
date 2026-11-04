@@ -18,6 +18,7 @@
     "test:discovery-motion": "node scripts/discovery-motion-smoke.mjs",
     "test:entry-motion": "node scripts/entry-motion-smoke.mjs",
     "test:gallery-layout": "node scripts/gallery-layout-smoke.mjs",
+    "test:location-like-motion": "node scripts/location-like-motion-smoke.mjs",
     "test:gallery-cache": "node --test scripts/public-photo-data.test.mjs && node scripts/gallery-cache-smoke.mjs",
     "test:gallery-scroll": "node scripts/gallery-scroll-smoke.mjs",
     "test:spatial": "node --test scripts/spatial-input.test.mjs scripts/spatial-motion.test.mjs scripts/precomputed-spatial-depth.test.mjs && node scripts/spatial-smoke.mjs",
@@ -26,6 +27,7 @@
     "test:admin": "node --test server/photoDeletion.test.js server/photoUploads.test.js scripts/photoSubmission.test.js scripts/adminResubmit.test.js scripts/oss-upload.test.mjs scripts/oss-upload-progress.test.mjs",
     "test:likes": "node --test server/likeNotifications.test.js server/photoLikes.test.js",
     "test:admin:ui": "node scripts/admin-ui-smoke.mjs",
+    "test:admin-motion": "node scripts/admin-motion-smoke.mjs",
     "preview": "vite preview",
     "server": "cd server && npm run dev"
   },

@@ -707,7 +707,7 @@ export function GalleryPage() {
       <LocationPanel
         data={locationPanel}
         onClose={() => setLocationPanel(null)}
-        onPhotoClick={(p) => { openLightboxPhoto(p); setLocationPanel(null); }}
+        onPhotoClick={openLightboxPhoto}
       />
 
       {/* Lightbox */}

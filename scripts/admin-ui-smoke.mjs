@@ -24,7 +24,7 @@ const browser = await chromium.launch({ headless: true });
 let page;
 
 try {
-  page = await browser.newPage({ viewport: { width: 1440, height: 1000 }, reducedMotion: 'reduce' });
+  page = await browser.newPage({ viewport: { width: 1440, height: 1000 }, reducedMotion: process.env.UI_REDUCED_MOTION || 'reduce' });
   const errors = [];
   page.on('pageerror', (error) => errors.push(error.message));
   await page.addInitScript((url) => {
@@ -84,6 +84,8 @@ try {
   assert.equal(await modal.getByRole('button', { name: '取消', exact: true }).isEnabled(), false);
   assert.equal(await modal.getByRole('button', { name: '删除作品', exact: true }).isEnabled(), false);
   assert.equal(await modal.getByPlaceholder('请输入作品标题').isEnabled(), false);
+  await page.keyboard.press('Escape');
+  assert.equal(await modal.count(), 1, 'Escape must not dismiss an in-flight save');
   await modal.locator('..').click({ position: { x: 5, y: 5 } });
   assert.equal(await modal.count(), 1, 'Backdrop must not dismiss an in-flight save');
   assert.equal(await modal.getByPlaceholder('请输入作品标题').inputValue(), '保存后的标题');
@@ -97,6 +99,7 @@ try {
   failSave = true;
   await modal.getByRole('button', { name: '保存', exact: true }).click();
   await modal.getByText('保存失败：模拟保存失败', { exact: true }).waitFor();
+  await page.waitForFunction(() => document.activeElement?.matches('.edit-modal-content [role="alert"]'));
   assert.equal(await modal.getByPlaceholder('请输入作品标题').inputValue(), '失败后保留的编辑');
   assert.equal(await modal.getByRole('button', { name: '保存', exact: true }).isEnabled(), true);
   // The previous editor's success timer must not clear this editor's error.

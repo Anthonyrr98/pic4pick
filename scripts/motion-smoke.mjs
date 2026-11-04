@@ -163,6 +163,13 @@ try {
         return image?.alt === 'Motion 2' && image.naturalWidth === 400 && Number(getComputedStyle(image).opacity) === 1;
       });
       await page.locator('.lightbox-outgoing-image').waitFor({ state: 'detached' });
+      // Reduced-motion reveal is synchronous; React's onLoad ratio update can
+      // commit after opacity reaches 1. Wait for the layout we are asserting.
+      await page.waitForFunction(() => {
+        const media = document.querySelector('.lightbox-media');
+        const image = media.querySelector('img');
+        return Math.abs(media.clientWidth / media.clientHeight - image.naturalWidth / image.naturalHeight) < 0.02;
+      });
       const ratio = await page.locator('.lightbox-media').evaluate(el => {
         const image = el.querySelector('img');
         return { actual: el.clientWidth / el.clientHeight, expected: image.naturalWidth / image.naturalHeight };

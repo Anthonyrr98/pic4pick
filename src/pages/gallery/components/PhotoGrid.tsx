@@ -12,6 +12,7 @@ import { usePhotoCardMotion } from '../../../hooks/usePhotoCardMotion';
 import { usePhotoGridEntry } from '../../../hooks/useGalleryEntryMotion';
 import { useFilmDevelopMotion } from '../../../hooks/useFilmDevelopMotion';
 import { useGalleryLayoutMotion } from '../../../hooks/useGalleryLayoutMotion';
+import { useLikeFeedback } from '../../../hooks/useLikeFeedback';
 
 // Keep enough source pixels for high-DPI displays; 360px previews looked soft after cover cropping.
 const GRID_IMAGE_WIDTHS = [540, 720, 900, 1200, 1440];
@@ -50,13 +51,14 @@ interface PhotoCardProps {
   liked: boolean;
   eager: boolean;
   filmFrames: boolean;
+  isActive: boolean;
   onPhotoClick: PhotoGridProps['onPhotoClick'];
   onToggleLike: PhotoGridProps['onToggleLike'];
 }
 
 // Image loading updates only this card, not every previously loaded photograph.
 const PhotoCard = memo(function PhotoCard({
-  item, index, liked, eager, filmFrames, onPhotoClick, onToggleLike,
+  item, index, liked, eager, filmFrames, isActive, onPhotoClick, onToggleLike,
 }: PhotoCardProps) {
   const [isImageLoaded, setImageLoaded] = useState(false);
   const [imageFailed, setImageFailed] = useState(false);
@@ -91,6 +93,8 @@ const PhotoCard = memo(function PhotoCard({
   };
 
   const likeCount = typeof item.likes === 'number' ? item.likes : 0;
+  const likeRef = useRef<HTMLButtonElement>(null);
+  const requestLikeFeedback = useLikeFeedback(likeRef, liked, likeCount, isActive, !filmFrames);
   const imageSrc = getPreviewMediaUrl(item, { width: 1200, quality: 92 });
   const imageSrcSet = getPreviewMediaSrcSet(item, GRID_IMAGE_WIDTHS, { quality: 92 });
   const imageFallbackUrls = getPreviewMediaFallbackUrls(item, GRID_IMAGE_FALLBACKS);
@@ -183,14 +187,19 @@ const PhotoCard = memo(function PhotoCard({
           <span className="film-print-number" aria-label={`第 ${index + 1} 张`}>{String(index + 1).padStart(2, '0')}</span>
         </div>
         <button
+          ref={likeRef}
           type="button"
           className={`like-badge ${liked ? 'liked' : ''}`}
           onClick={(e) => {
             e.stopPropagation();
+            requestLikeFeedback();
             onToggleLike(item);
           }}
           aria-label={liked ? '取消点赞' : '点赞'}
+          aria-pressed={liked}
         >
+          <span className="like-badge-burst like-badge-burst--outer" aria-hidden="true" />
+          <span className="like-badge-burst like-badge-burst--inner" aria-hidden="true" />
           <span className="like-badge-heart" aria-hidden="true">
             <svg viewBox="0 0 1024 1024" width="14" height="14">
               <path
@@ -230,6 +239,7 @@ export const PhotoGrid: React.FC<PhotoGridProps> = ({
           liked={likedIds.has(item.id)}
           eager={index < eagerImageCount}
           filmFrames={filmFrames}
+          isActive={isActive}
           onPhotoClick={onPhotoClick}
           onToggleLike={onToggleLike}
         />
