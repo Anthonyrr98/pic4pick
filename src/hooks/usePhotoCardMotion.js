@@ -1,5 +1,6 @@
 import { gsap } from 'gsap';
 import { useGSAP } from '@gsap/react';
+import { HOVER_MOTION } from '../constants/motionPresets';
 
 gsap.registerPlugin(useGSAP);
 
@@ -27,7 +28,7 @@ export function usePhotoCardMotion(rootRef, enabled, filmFrames) {
         const rect = card.getBoundingClientRect();
         if (!rect.width || !rect.height) return;
         context.add(() => {
-          const options = { duration: 0.26, ease: 'power3.out' };
+          const options = { duration: HOVER_MOTION.duration, ease: HOVER_MOTION.ease };
           const controller = { card, image, rect, hovering: true };
           // CSS owns the card transform so GSAP never folds the independent
           // CSS entry-animation translate into a persistent inline transform.

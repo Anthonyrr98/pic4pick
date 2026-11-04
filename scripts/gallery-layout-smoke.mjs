@@ -24,6 +24,8 @@ const { outputFiles } = await build({
         reorder:()=>{prepare.current?.('random');setFilter(f=>f==='latest'?'random':'latest');setPhotos(p=>[...p].reverse())},
         refresh:()=>setPhotos(p=>p.map(row=>({...row,likes:1}))),
         append:()=>setPhotos(initial),
+        prependFilm:()=>setPhotos(rows=>[{...initial[2],id:'new-film'},...rows]),
+        removeNewFilm:()=>setPhotos(rows=>rows.filter(row=>row.id!=='new-film')),
         subset:()=>{prepare.current?.('far');setFilter('far');setPhotos(p=>p.filter(row=>Number(row.id)%2===0))},
         empty:()=>{prepare.current?.('nearby');setFilter('nearby');setPhotos([])},
         film:()=>{prepare.current?.('film');document.documentElement.dataset.theme='darkroom';setFilter('film');setFilm(true);setPhotos(initial)},
@@ -138,6 +140,12 @@ try {
       assert.ok((await card.locator('.film-negative').getAttribute('class')).includes('film-negative--'+stock));
       for(const edge of await card.locator('svg image').all())assert.equal(await edge.getAttribute('href'),'/film-frames/'+stock+'.png');
     }
+    await page.evaluate(()=>window.p4.prependFilm());
+    await page.waitForFunction(()=>document.querySelector('[data-photo-id="new-film"] [data-film-developing]'));
+    await page.evaluate(()=>{window.removedFilmFrame=document.querySelector('[data-photo-id="new-film"] .film-negative');window.p4.removeNewFilm()});
+    await page.waitForFunction(()=>!window.removedFilmFrame.hasAttribute('data-film-developing'));
+    assert.equal(await page.evaluate(()=>window.removedFilmFrame.querySelector('.film-develop-negative')),null,
+      'Removing a newly inserted print releases its temporary layer during development');
     await page.locator('.photo-card').nth(12).scrollIntoViewIfNeeded();
     await page.waitForFunction(()=>document.querySelectorAll('[data-film-developing]').length>0);
     await page.evaluate(()=>window.p4.setActive(false));

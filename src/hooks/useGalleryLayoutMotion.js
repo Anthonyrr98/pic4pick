@@ -2,6 +2,7 @@ import { useLayoutEffect, useRef } from 'react';
 import { gsap } from 'gsap';
 import { Flip } from 'gsap/Flip';
 import { useGSAP } from '@gsap/react';
+import { LAYOUT_MOTION } from '../constants/motionPresets';
 
 gsap.registerPlugin(Flip, useGSAP);
 
@@ -23,6 +24,9 @@ export function useGalleryLayoutMotion(rootRef, active, filterKey, prepareRef, f
     let animation;
     let targets = [];
     const clear = () => {
+      // Retargeting captures the currently rendered geometry, then releases
+      // the previous Flip without allowing its completion to clear the next.
+      animation?.eventCallback('onComplete', null);
       animation?.kill(); animation = null;
       gsap.set(targets, { clearProps: 'transform,transformOrigin,translate,rotate,scale,width,height,position,top,left' });
       targets = [];
@@ -49,7 +53,7 @@ export function useGalleryLayoutMotion(rootRef, active, filterKey, prepareRef, f
       targets = [...root.querySelectorAll('.photo-card')].filter(card => pending.ids.has(card.dataset.photoId));
       if (!targets.length) return;
       root.dataset.layoutMotion = '';
-      animation = Flip.from(pending.state, { targets, duration: 0.38, ease: 'power3.out',
+      animation = Flip.from(pending.state, { targets, ...LAYOUT_MOTION,
         scale: true, prune: true, onComplete: clear });
     });
     if (prepareRef) prepareRef.current = capture;
@@ -57,6 +61,7 @@ export function useGalleryLayoutMotion(rootRef, active, filterKey, prepareRef, f
     const preferenceChanged = () => { if (preference.matches) cancel(); };
     const visibilityChanged = () => { if (document.hidden) cancel(); };
     root.addEventListener('wheel', cancel, { passive: true });
+    root.addEventListener('pointerdown', cancel, { passive: true });
     window.addEventListener('scroll', cancel, true);
     window.addEventListener('resize', cancel);
     preference.addEventListener('change', preferenceChanged);
@@ -66,6 +71,7 @@ export function useGalleryLayoutMotion(rootRef, active, filterKey, prepareRef, f
       if (prepareRef?.current === capture) prepareRef.current = null;
       playRef.current = null;
       root.removeEventListener('wheel', cancel);
+      root.removeEventListener('pointerdown', cancel);
       window.removeEventListener('scroll', cancel, true);
       window.removeEventListener('resize', cancel);
       preference.removeEventListener('change', preferenceChanged);

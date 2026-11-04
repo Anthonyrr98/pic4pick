@@ -122,6 +122,8 @@ try {
     assert.equal(await page.locator('.location-panel-close').evaluate(e => e === document.activeElement), true);
     await page.keyboard.press('Escape');
     assert.equal(await page.locator('.location-panel-backdrop').getAttribute('data-state'), 'closing');
+    assert.equal(await page.locator('.location-panel-backdrop').evaluate(node => getComputedStyle(node).pointerEvents), 'none',
+      'An exiting backdrop must allow the next map selection');
     assert.equal(await page.locator('.location-panel-title').textContent(), '杭州');
     await page.locator('.location-panel').waitFor({ state: 'detached' });
     assert.equal(await trigger.evaluate(e => e === document.activeElement), true);

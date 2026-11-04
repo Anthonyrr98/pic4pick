@@ -33,21 +33,30 @@ export function AppIntro({ ready, onComplete }) {
       const timeline = gsap.timeline({ onComplete });
       timelineRef.current = timeline;
       timeline.fromTo(mark.current, { y: 8, opacity: 0 },
-        { y: 0, opacity: 1, duration: 0.32, ease: ENTRY_MOTION.ease }, 0);
+        { y: 0, opacity: 1, duration: INTRO_MOTION.mark, ease: ENTRY_MOTION.ease }, 0);
       timeline.fromTo(sheen.current, { xPercent: 0, opacity: 0 },
-        { xPercent: 420, opacity: 0.8, duration: 0.6, ease: 'power2.inOut' }, 0.08);
-      timeline.to(sheen.current, { opacity: 0, duration: 0.18 }, 0.6);
+        { xPercent: 420, opacity: 0.8, duration: INTRO_MOTION.sheen, ease: 'power2.inOut' }, 0.08);
+      timeline.to(sheen.current, { opacity: 0, duration: 0.14 }, 0.44);
+      timeline.addLabel('ready', INTRO_MOTION.hold);
       timeline.call(() => { if (!readyRef.current) timeline.pause(); }, [], INTRO_MOTION.hold);
       timeline.to(root.current, { opacity: 0, scale: 1.01, duration: INTRO_MOTION.fade,
         ease: INTRO_MOTION.ease }, INTRO_MOTION.hold);
-      return () => { timelineRef.current = null; };
+      const visibilityChanged = () => { if (document.hidden && readyRef.current) timeline.progress(1); };
+      document.addEventListener('visibilitychange', visibilityChanged);
+      return () => {
+        document.removeEventListener('visibilitychange', visibilityChanged);
+        timelineRef.current = null;
+      };
     }, root);
     return () => media.revert();
   }, { scope: root, dependencies: [onComplete], revertOnUpdate: true });
 
   useGSAP(() => {
     const timeline = timelineRef.current;
-    if (ready && timeline?.time() >= INTRO_MOTION.hold) timeline.play();
+    if (ready && timeline) {
+      if (document.hidden) timeline.progress(1);
+      else if (timeline.time() >= INTRO_MOTION.hold) timeline.play();
+    }
   }, { dependencies: [ready] });
 
   return <AppLoading intro rootRef={root} markRef={mark} sheenRef={sheen} />;

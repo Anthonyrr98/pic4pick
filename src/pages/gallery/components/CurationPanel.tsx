@@ -5,6 +5,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { CurationGroup, CityEntry, GalleryPhoto } from '../utils/photoDataUtils';
 import { useCurationPanelMotion } from '../../../hooks/useCurationPanelMotion';
+import { useCurationCardMotion } from '../../../hooks/useCurationCardMotion';
 import './CurationPanel.css';
 
 interface CurationPanelProps {
@@ -61,6 +62,7 @@ export const CurationPanel: React.FC<CurationPanelProps> = ({
     : Math.min(380, sheetViewport.height * 0.46);
   const selectedCity = groups.flatMap(group => group.items).find(city => city.id === activeCitySelection?.cityId);
   const galleryCity = groups.flatMap(group => group.items).find(city => city.id === galleryCityId);
+  useCurationCardMotion(panelRef, isActive && !isPanelCollapsed && !galleryCityId);
   useCurationPanelMotion(panelRef, bodyRef, { active: isActive, mobile: sheetViewport.mobile,
     collapsed: isPanelCollapsed, height: sheetHeight, keyboard: sheetViewport.keyboard, viewKey: galleryCityId });
 
@@ -151,34 +153,6 @@ export const CurationPanel: React.FC<CurationPanelProps> = ({
       return next;
     });
   }, [groups]);
-
-  const handleCurationCardMouseMove = (event: React.MouseEvent<HTMLElement>) => {
-    if (sheetViewport.mobile) return;
-    const card = event.currentTarget;
-    const rect = card.getBoundingClientRect();
-    const relativeX = (event.clientX - rect.left) / rect.width - 0.5;
-    const relativeY = (event.clientY - rect.top) / rect.height - 0.5;
-
-    const percentX = ((event.clientX - rect.left) / rect.width) * 100;
-    const percentY = ((event.clientY - rect.top) / rect.height) * 100;
-    card.style.setProperty('--cursor-x', `${percentX}%`);
-    card.style.setProperty('--cursor-y', `${percentY}%`);
-
-    const maxTilt = 9;
-    const rotateY = relativeX * maxTilt * 2;
-    const rotateX = -relativeY * maxTilt * 2;
-
-    card.style.transform = `rotateX(${rotateX.toFixed(2)}deg) rotateY(${rotateY.toFixed(
-      2,
-    )}deg) translateZ(18px)`;
-  };
-
-  const handleCurationCardMouseLeave = (event: React.MouseEvent<HTMLElement>) => {
-    const card = event.currentTarget;
-    card.style.transform = 'rotateX(0deg) rotateY(0deg) translateZ(0)';
-    card.style.setProperty('--cursor-x', '50%');
-    card.style.setProperty('--cursor-y', '50%');
-  };
 
   return (
     <aside
@@ -387,8 +361,6 @@ export const CurationPanel: React.FC<CurationPanelProps> = ({
                     key={item.id}
                     data-city-id={item.id}
                     className={`curation-card ${isActiveCity ? 'active' : ''}`}
-                    onMouseMove={handleCurationCardMouseMove}
-                    onMouseLeave={handleCurationCardMouseLeave}
                     onClick={() => selectCity(group, item)}
                     role="button"
                     tabIndex={0}

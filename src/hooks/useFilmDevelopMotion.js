@@ -2,6 +2,7 @@ import { useRef } from 'react';
 import { gsap } from 'gsap';
 import { useGSAP } from '@gsap/react';
 import { useEntryMotionReady } from '../contexts/EntryMotionContext';
+import { FILM_MOTION } from '../constants/motionPresets';
 
 gsap.registerPlugin(useGSAP);
 
@@ -59,10 +60,10 @@ export function useFilmDevelopMotion(rootRef, active, filmFrames) {
           clear(image, negative, frame);
         } });
         running.set(image, { timeline, negative, frame });
-        timeline.to(negative, { opacity: 0, duration: 2.75, ease: 'sine.inOut' }, 0.15)
-          .to(image, { opacity: 1, duration: 2.8, ease: 'sine.inOut' }, 0.1)
-          .to(frame, { '--film-emulsion-opacity': 0, duration: 3.2, ease: 'sine.inOut' }, 0)
-          .to(frame, { '--film-grain-opacity': 0, duration: 2.8, ease: 'sine.inOut' }, 0.4);
+        timeline.to(negative, { opacity: 0, duration: FILM_MOTION.negativeDuration, ease: FILM_MOTION.ease }, 0.15)
+          .to(image, { opacity: 1, duration: FILM_MOTION.imageDuration, ease: FILM_MOTION.ease }, 0.1)
+          .to(frame, { '--film-emulsion-opacity': 0, duration: FILM_MOTION.duration, ease: FILM_MOTION.ease }, 0)
+          .to(frame, { '--film-grain-opacity': 0, duration: FILM_MOTION.grainDuration, ease: FILM_MOTION.ease }, 0.4);
       }
     });
     const observer = new IntersectionObserver(entries => {
@@ -72,22 +73,37 @@ export function useFilmDevelopMotion(rootRef, active, filmFrames) {
       }
       revealVisible();
     });
-    const scan = () => {
-      for (const image of observed) {
-        if (!root.contains(image)) {
-          observer.unobserve(image); observed.delete(image); visible.delete(image);
-          if (running.has(image)) finish(image);
-        }
+    const register = image => {
+      if (observed.has(image)) return;
+      observed.add(image); observer.observe(image);
+      if (preference.matches) {
+        const key = keyOf(image); if (key) seenRef.current.add(key);
       }
-      for (const image of root.querySelectorAll('.film-negative > img')) {
-        if (!observed.has(image)) { observed.add(image); observer.observe(image); }
-        if (preference.matches) {
-          const key = keyOf(image); if (key) seenRef.current.add(key);
-        }
-      }
-      revealVisible();
     };
-    const mutations = new MutationObserver(scan);
+    const unregister = image => {
+      if (!observed.has(image) || root.contains(image)) return;
+      observer.unobserve(image); observed.delete(image); visible.delete(image);
+      if (running.has(image)) finish(image);
+    };
+    // Observe just added/removed image subtrees. A like, hover, skeleton update
+    // or temporary development layer must never rescan the entire grid.
+    const visit = (node, callback, removing = false) => {
+      if (!(node instanceof Element)) return;
+      if (removing ? observed.has(node) : node.matches('.film-negative > img')) callback(node);
+      for (const image of node.querySelectorAll(removing ? 'img' : '.film-negative > img')) callback(image);
+    };
+    const mutations = new MutationObserver(records => {
+      let reveal = false;
+      for (const record of records) {
+        if (record.type === 'attributes') {
+          if (observed.has(record.target) && record.target.classList.contains('loaded')) reveal = true;
+          continue;
+        }
+        for (const node of record.removedNodes) visit(node, unregister, true);
+        for (const node of record.addedNodes) visit(node, register);
+      }
+      if (reveal) revealVisible();
+    });
     mutations.observe(root, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });
     const settle = () => {
       if (!preference.matches && !document.hidden) { revealVisible(); return; }
@@ -100,7 +116,7 @@ export function useFilmDevelopMotion(rootRef, active, filmFrames) {
     root.addEventListener('load', revealVisible, true);
     preference.addEventListener('change', settle);
     document.addEventListener('visibilitychange', settle);
-    scan();
+    root.querySelectorAll('.film-negative > img').forEach(register);
     settle();
     return () => {
       stopped = true;

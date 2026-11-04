@@ -1,12 +1,14 @@
 import { useCallback, useRef } from 'react';
 import { gsap } from 'gsap';
 import { useGSAP } from '@gsap/react';
+import { LIGHTBOX_MOTION } from '../constants/motionPresets';
 
 gsap.registerPlugin(useGSAP);
 
-export function useLightboxImageMotion(photoId, source, failed, imageRef, mediaRef) {
+export function useLightboxImageMotion(photoId, source, failed, imageRef, mediaRef, active = true) {
   const outgoingRef = useRef(null);
   const directionRef = useRef(0);
+  const revealedImageRef = useRef(null);
 
   const removeOutgoing = useCallback(() => {
     const outgoing = outgoingRef.current;
@@ -37,16 +39,28 @@ export function useLightboxImageMotion(photoId, source, failed, imageRef, mediaR
   useGSAP(() => {
     const image = imageRef.current;
     if (!photoId) directionRef.current = 0;
-    if (!photoId || failed || !image) { removeOutgoing(); return; }
+    if (!photoId || failed || !image || !active) {
+      removeOutgoing();
+      if (image) gsap.set(image, { clearProps: 'opacity,transform' });
+      return;
+    }
     const media = gsap.matchMedia();
     media.add({ reduce: '(prefers-reduced-motion: reduce)', animate: '(prefers-reduced-motion: no-preference)' }, (context, contextSafe) => {
+      if (revealedImageRef.current === image) {
+        gsap.set(image, { clearProps: 'opacity,transform' });
+        removeOutgoing();
+        return;
+      }
       const direction = directionRef.current;
-      gsap.set(image, { opacity: 0, x: context.conditions.reduce ? 0 : direction * 18 });
+      gsap.set(image, { opacity: 0, x: context.conditions.reduce ? 0 : direction * LIGHTBOX_MOTION.offset });
       let revealed = false;
+      let alive = true;
+      let decoding = 0;
       const reveal = contextSafe(() => {
-        if (revealed || !image.naturalWidth) return;
+        if (!alive || revealed || !image.isConnected || !image.complete || !image.naturalWidth) return;
         revealed = true;
-        if (context.conditions.reduce) {
+        revealedImageRef.current = image;
+        if (context.conditions.reduce || document.hidden) {
           gsap.set(image, { opacity: 1, x: 0, clearProps: 'opacity,transform' });
           removeOutgoing();
           return;
@@ -55,15 +69,44 @@ export function useLightboxImageMotion(photoId, source, failed, imageRef, mediaR
         const timeline = gsap.timeline({ onComplete: () => {
           if (outgoingRef.current === outgoing) removeOutgoing();
         } });
-        timeline.to(image, { opacity: 1, x: 0, duration: 0.24, ease: 'power2.out', clearProps: 'opacity,transform' });
-        if (outgoing) timeline.to(outgoing, { opacity: 0, x: -direction * 12, duration: 0.2, ease: 'power2.out' }, 0);
+        timeline.to(image, { opacity: 1, x: 0, duration: LIGHTBOX_MOTION.duration, ease: LIGHTBOX_MOTION.ease,
+          clearProps: 'opacity,transform' });
+        if (outgoing) timeline.to(outgoing, { opacity: 0, x: -direction * LIGHTBOX_MOTION.exitOffset,
+          duration: LIGHTBOX_MOTION.exitDuration, ease: LIGHTBOX_MOTION.ease }, 0);
       });
-      image.addEventListener('load', reveal);
-      if (image.complete && image.naturalWidth) reveal();
-      return () => image.removeEventListener('load', reveal);
+      const decode = () => {
+        if (!alive || revealed || !image.complete || !image.naturalWidth) return;
+        const request = ++decoding;
+        const decodedSource = image.currentSrc || image.src;
+        // load can precede decoding a large photograph. A late decode from an
+        // abandoned photo/srcset must never start a new animation after cleanup.
+        Promise.resolve().then(() => image.decode?.()).catch(() => {}).then(() => {
+          if (!alive || request !== decoding) return;
+          if ((image.currentSrc || image.src) !== decodedSource) { decode(); return; }
+          reveal();
+        });
+      };
+      const visibilityChanged = () => {
+        if (!document.hidden || !alive) return;
+        gsap.killTweensOf(image);
+        if (image.complete && image.naturalWidth) {
+          revealed = true;
+          revealedImageRef.current = image;
+          gsap.set(image, { clearProps: 'opacity,transform' });
+          removeOutgoing();
+        }
+      };
+      image.addEventListener('load', decode);
+      document.addEventListener('visibilitychange', visibilityChanged);
+      decode();
+      return () => {
+        alive = false; decoding++;
+        image.removeEventListener('load', decode);
+        document.removeEventListener('visibilitychange', visibilityChanged);
+      };
     }, mediaRef);
     return () => media.revert();
-  }, { scope: mediaRef, dependencies: [photoId, source, failed], revertOnUpdate: true });
+  }, { scope: mediaRef, dependencies: [photoId, source, failed, active], revertOnUpdate: true });
 
   useGSAP(() => () => removeOutgoing(), { scope: mediaRef });
   return prepareSwitch;

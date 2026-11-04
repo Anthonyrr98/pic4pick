@@ -1,6 +1,7 @@
 import { useRef } from 'react';
 import { gsap } from 'gsap';
 import { useGSAP } from '@gsap/react';
+import { PANEL_MOTION, FEEDBACK_MOTION } from '../constants/motionPresets';
 
 gsap.registerPlugin(useGSAP);
 
@@ -23,7 +24,12 @@ export function useCurationPanelMotion(panelRef, bodyRef, { active, mobile, coll
       const scale = Number(gsap.getProperty(panel, 'scaleY')) || 1;
       const y = Number(gsap.getProperty(panel, 'y')) || 0;
       const rect = panel.getBoundingClientRect();
-      if (!rect.height || !rect.width) { previous = null; return; }
+      if (!rect.height || !rect.width) {
+        tween?.kill(); previous = null;
+        gsap.set([panel, body], { clearProps: 'transform,transformOrigin' });
+        delete panel.dataset.animating; delete panel.dataset.focusBottom;
+        return;
+      }
       const next = { height: rect.height / scale, bottom: rect.bottom - y, width: rect.width };
       // The camera uses final geometry, even while the panel is still moving.
       panel.dataset.focusBottom = String(next.bottom);
@@ -48,7 +54,7 @@ export function useCurationPanelMotion(panelRef, bodyRef, { active, mobile, coll
       };
       compensate();
       panel.dataset.animating = 'true';
-      tween = gsap.to(panel, { scaleY: 1, y: 0, duration: 0.3, ease: 'power3.out',
+      tween = gsap.to(panel, { scaleY: 1, y: 0, duration: PANEL_MOTION.duration, ease: PANEL_MOTION.ease,
         onUpdate: compensate, onComplete: () => {
           gsap.set([panel, body], { clearProps: 'transform,transformOrigin' });
           delete panel.dataset.animating;
@@ -84,13 +90,14 @@ export function useCurationPanelMotion(panelRef, bodyRef, { active, mobile, coll
   });
 
   useGSAP(() => {
-    if (!active || collapsed) return;
+    if (!active || collapsed || keyboard || document.hidden) return;
     const media = gsap.matchMedia();
     media.add('(prefers-reduced-motion: no-preference)', () => {
       const content = panelRef.current.querySelectorAll('.curation-gallery-header, .discover-search, .curation-panel-scroll > :first-child');
-      if (content.length) gsap.fromTo(content, { opacity: 0, y: 5 },
-        { opacity: 1, y: 0, duration: 0.18, ease: 'power2.out', clearProps: 'opacity,transform' });
+      if (content.length) gsap.fromTo(content, { opacity: 0, y: PANEL_MOTION.contentOffset },
+        { opacity: 1, y: 0, duration: FEEDBACK_MOTION.duration, ease: FEEDBACK_MOTION.ease,
+          stagger: { amount: 0.04 }, clearProps: 'opacity,transform' });
     }, panelRef);
     return () => media.revert();
-  }, { scope: panelRef, dependencies: [active, collapsed, viewKey], revertOnUpdate: true });
+  }, { scope: panelRef, dependencies: [active, collapsed, viewKey, keyboard], revertOnUpdate: true });
 }

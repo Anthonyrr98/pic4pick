@@ -194,21 +194,24 @@ export const useFocusMapOnCity = (
   const cancelFlightRef = useRef<(() => void) | null>(null);
   useEffect(() => {
     const container = containerRef.current;
+    const viewScreen = sectionRef.current?.closest('[data-view-screen]');
     const cancel = () => cancelFlightRef.current?.();
     const visibilityChanged = () => { if (document.hidden) cancel(); };
     // Camera control immediately returns to the visitor on any map gesture.
     container?.addEventListener('pointerdown', cancel);
     container?.addEventListener('wheel', cancel, { passive: true });
+    viewScreen?.addEventListener('viewleavestart', cancel);
     window.addEventListener('resize', cancel);
     document.addEventListener('visibilitychange', visibilityChanged);
     return () => {
       cancel();
       container?.removeEventListener('pointerdown', cancel);
       container?.removeEventListener('wheel', cancel);
+      viewScreen?.removeEventListener('viewleavestart', cancel);
       window.removeEventListener('resize', cancel);
       document.removeEventListener('visibilitychange', visibilityChanged);
     };
-  }, [containerRef, isActive, isMapReady, mapProvider]);
+  }, [containerRef, sectionRef, isActive, isMapReady, mapProvider]);
 
   return useCallback(
     (lng: number, lat: number) => {

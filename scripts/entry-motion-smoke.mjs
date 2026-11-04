@@ -139,6 +139,12 @@ try {
     assert.equal(await menu.evaluate(el=>getComputedStyle(el).opacity),'1');
     await initial.page.keyboard.press('Escape');
     await menu.waitFor({state:'detached'});
+    await initial.page.evaluate(()=>window.dispatchEvent(new StorageEvent('storage',{key:'pic4pick_theme',newValue:'paper'})));
+    await initial.page.waitForFunction(()=>document.documentElement.dataset.theme==='paper');
+    await initial.page.emulateMedia({reducedMotion:'no-preference'});
+    await initial.page.evaluate(()=>new Promise(requestAnimationFrame));
+    assert.equal(await initial.page.locator('.theme-transition-wash').evaluate(el=>getComputedStyle(el).opacity),'0',
+      'A theme change skipped during reduced motion does not replay later');
   } finally {releaseRoute();await initial.context.close()}
 
   const changing=await setup();

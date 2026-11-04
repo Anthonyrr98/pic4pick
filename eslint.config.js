@@ -46,7 +46,7 @@ export default defineConfig([
     },
   },
   {
-    files: ['scripts/*smoke.mjs'],
+    files: ['scripts/*smoke.mjs', 'scripts/motion-performance.mjs'],
     languageOptions: { globals: globals.browser },
   },
   {

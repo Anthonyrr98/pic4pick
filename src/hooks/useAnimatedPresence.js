@@ -1,7 +1,7 @@
 import { useCallback, useLayoutEffect, useRef, useState } from 'react';
 import { gsap } from 'gsap';
 import { useGSAP } from '@gsap/react';
-import { MENU_MOTION } from '../constants/motionPresets';
+import { MENU_MOTION, PRESENCE_MOTION } from '../constants/motionPresets';
 
 gsap.registerPlugin(useGSAP);
 
@@ -41,17 +41,17 @@ export function useAnimatedPresence(open, rootRef, options = {}) {
         onComplete: () => { enteredRef.current = true; } });
       const menu = variant === 'menu';
       const notice = variant === 'notice';
-      timeline.fromTo(root, { opacity: 0, ...(menu || notice ? { y: menu ? MENU_MOTION.offset : -10 } : {}) },
-        { opacity: 1, ...(menu || notice ? { y: 0 } : {}), duration: menu ? MENU_MOTION.duration : 0.18, ease: 'power2.out' });
+      timeline.fromTo(root, { opacity: 0, ...(menu || notice ? { y: menu ? MENU_MOTION.offset : PRESENCE_MOTION.noticeOffset } : {}) },
+        { opacity: 1, ...(menu || notice ? { y: 0 } : {}), duration: menu ? MENU_MOTION.duration : PRESENCE_MOTION.duration, ease: PRESENCE_MOTION.ease });
       if (menu) timeline.fromTo(root.querySelectorAll('.theme-option'), { opacity: 0, y: 4 },
         { opacity: 1, y: 0, duration: MENU_MOTION.itemDuration, stagger: MENU_MOTION.itemGap,
           ease: MENU_MOTION.ease }, 0.03);
-      if (panel) timeline.fromTo(panel, { y: context.conditions.mobile ? 32 : 16 },
-        { y: 0, duration: 0.26, ease: 'power3.out' }, 0);
+      if (panel) timeline.fromTo(panel, { y: context.conditions.mobile ? PRESENCE_MOTION.mobileOffset : PRESENCE_MOTION.desktopOffset },
+        { y: 0, duration: PRESENCE_MOTION.panelDuration, ease: PRESENCE_MOTION.panelEase }, 0);
       // A breakpoint/preference change should not replay an already open dialog.
       if (enteredRef.current && openRef.current) timeline.progress(1);
       const sync = () => {
-        if (reduced) {
+        if (reduced || document.hidden) {
           timeline.progress(1).pause();
           if (!openRef.current) finishExit();
         } else if (openRef.current) timeline.play();
@@ -60,7 +60,12 @@ export function useAnimatedPresence(open, rootRef, options = {}) {
       };
       syncRef.current = sync;
       sync();
-      return () => { if (syncRef.current === sync) syncRef.current = null; };
+      const visibilityChanged = () => { if (document.hidden) sync(); };
+      document.addEventListener('visibilitychange', visibilityChanged);
+      return () => {
+        document.removeEventListener('visibilitychange', visibilityChanged);
+        if (syncRef.current === sync) syncRef.current = null;
+      };
     }, rootRef);
     return () => media.revert();
   }, { scope: rootRef, dependencies: [present, panelSelector, variant], revertOnUpdate: true });

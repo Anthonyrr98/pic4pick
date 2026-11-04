@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { gsap } from 'gsap';
 import { useGSAP } from '@gsap/react';
 import { useAnimatedPresence } from '../hooks/useAnimatedPresence';
+import { FEEDBACK_MOTION } from '../constants/motionPresets';
 
 gsap.registerPlugin(useGSAP);
 
@@ -17,8 +18,8 @@ export function AnimatedMessage({ message, visible = true, feedbackRef }) {
     if (!present || !shown) return;
     const media = gsap.matchMedia();
     media.add('(prefers-reduced-motion: no-preference)', () => {
-      gsap.fromTo(rootRef.current.querySelector('.admin-message-copy'), { opacity: 0, y: 3 },
-        { opacity: 1, y: 0, duration: 0.18, ease: 'power2.out', clearProps: 'opacity,transform' });
+      gsap.fromTo(rootRef.current.querySelector('.admin-message-copy'), { opacity: 0, y: FEEDBACK_MOTION.offset },
+        { opacity: 1, y: 0, duration: FEEDBACK_MOTION.duration, ease: FEEDBACK_MOTION.ease, clearProps: 'opacity,transform' });
     }, rootRef);
     return () => media.revert();
   }, { scope: rootRef, dependencies: [present, shown, message?.text, message?.type], revertOnUpdate: true });

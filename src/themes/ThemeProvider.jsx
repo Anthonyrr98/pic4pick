@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { gsap } from 'gsap';
 import { useGSAP } from '@gsap/react';
 import { STORAGE_KEYS } from '../constants/storageKeys';
+import { THEME_MOTION } from '../constants/motionPresets';
 import { ThemeContext } from './ThemeContext';
 import { applyTheme, DEFAULT_THEME, FILM_SECTION_THEME, getThemeDefinition, isTheme, readTheme } from './themeConfig';
 
@@ -12,14 +13,20 @@ export function ThemeProvider({ children }) {
   const [filmMode, setFilmMode] = useState(false);
   const theme = filmMode ? FILM_SECTION_THEME.id : preferredTheme;
   const wash = useRef(null);
+  const previousTheme = useRef(theme);
 
   useLayoutEffect(() => { applyTheme(theme); }, [theme]);
 
   useGSAP(() => {
+    if (previousTheme.current === theme) return;
+    previousTheme.current = theme;
+    // A skipped theme transition must not replay when motion is enabled later.
+    if (document.hidden || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
     const media = gsap.matchMedia();
     media.add('(prefers-reduced-motion: no-preference)', () => {
       const preset = getThemeDefinition(theme);
-      gsap.fromTo(wash.current, { opacity: 0.12 }, { opacity: 0, duration: preset.duration, ease: preset.ease });
+      gsap.fromTo(wash.current, { opacity: THEME_MOTION.opacity },
+        { opacity: 0, duration: preset.duration, ease: preset.ease, overwrite: 'auto' });
     });
     return () => media.revert();
   }, { dependencies: [theme], revertOnUpdate: true });

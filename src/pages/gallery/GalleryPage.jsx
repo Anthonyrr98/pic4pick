@@ -42,6 +42,7 @@ import { useSpatialScene } from '../../hooks/useSpatialScene';
 import { useAnimatedPresence } from '../../hooks/useAnimatedPresence';
 import { useLightboxImageMotion } from '../../hooks/useLightboxImageMotion';
 import { useGalleryHeaderEntry } from '../../hooks/useGalleryEntryMotion';
+import { useViewTransition } from '../../hooks/useViewTransition';
 import { advanceImageFallback } from '../../utils/imageFallback';
 
 let exploreViewModulePromise = null;
@@ -145,6 +146,7 @@ export function GalleryPage() {
   const prepareLayoutRef = useRef(null);
   const [activeView, setActiveView] = useState('gallery-view');
   const shellRef = useRef(null);
+  const transitionView = useViewTransition(shellRef, activeView, setActiveView);
   useGalleryHeaderEntry(shellRef, activeView === 'gallery-view');
   const [hasVisitedExplore, setHasVisitedExplore] = useState(false);
   const { setFilmMode } = useTheme();
@@ -291,7 +293,7 @@ export function GalleryPage() {
       ].filter(Boolean)
     : [];
   const prepareLightboxSwitch = useLightboxImageMotion(lightboxPhoto?.id, lightboxVisualSrc,
-    lightboxPreviewFailed, lightboxImageRef, lightboxMediaRef);
+    lightboxPreviewFailed, lightboxImageRef, lightboxMediaRef, lightboxOpen);
 
   // 鈹€鈹€ 鍦扮悊淇℃伅锛圠ightbox 鐢級
   const getGeoInfo = useMemo(() => {
@@ -325,8 +327,8 @@ export function GalleryPage() {
   const handleViewChange = useCallback((view) => {
     if (view === 'explore-view') setHasVisitedExplore(true);
     setLocationPanel(null);
-    setActiveView(view);
-  }, []);
+    transitionView(view);
+  }, [transitionView]);
 
   const handleExploreIntent = useCallback(() => {
     if (!hasVisitedExplore) {
@@ -620,6 +622,7 @@ export function GalleryPage() {
           <div className={`view-toggle ${activeView === 'explore-view' ? 'explore-active' : ''}${isFilmSection ? ' has-film-frame' : ''}`}>
             <button
               className={`toggle-btn ${activeView === 'gallery-view' ? 'active' : ''}`}
+              data-view-target="gallery-view"
               onClick={() => handleViewChange('gallery-view')}
               aria-pressed={activeView === 'gallery-view'}
             >
@@ -627,6 +630,7 @@ export function GalleryPage() {
             </button>
             <button
               className={`toggle-btn ${activeView === 'explore-view' ? 'active' : ''}`}
+              data-view-target="explore-view"
               onMouseEnter={handleExploreIntent}
               onPointerEnter={handleExploreIntent}
               onPointerDown={handleExploreIntent}
@@ -651,7 +655,7 @@ export function GalleryPage() {
           </div>
         )}
 
-        <section id="gallery-view" className={`screen ${activeView === 'gallery-view' ? 'active' : ''}`}>
+        <section id="gallery-view" data-view-screen="gallery-view" className={`screen ${activeView === 'gallery-view' ? 'active' : ''}`}>
           <TabStrip activeFilter={activeFilter} onFilterChange={changeFilter} />
           <div className="gallery-status-row" aria-live="polite">
             <span className="gallery-count">{galleryStatusText}</span>
@@ -688,7 +692,7 @@ export function GalleryPage() {
         </section>
 
         {hasVisitedExplore && (
-          <div hidden={activeView !== 'explore-view'}>
+          <div data-view-screen="explore-view" hidden={activeView !== 'explore-view'}>
             <Suspense fallback={<ExploreViewPending />}>
               <ExploreView
                 isActive={activeView === 'explore-view'}

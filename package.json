@@ -16,6 +16,8 @@
     "test:photo-details": "node scripts/photo-details-smoke.mjs",
     "test:motion": "node scripts/motion-smoke.mjs",
     "test:discovery-motion": "node scripts/discovery-motion-smoke.mjs",
+    "test:motion-refinement": "node scripts/motion-refinement-smoke.mjs",
+    "test:motion-performance": "node scripts/motion-performance.mjs",
     "test:entry-motion": "node scripts/entry-motion-smoke.mjs",
     "test:gallery-layout": "node scripts/gallery-layout-smoke.mjs",
     "test:location-like-motion": "node scripts/location-like-motion-smoke.mjs",

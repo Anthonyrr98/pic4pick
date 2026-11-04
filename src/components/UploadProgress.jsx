@@ -2,6 +2,7 @@ import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { gsap } from 'gsap';
 import { useGSAP } from '@gsap/react';
 import { useAnimatedPresence } from '../hooks/useAnimatedPresence';
+import { FEEDBACK_MOTION } from '../constants/motionPresets';
 import './UploadProgress.css';
 
 gsap.registerPlugin(useGSAP);
@@ -36,7 +37,7 @@ export function UploadProgress({ progress, fileName, isVisible, uploadedBytes, t
         barRef.current.setAttribute('aria-valuenow', String(integer));
       };
       const to = gsap.quickTo(fillRef.current, 'scaleX', {
-        duration: 0.28, ease: 'power2.out', onUpdate: writePercentage,
+        duration: FEEDBACK_MOTION.progress, ease: FEEDBACK_MOTION.ease, onUpdate: writePercentage,
       });
       updateRef.current = value => {
         if (value === 0 || context.conditions.reduce) {
@@ -58,8 +59,8 @@ export function UploadProgress({ progress, fileName, isVisible, uploadedBytes, t
     if (!present || !visible) return;
     const media = gsap.matchMedia();
     media.add('(prefers-reduced-motion: no-preference)', () => {
-      gsap.fromTo(rootRef.current.querySelector('.upload-progress-label'), { opacity: 0.4, y: 3 },
-        { opacity: 1, y: 0, duration: 0.18, clearProps: 'opacity,transform' });
+      gsap.fromTo(rootRef.current.querySelector('.upload-progress-label'), { opacity: 0.4, y: FEEDBACK_MOTION.offset },
+        { opacity: 1, y: 0, duration: FEEDBACK_MOTION.duration, ease: FEEDBACK_MOTION.ease, clearProps: 'opacity,transform' });
     }, rootRef);
     return () => media.revert();
   }, { scope: rootRef, dependencies: [present, visible, displayed.statusLabel, displayed.outcome], revertOnUpdate: true });
