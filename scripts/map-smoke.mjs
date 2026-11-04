@@ -267,6 +267,7 @@ try {
   await detailMarker.press('Enter');
   assert.equal(await page.evaluate(() => window.mapChecks.popups.at(-1).opens), popupOpens + 2);
   await page.getByRole('button', { name: '收起照片详情', exact: true }).click();
+  await page.locator('.photo-details-sheet').waitFor({ state: 'detached' });
   assert.ok(await page.evaluate(() => window.mapChecks.maps.at(-1).destroyed), 'Closing detail map must still release its instance');
   assert.ok(await page.evaluate(() => window.mapChecks.popups.at(-1).closed));
   await page.keyboard.press('Escape');
@@ -474,6 +475,7 @@ try {
   await fallbackDetail.press('Enter');
   await fallback.page.locator('.photo-location-map .maplibregl-popup').waitFor();
   await fallback.page.getByRole('button', { name: '收起照片详情', exact: true }).click();
+  await fallback.page.locator('.photo-details-sheet').waitFor({ state: 'detached' });
   assert.equal(await fallback.page.locator('.photo-map-marker-target').count(), 0);
   await fallback.context.close();
   assert.deepEqual(errors, []);

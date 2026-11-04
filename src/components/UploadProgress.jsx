@@ -1,69 +1,56 @@
-import { useState, useEffect, useRef } from 'react';
+import { useLayoutEffect, useRef } from 'react';
+import { gsap } from 'gsap';
+import { useGSAP } from '@gsap/react';
 import './UploadProgress.css';
 
+gsap.registerPlugin(useGSAP);
+
 export function UploadProgress({ progress, fileName, isVisible, uploadedBytes, totalBytes, statusLabel }) {
-  const [displayProgress, setDisplayProgress] = useState(0);
-  const animationFrameRef = useRef(null);
+  const rootRef = useRef(null);
+  const fillRef = useRef(null);
+  const percentageRef = useRef(null);
+  const barRef = useRef(null);
+  const updateRef = useRef(null);
+  const visible = isVisible && progress !== null;
+  const target = Number.isFinite(progress) ? Math.min(100, Math.max(0, progress)) : 0;
+  const targetRef = useRef(target);
+  useLayoutEffect(() => { targetRef.current = target; }, [target]);
 
-  // 平滑更新进度显示，避免跳跃
-  useEffect(() => {
-    if (progress === null) {
-      if (animationFrameRef.current) {
-        cancelAnimationFrame(animationFrameRef.current);
-      }
-      animationFrameRef.current = requestAnimationFrame(() => {
-        setDisplayProgress(0);
-        animationFrameRef.current = null;
-      });
-      return () => {
-        if (animationFrameRef.current) {
-          cancelAnimationFrame(animationFrameRef.current);
-          animationFrameRef.current = null;
-        }
+  useGSAP(() => {
+    if (!visible) return;
+    const media = gsap.matchMedia();
+    media.add({ reduce: '(prefers-reduced-motion: reduce)', animate: '(prefers-reduced-motion: no-preference)' }, context => {
+      let lastInteger = -1;
+      const writePercentage = () => {
+        const integer = Math.round(Number(gsap.getProperty(fillRef.current, 'scaleX')) * 100);
+        if (integer === lastInteger) return;
+        lastInteger = integer;
+        percentageRef.current.textContent = `${integer}%`;
+        barRef.current.setAttribute('aria-valuenow', String(integer));
       };
-    }
-
-    const targetProgress = Math.min(100, Math.max(0, progress));
-    
-    // 使用 requestAnimationFrame 实现平滑过渡
-    const updateProgress = () => {
-      setDisplayProgress((prev) => {
-        const diff = targetProgress - prev;
-        // 如果差异很小，直接设置目标值
-        if (Math.abs(diff) < 0.1) {
-          return targetProgress;
-        }
-        // 否则平滑过渡（使用缓动函数）
-        const next = prev + diff * 0.2;
-        
-        // 继续动画直到达到目标值
-        if (Math.abs(targetProgress - next) > 0.1) {
-          animationFrameRef.current = requestAnimationFrame(updateProgress);
-        }
-        
-        return next;
+      const to = gsap.quickTo(fillRef.current, 'scaleX', {
+        duration: 0.28, ease: 'power2.out', onUpdate: writePercentage,
       });
-    };
+      updateRef.current = value => {
+        if (value === 0 || context.conditions.reduce) {
+          to.tween.pause();
+          gsap.set(fillRef.current, { scaleX: value / 100 });
+          writePercentage();
+        }
+        else to(value / 100);
+      };
+      updateRef.current(targetRef.current);
+      return () => { updateRef.current = null; };
+    }, rootRef);
+    return () => media.revert();
+  }, { scope: rootRef, dependencies: [visible, fileName], revertOnUpdate: true });
 
-    // 取消之前的动画
-    if (animationFrameRef.current) {
-      cancelAnimationFrame(animationFrameRef.current);
-    }
-    
-    animationFrameRef.current = requestAnimationFrame(updateProgress);
-    
-    return () => {
-      if (animationFrameRef.current) {
-        cancelAnimationFrame(animationFrameRef.current);
-      }
-    };
-  }, [progress]);
+  useGSAP(() => { updateRef.current?.(target); }, { dependencies: [target, visible, fileName] });
 
-  if (!isVisible || progress === null) {
+  if (!visible) {
     return null;
   }
 
-  const percentage = Math.min(100, Math.max(0, displayProgress));
   const formattedBytes = (bytes) => {
     if (!bytes) return '';
     if (bytes < 1024) return `${bytes} B`;
@@ -72,10 +59,10 @@ export function UploadProgress({ progress, fileName, isVisible, uploadedBytes, t
   };
 
   return (
-    <div className="upload-progress-container">
+    <div className="upload-progress-container" ref={rootRef}>
       <div className="upload-progress-header">
         <span className="upload-progress-label">{statusLabel || '上传中...'}</span>
-        <span className="upload-progress-percentage">{Math.round(percentage)}%</span>
+        <span className="upload-progress-percentage" ref={percentageRef}>0%</span>
       </div>
       {fileName && (
         <div className="upload-progress-filename">{fileName}</div>
@@ -85,10 +72,11 @@ export function UploadProgress({ progress, fileName, isVisible, uploadedBytes, t
           {formattedBytes(uploadedBytes)} / {formattedBytes(totalBytes)}
         </div>
       )}
-      <div className="upload-progress-bar">
+      <div className="upload-progress-bar" ref={barRef} role="progressbar" aria-label={statusLabel || '上传进度'}
+        aria-valuemin={0} aria-valuemax={100} aria-valuenow={0}>
         <div 
           className="upload-progress-fill" 
-          style={{ width: `${percentage}%` }}
+          ref={fillRef}
         />
       </div>
     </div>

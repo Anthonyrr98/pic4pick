@@ -4,6 +4,7 @@
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { CurationGroup, CityEntry, GalleryPhoto } from '../utils/photoDataUtils';
+import { useCurationPanelMotion } from '../../../hooks/useCurationPanelMotion';
 import './CurationPanel.css';
 
 interface CurationPanelProps {
@@ -42,6 +43,7 @@ export const CurationPanel: React.FC<CurationPanelProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [galleryCityId, setGalleryCityId] = useState<string | null>(null);
   const panelRef = useRef<HTMLElement>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const galleryBackRef = useRef<HTMLButtonElement>(null);
   const listScrollTopRef = useRef(0);
@@ -59,6 +61,8 @@ export const CurationPanel: React.FC<CurationPanelProps> = ({
     : Math.min(380, sheetViewport.height * 0.46);
   const selectedCity = groups.flatMap(group => group.items).find(city => city.id === activeCitySelection?.cityId);
   const galleryCity = groups.flatMap(group => group.items).find(city => city.id === galleryCityId);
+  useCurationPanelMotion(panelRef, bodyRef, { active: isActive, mobile: sheetViewport.mobile,
+    collapsed: isPanelCollapsed, height: sheetHeight, keyboard: sheetViewport.keyboard, viewKey: galleryCityId });
 
   useEffect(() => {
     const frame = requestAnimationFrame(() => {
@@ -188,6 +192,7 @@ export const CurationPanel: React.FC<CurationPanelProps> = ({
       data-focus-height={sheetViewport.mobile ? sheetHeight : undefined}
       style={{ '--curation-sheet-height': `${sheetHeight}px`, '--curation-keyboard-inset': `${sheetViewport.keyboard}px` } as React.CSSProperties}
     >
+      <div ref={bodyRef} className="curation-panel-body">
       <div className="curation-panel-heading">
       <button
         className="curation-panel-toggle"
@@ -422,6 +427,7 @@ export const CurationPanel: React.FC<CurationPanelProps> = ({
           )}
         </div>
       ))}
+      </div>
       </div>
     </aside>
   );

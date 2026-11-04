@@ -29,6 +29,7 @@ try {
       },
     } });
   });
+  await context.route('**/rest/v1/**', route => route.fulfill({ json: [] }));
   await context.route('**/rest/v1/photos?**', route => route.fulfill({ json: photos }));
   await context.route('https://details-test.invalid/**', route => route.fulfill({ body: image, contentType: 'image/png' }));
   await context.route('https://*.is.autonavi.com/**', route => route.fulfill({ body: image, contentType: 'image/png' }));
@@ -85,10 +86,12 @@ try {
   await distance.getByText(/km/).waitFor();
   assert.match(await distance.innerText(), /距你当前的位置/);
   await page.keyboard.press('Escape');
+  await sheet.waitFor({ state: 'detached' });
   assert.equal(await sheet.count(), 0);
   assert.ok(await opener.evaluate(el => el === document.activeElement), 'Closing returns focus to the opener');
   assert.equal(await page.locator('.lightbox.active').count(), 1, 'First Escape closes only details');
   await page.keyboard.press('Escape');
+  await page.locator('.lightbox.active').waitFor({ state: 'hidden' });
 
   await page.locator('.photo-card').filter({ hasText: '没有坐标的照片' }).click();
   await opener.click();
@@ -97,7 +100,9 @@ try {
   assert.equal(await sheet.locator('.photo-location-map').count(), 0);
   assert.match(await sheet.innerText(), /f\/8/);
   await page.keyboard.press('Escape');
+  await sheet.waitFor({ state: 'detached' });
   await page.keyboard.press('Escape');
+  await page.locator('.lightbox.active').waitFor({ state: 'hidden' });
 
   await page.getByRole('tab', { name: '胶片', exact: true }).click();
   await page.getByRole('button', { name: '查看作品：胶片照片', exact: true }).click();

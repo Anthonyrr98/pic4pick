@@ -1,12 +1,9 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { gsap } from 'gsap';
-import { useGSAP } from '@gsap/react';
+import { useAnimatedPresence } from '../hooks/useAnimatedPresence';
 import { useTheme } from './ThemeContext';
 import { getThemeDefinition, THEMES } from './themeConfig';
 import { FilmControlFrame } from '../pages/gallery/components/FilmFrame';
-
-gsap.registerPlugin(useGSAP);
 
 export function ThemeSwitcher() {
   const { theme, preferredTheme, selectTheme } = useTheme();
@@ -14,29 +11,19 @@ export function ThemeSwitcher() {
   const container = useRef(null);
   const trigger = useRef(null);
   const panel = useRef(null);
+  const present = useAnimatedPresence(open, panel, { variant: 'menu' });
   const panelId = useId();
   const activeTheme = getThemeDefinition(theme);
 
-  useGSAP(() => {
-    const media = gsap.matchMedia();
-    media.add('(prefers-reduced-motion: no-preference)', () => {
-      if (open) {
-        gsap.from(panel.current, { y: -8, opacity: 0, duration: activeTheme.duration, ease: activeTheme.ease });
-        gsap.from([...panel.current.querySelectorAll('.theme-option')], { y: 5, opacity: 0, stagger: 0.045, duration: 0.25 });
-      }
-    });
-    return () => media.revert();
-  }, { scope: container, dependencies: [open, theme], revertOnUpdate: true });
-
   useEffect(() => {
-    if (!open) return undefined;
+    if (!open || !present) return undefined;
     panel.current?.querySelector('[aria-checked="true"]')?.focus({ preventScroll: true });
     const outside = (event) => {
       if (!container.current?.contains(event.target) && !panel.current?.contains(event.target)) setOpen(false);
     };
     document.addEventListener('pointerdown', outside);
     return () => document.removeEventListener('pointerdown', outside);
-  }, [open]);
+  }, [open, present]);
 
   const close = () => {
     setOpen(false);
@@ -68,7 +55,7 @@ export function ThemeSwitcher() {
       <button className={`theme-trigger${theme === 'darkroom' ? ' has-film-frame' : ''}`} type="button" ref={trigger}
         aria-label={`切换主题，当前：${activeTheme.name}`} aria-expanded={open}
         aria-haspopup="menu"
-        aria-controls={open ? panelId : undefined} onClick={() => setOpen((value) => !value)}>
+        aria-controls={present ? panelId : undefined} onClick={() => setOpen((value) => !value)}>
         <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
           <circle cx="12" cy="12" r="8" stroke="currentColor" strokeWidth="1.5" />
           <path d="M12 4a8 8 0 0 1 0 16Z" fill="currentColor" />
@@ -76,8 +63,9 @@ export function ThemeSwitcher() {
         <span className="theme-trigger-label">外观</span>
         {theme === 'darkroom' && <FilmControlFrame />}
       </button>
-      {open && createPortal(
-        <div className="theme-popover" id={panelId} ref={panel} onBlur={onBlur}>
+      {present && createPortal(
+        <div className="theme-popover" id={panelId} ref={panel} onBlur={onBlur}
+          data-state={open ? 'open' : 'closing'} inert={!open} aria-hidden={!open}>
           <div className="theme-popover-heading"><span>选择你的观展氛围</span><span>APPEARANCE</span></div>
           {theme === 'darkroom' && <p className="theme-section-note">胶片分区使用暗房外观，下方选择将在离开胶片后应用。</p>}
           <div role="menu" aria-label="全局主题">

@@ -225,7 +225,8 @@ export const useFocusMapOnCity = (
       // During a sheet resize, aim using its settled height rather than an intermediate frame.
       const focusHeight = Number(panel?.dataset.focusHeight);
       const focusRect = panelRect && panel?.dataset.mobile === 'true' && focusHeight > 0
-        ? { width: panelRect.width, height: focusHeight, right: panelRect.right, top: panelRect.bottom - focusHeight }
+        ? { width: panelRect.width, height: focusHeight, right: panelRect.right,
+          top: Number(panel.dataset.focusBottom || panelRect.bottom) - focusHeight }
         : panelRect;
       const offset = getCityFocusOffset(rect, focusRect);
       // MapLibre's 512px world tiles use one less zoom level for the same city scale.

@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createMarkerReveal } from '../../../utils/markerReveal';
 import { loadMapLibre } from '../../../utils/maplibreLoader';
 import { useGaodeMapInit, useFocusMapOnCity, useMapMotion } from '../hooks/useMapInit';
 import { buildCityPhotoMap, buildCurationGroups, buildPhotosByLocation } from '../utils/photoDataUtils';
@@ -22,6 +23,12 @@ export function ExploreView({
   const currentLocationMarkerRef = useRef(null);
   const currentLocationMaplibreMarkerRef = useRef(null);
   const pendingFocusRef = useRef(null);
+  const markerRevealRef = useRef(null);
+  const activeRef = useRef(isActive);
+  useLayoutEffect(() => {
+    activeRef.current = isActive;
+    if (!isActive) markerRevealRef.current?.finish();
+  }, [isActive]);
 
   const [categoryExpansionOverrides, setCategoryExpansionOverrides] = useState({});
   const [isPanelCollapsed, setIsPanelCollapsed] = useState(false);
@@ -141,9 +148,6 @@ export function ExploreView({
           `border:${EXPLORE_MARKER_BORDER_SIZE}px solid #ffffff`,
           'box-shadow:0 0 0 1px rgba(0,0,0,0.35),0 6px 12px rgba(0,0,0,0.25)',
           'cursor:pointer',
-          'transition:transform 0.2s ease,opacity 0.2s ease',
-          'opacity:0',
-          'transform:scale(0)',
         ].join(';');
         dot.setAttribute('aria-hidden', 'true');
         anchor.appendChild(dot);
@@ -196,19 +200,15 @@ export function ExploreView({
         markerDots.push(dot);
       });
 
-      markerDots.forEach((dot, index) => {
-        const reveal = () => {
-          dot.style.opacity = '1';
-          dot.style.transform = 'scale(1)';
-        };
-        if (index === 0) requestAnimationFrame(reveal);
-        else setTimeout(reveal, index * 10);
-      });
+      markerRevealRef.current = createMarkerReveal(markerDots, sectionRef.current,
+        () => activeRef.current && !document.hidden);
     };
 
     drawMarkers();
     return () => {
       cancelled = true;
+      markerRevealRef.current?.dispose();
+      markerRevealRef.current = null;
       exploreMarkersRef.current.forEach((marker) => marker?.setMap?.(null));
       exploreMarkersRef.current = [];
       exploreMaplibreMarkersRef.current.forEach((marker) => marker.remove());

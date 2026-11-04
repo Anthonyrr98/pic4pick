@@ -157,7 +157,8 @@ html { background: var(--bg); scrollbar-color: var(--muted) var(--bg); }
 :root[data-theme] .app-shell:not(.explore-mode) .app-header:not(.admin-header)::before { background: rgb(var(--bg-rgb) / 0.9); }
 :root[data-theme] .logo-mark { border-color: var(--text); }
 :root[data-theme] .app-shell:not(.admin-shell) :is(.view-toggle, .tab-strip) { background: var(--glass); border-color: var(--glass-edge); box-shadow: var(--shadow-soft); }
-:root[data-theme] .app-shell:not(.admin-shell) :is(.view-toggle, .tab-strip)::before { background: var(--selected-bg); box-shadow: 0 2px 8px rgb(0 0 0 / 0.12); }
+:root[data-theme] .app-shell:not(.admin-shell) .view-toggle::before,
+:root[data-theme] .app-shell:not(.admin-shell) .tab-strip > .tab-indicator { background: var(--selected-bg); box-shadow: 0 2px 8px rgb(0 0 0 / 0.12); }
 :root[data-theme] .app-shell:not(.admin-shell) :is(.toggle-btn, .tab) { color: var(--muted); }
 :root[data-theme] .app-shell:not(.admin-shell) :is(.toggle-btn, .tab).active { color: var(--selected-text); }
 :root[data-theme] .app-shell:not(.admin-shell) :is(.toggle-btn, .tab):hover:not(.active) { color: var(--text); background: rgb(var(--ink-rgb) / 0.05); box-shadow: none; }

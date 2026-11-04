@@ -39,6 +39,9 @@ import { ThemeSwitcher } from '../../themes/ThemeSwitcher';
 import { useTheme } from '../../themes/ThemeContext';
 import { SpatialSceneControls, SpatialSceneStatus } from '../../components/SpatialSceneControls';
 import { useSpatialScene } from '../../hooks/useSpatialScene';
+import { useAnimatedPresence } from '../../hooks/useAnimatedPresence';
+import { useLightboxImageMotion } from '../../hooks/useLightboxImageMotion';
+import { useGalleryHeaderEntry } from '../../hooks/useGalleryEntryMotion';
 import { advanceImageFallback } from '../../utils/imageFallback';
 
 let exploreViewModulePromise = null;
@@ -140,6 +143,8 @@ export function GalleryPage() {
   // 鈹€鈹€ 瑙嗗浘 & 绛涢€夌姸鎬?
   const [activeFilter, setActiveFilter] = useState('latest');
   const [activeView, setActiveView] = useState('gallery-view');
+  const shellRef = useRef(null);
+  useGalleryHeaderEntry(shellRef, activeView === 'gallery-view');
   const [hasVisitedExplore, setHasVisitedExplore] = useState(false);
   const { setFilmMode } = useTheme();
   const isFilmSection = activeFilter === 'film' && activeView === 'gallery-view';
@@ -151,6 +156,7 @@ export function GalleryPage() {
 
   // 鈹€鈹€ Lightbox 鐘舵€?
   const [lightboxPhoto, setLightboxPhoto] = useState(null);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
   const [showPhotoDetails, setShowPhotoDetails] = useState(false);
   const [isLightboxPortrait, setIsLightboxPortrait] = useState(false);
   const [lightboxAspectRatio, setLightboxAspectRatio] = useState(null);
@@ -161,7 +167,16 @@ export function GalleryPage() {
   const lightboxImageRef = useRef(null);
   const lightboxMediaRef = useRef(null);
   const spatialCanvasRef = useRef(null);
-  const spatialScene = useSpatialScene(lightboxPhoto?.id, lightboxImageRef, lightboxMediaRef, spatialCanvasRef);
+  const finishLightboxClose = useCallback(() => {
+    setLightboxPhoto(null);
+    window.requestAnimationFrame(() => {
+      if (lightboxRef.current && !lightboxRef.current.classList.contains('active')) {
+        lightboxReturnFocusRef.current?.focus?.({ preventScroll: true });
+      }
+    });
+  }, []);
+  const lightboxPresent = useAnimatedPresence(lightboxOpen, lightboxRef, { onExited: finishLightboxClose });
+  const spatialScene = useSpatialScene(lightboxOpen ? lightboxPhoto?.id : null, lightboxImageRef, lightboxMediaRef, spatialCanvasRef);
   const isFilmPortrait = isFilmSection && lightboxAspectRatio > 0 && lightboxAspectRatio < 1 && !lightboxPreviewFailed;
 
   // 鈹€鈹€ 鍝佺墝鐘舵€?
@@ -267,6 +282,8 @@ export function GalleryPage() {
         getOriginalMediaUrl(lightboxPhoto),
       ].filter(Boolean)
     : [];
+  const prepareLightboxSwitch = useLightboxImageMotion(lightboxPhoto?.id, lightboxVisualSrc,
+    lightboxPreviewFailed, lightboxImageRef, lightboxMediaRef);
 
   // 鈹€鈹€ 鍦扮悊淇℃伅锛圠ightbox 鐢級
   const getGeoInfo = useMemo(() => {
@@ -323,24 +340,27 @@ export function GalleryPage() {
     lightboxReturnFocusRef.current = document.activeElement;
     setShowPhotoDetails(false);
     setLightboxAspectRatio(null);
+    setIsLightboxPortrait(false);
+    setLightboxPreviewFailed(false);
     setLightboxPhoto(photo);
+    setLightboxOpen(true);
   }, []);
 
   const closeLightbox = useCallback(() => {
     setShowPhotoDetails(false);
-    setLightboxPhoto(null);
-    window.requestAnimationFrame(() => lightboxReturnFocusRef.current?.focus?.());
+    setLightboxOpen(false);
   }, []);
 
   const goToAdjacentLightboxPhoto = useCallback((direction) => {
-    if (!canNavigateLightbox) return;
+    if (!canNavigateLightbox || !lightboxOpen) return;
     const nextIndex = (lightboxIndex + direction + lightboxSequence.length) % lightboxSequence.length;
     const nextPhoto = lightboxSequence[nextIndex];
     if (!nextPhoto) return;
+    prepareLightboxSwitch(direction);
     setShowPhotoDetails(false);
-    setLightboxAspectRatio(null);
+    setLightboxPreviewFailed(false);
     setLightboxPhoto(nextPhoto);
-  }, [canNavigateLightbox, lightboxIndex, lightboxSequence]);
+  }, [canNavigateLightbox, lightboxOpen, lightboxIndex, lightboxSequence, prepareLightboxSwitch]);
 
   const handleLightboxPointerDown = useCallback((event) => {
     if (event.pointerType === 'mouse') return;
@@ -407,13 +427,6 @@ export function GalleryPage() {
   useEffect(() => { setDisplayedCount(12); }, [activeFilter]);
 
   useEffect(() => {
-    setLightboxPreviewFailed(false);
-    if (lightboxPhoto) {
-        setIsLightboxPortrait(false);
-    }
-  }, [lightboxPhoto]);
-
-  useEffect(() => {
     const baseTitle = brandText.siteTitle || 'light of anthony';
     const title = lightboxPhoto
       ? `${lightboxPhoto.title} | ${baseTitle}`
@@ -437,7 +450,7 @@ export function GalleryPage() {
   }, [activeView, allPhotos.length, brandText.siteTitle, lightboxPhoto]);
 
   useEffect(() => {
-    if (!lightboxPhoto) return undefined;
+    if (!lightboxPresent) return undefined;
     const dialog = lightboxRef.current;
     dialog?.focus();
 
@@ -460,7 +473,7 @@ export function GalleryPage() {
 
     dialog?.addEventListener('keydown', trapFocus);
     return () => dialog?.removeEventListener('keydown', trapFocus);
-  }, [lightboxPhoto]);
+  }, [lightboxPhoto, lightboxPresent]);
 
   useEffect(() => {
     const handleKey = (e) => {
@@ -570,7 +583,7 @@ export function GalleryPage() {
 
   // ── Render
   return (
-    <div className={`app-shell ${activeView === 'explore-view' ? 'explore-mode' : ''}${showGalleryBackdrop ? ' has-gallery-backdrop' : ''}`}>
+    <div ref={shellRef} className={`app-shell ${activeView === 'explore-view' ? 'explore-mode' : ''}${showGalleryBackdrop ? ' has-gallery-backdrop' : ''}`}>
       {showGalleryBackdrop && (
         <div className="gallery-backdrop" aria-hidden="true">
           <img key={galleryBackdropSrc} src={galleryBackdropSrc} alt="" decoding="async" fetchPriority="low"
@@ -645,6 +658,7 @@ export function GalleryPage() {
             <GalleryLoadingState />
           ) : filteredPhotos.length > 0 ? (
             <PhotoGrid
+              isActive={activeView === 'gallery-view'}
               photos={displayedPhotos}
               likedPhotoIds={likedPhotoIds}
               onPhotoClick={openLightboxPhoto}
@@ -690,12 +704,13 @@ export function GalleryPage() {
       {/* Lightbox */}
       <div
         ref={lightboxRef}
-        className={`lightbox ${lightboxPhoto ? 'active' : ''}`}
-        aria-hidden={lightboxPhoto ? 'false' : 'true'}
-        role={lightboxPhoto ? 'dialog' : undefined}
-        aria-modal={lightboxPhoto ? 'true' : undefined}
-        aria-labelledby={lightboxPhoto ? 'lightbox-title' : undefined}
-        tabIndex={lightboxPhoto ? -1 : undefined}
+        className={`lightbox ${lightboxPresent ? 'active' : ''}`}
+        data-state={lightboxOpen ? 'open' : 'closing'}
+        aria-hidden={lightboxPresent ? 'false' : 'true'}
+        role={lightboxPresent ? 'dialog' : undefined}
+        aria-modal={lightboxPresent ? 'true' : undefined}
+        aria-labelledby={lightboxPresent ? 'lightbox-title' : undefined}
+        tabIndex={lightboxPresent ? -1 : undefined}
         onClick={(e) => {
           if (e.target === e.currentTarget) closeLightbox();
         }}
@@ -820,8 +835,8 @@ export function GalleryPage() {
           </div>
         </div>
 
-        {lightboxPhoto && showPhotoDetails && (
-          <PhotoDetailsSheet photo={lightboxPhoto} geoInfo={getGeoInfo} address={photoAddress}
+        {lightboxPhoto && (
+          <PhotoDetailsSheet open={showPhotoDetails} photo={lightboxPhoto} geoInfo={getGeoInfo} address={photoAddress}
             shotInfo={lightboxShotInfo} filmStock={lightboxFilmStock} isFilm={isFilmSection}
             cameraArtwork={lightboxCameraArtwork} filmStockArtwork={lightboxFilmStockArtwork}
             locationStatus={locationStatus} onRequestLocation={requestLocation}

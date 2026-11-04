@@ -1,3 +1,12 @@
+.curation-panel-body {
+  display: flex;
+  flex: 1 0 auto;
+  flex-direction: column;
+  min-height: 0;
+}
+#explore-view .curation-panel.showing-photos .curation-panel-body { flex: 1 1 0; }
+#explore-view .curation-panel[data-animating] { overflow: hidden; }
+
 .curation-panel-heading,
 .curation-panel-scroll { display: contents; }
 .curation-mobile-heading,
@@ -107,8 +116,9 @@
     border-radius: 22px;
     overflow: hidden;
     gap: 0;
-    transition: height 280ms cubic-bezier(0.22, 1, 0.36, 1);
+    transition: none;
   }
+  #explore-view .curation-panel .curation-panel-body { flex: 1 1 0; }
   #explore-view .curation-panel.showing-photos { padding-bottom: 12px; }
   #explore-view .curation-gallery-header { flex-basis: 48px; margin-bottom: 8px; }
   #explore-view .curation-gallery-peek { display: none; }

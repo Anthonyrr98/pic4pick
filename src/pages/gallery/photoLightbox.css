@@ -9,6 +9,10 @@
   white-space: nowrap;
 }
 
+/* Image crossfades live inside the aperture; the frame and controls stay still. */
+.lightbox-media > .lightbox-watermark-frame { z-index: 2; }
+.lightbox-media > img:not(.lightbox-outgoing-image) { transition: none; }
+
 :root[data-theme] .lightbox-panel--photo-only .lightbox-media::after { display: none; }
 .lightbox-navigation { display: contents; }
 

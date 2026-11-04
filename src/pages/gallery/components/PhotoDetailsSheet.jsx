@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { PhotoLocationMap } from './PhotoLocationMap';
+import { useAnimatedPresence } from '../../../hooks/useAnimatedPresence';
 import './PhotoDetailsSheet.css';
 
 function DetailIcon({ kind }) {
@@ -37,20 +38,23 @@ function DetailCard({ label, value, sub, icon, artwork, children, className = ''
   );
 }
 
-export function PhotoDetailsSheet({ photo, geoInfo, address, shotInfo, filmStock, isFilm, cameraArtwork, filmStockArtwork, locationStatus, onRequestLocation, onClose }) {
+export function PhotoDetailsSheet({ open = true, photo, geoInfo, address, shotInfo, filmStock, isFilm, cameraArtwork, filmStockArtwork, locationStatus, onRequestLocation, onClose }) {
+  const backdropRef = useRef(null);
   const sheetRef = useRef(null);
   const closeRef = useRef(null);
+  const present = useAnimatedPresence(open, backdropRef, { panelSelector: '.photo-details-sheet' });
   const rating = Math.round(Math.max(1, Math.min(10, Number(photo.rating) || 7)));
   const place = geoInfo?.place || [photo.country, photo.location].filter(Boolean).join(' · ') || '未记录拍摄地点';
   const category = { latest: '最新', random: '随览', nearby: '附近', far: '远方', film: '胶片' }[photo.category] || '未分类';
 
   useEffect(() => {
+    if (!present) return;
     const returnFocus = document.activeElement;
     closeRef.current?.focus({ preventScroll: true });
     return () => {
       if (returnFocus?.isConnected) returnFocus.focus({ preventScroll: true });
     };
-  }, []);
+  }, [present]);
 
   const handleKeyDown = (event) => {
     if (event.key !== 'Tab') return;
@@ -70,8 +74,11 @@ export function PhotoDetailsSheet({ photo, geoInfo, address, shotInfo, filmStock
     }
   };
 
+  if (!present) return null;
+
   return (
-    <div className="photo-details-backdrop" onClick={event => { event.stopPropagation(); onClose(); }}>
+    <div ref={backdropRef} className="photo-details-backdrop" data-state={open ? 'open' : 'closing'}
+      onClick={event => { event.stopPropagation(); onClose(); }}>
       <aside ref={sheetRef} className="photo-details-sheet" role="dialog" aria-modal="true" aria-labelledby="photo-details-heading"
         onClick={event => event.stopPropagation()} onKeyDown={handleKeyDown}>
         <header className="photo-details-header">
