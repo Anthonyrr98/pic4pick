@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+    <key>CFBundleDisplayName</key><string>见远方</string>
+    <key>CFBundleName</key><string>见远方</string>
+    <key>CFBundleShortVersionString</key><string>1.7.2</string>
+    <key>CFBundleVersion</key><string>104</string>
+    <key>CADisableMinimumFrameDurationOnPhone</key><true/>
+    <key>UILaunchScreen</key><dict/>
+    <key>NSLocationWhenInUseUsageDescription</key><string>按你的位置排列附近和远方的摄影作品。位置只在本机用于计算距离。</string>
+    <key>NSPhotoLibraryAddUsageDescription</key><string>将你选择的摄影作品保存到系统相册。</string>
+    <key>NSMotionUsageDescription</key><string>读取手机倾斜角度，让空间照片呈现景深视差。姿态数据仅在本机使用。</string>
+    <key>UISupportedInterfaceOrientations</key><array>
+        <string>UIInterfaceOrientationPortrait</string>
+        <string>UIInterfaceOrientationLandscapeLeft</string>
+        <string>UIInterfaceOrientationLandscapeRight</string>
+    </array>
+    <key>UIRequiresFullScreen</key><true/>
+</dict></plist>

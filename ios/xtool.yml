@@ -1,0 +1,4 @@
+version: 1
+bundleID: com.rlzhao.pic4pick
+infoPath: Info.plist
+iconPath: Resources/AppIcon.png

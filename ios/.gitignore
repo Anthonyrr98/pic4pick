@@ -1,0 +1,11 @@
+.build/
+.swiftpm/
+.bsp/
+xtool/
+Sources/Pic4Pick/Resources/ClientConfig.json
+Sources/Pic4Pick/Resources/*.png
+Sources/Pic4Pick/Resources/AdminMapPresets.json
+Sources/Pic4Pick/Resources/PublicMapConfig.json
+Sources/Pic4Pick/Resources/GalleryShared.js
+Sources/Pic4Pick/Resources/GalleryMap.html
+Sources/Pic4Pick/Resources/MapLibre-LICENSE.txt
