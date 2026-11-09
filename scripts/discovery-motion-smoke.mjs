@@ -120,10 +120,14 @@ try {
     const matrix = getComputedStyle(el).transform;
     const body = getComputedStyle(el.querySelector('.curation-panel-body')).transform;
     return {outer: new DOMMatrix(matrix).m22, inner: new DOMMatrix(body).m22,
+      focusTop: Number(el.dataset.focusTop),
       transition:getComputedStyle(el).transitionProperty};
   });
   assert.ok(Math.abs(scales.outer * scales.inner - 1) < 0.015, 'Panel resizing preserves text proportions');
   assert.equal(scales.transition, 'none', 'No parallel CSS height transition');
+  await page.waitForFunction(() => !document.querySelector('.curation-panel').dataset.animating);
+  assert.ok(Math.abs((await panel.boundingBox()).y - scales.focusTop) < 0.5,
+    'The camera anchor during motion matches the settled sheet top');
   await page.evaluate(async () => {
     window.p2.setCollapsed(true); await new Promise(requestAnimationFrame);
     window.p2.setCollapsed(false);
@@ -139,6 +143,11 @@ try {
   await page.waitForFunction(() => Number.parseFloat(document.querySelector('.curation-panel').style.getPropertyValue('--curation-keyboard-inset')) > 300);
   assert.ok((await search.boundingBox()).y < 400);
   assert.equal(await panel.getAttribute('data-animating'), null, 'Keyboard avoidance snaps directly to the visible area');
+  await page.evaluate(() => window.p2.setCollapsed(true));
+  await page.waitForFunction(() => document.querySelector('.curation-panel').dataset.sheetState === 'peek');
+  assert.equal(await panel.getAttribute('data-animating'), null, 'Resizing with the keyboard still open snaps too');
+  await page.evaluate(() => window.p2.setCollapsed(false));
+  await page.waitForFunction(() => document.querySelector('.curation-panel').dataset.sheetState === 'expanded');
   await page.evaluate(() => {delete window.visualViewport.height; window.visualViewport.dispatchEvent(new Event('resize'))});
   await page.emulateMedia({reducedMotion:'reduce'});
   await page.evaluate(() => window.p2.setCollapsed(true));

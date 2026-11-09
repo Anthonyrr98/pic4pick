@@ -2,7 +2,7 @@
  * 地点面板组件 - 显示省份、城市卡片和地点照片
  */
 
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { CurationGroup, CityEntry, GalleryPhoto } from '../utils/photoDataUtils';
 import { useCurationPanelMotion } from '../../../hooks/useCurationPanelMotion';
 import { useCurationCardMotion } from '../../../hooks/useCurationCardMotion';
@@ -20,6 +20,8 @@ interface CurationPanelProps {
   isPanelCollapsed: boolean;
   onTogglePanelCollapse: () => void;
 }
+
+const KEYBOARD_DISMISS_TIMEOUT_MS = 1200;
 
 const getSheetViewport = () => {
   const visual = window.visualViewport;
@@ -53,8 +55,7 @@ export const CurationPanel: React.FC<CurationPanelProps> = ({
   const firstSearchResultRef = useRef<HTMLButtonElement>(null);
   const [sheetViewport, setSheetViewport] = useState(getSheetViewport);
   const [isSheetExpanded, setIsSheetExpanded] = useState(false);
-  const selectionFrameRef = useRef(0);
-  const selectionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingCityRef = useRef<{ group: CurationGroup; city: CityEntry; deadline: number } | null>(null);
   const gestureRef = useRef<{ y: number; moved: boolean } | null>(null);
   const suppressHandleClickRef = useRef(false);
   const sheetHeight = isPanelCollapsed ? 78 : isSheetExpanded
@@ -78,10 +79,27 @@ export const CurationPanel: React.FC<CurationPanelProps> = ({
     return () => cancelAnimationFrame(frame);
   }, [galleryCityId]);
 
-  useEffect(() => () => {
-    cancelAnimationFrame(selectionFrameRef.current);
-    if (selectionTimerRef.current) clearTimeout(selectionTimerRef.current);
-  }, [isActive]);
+  useLayoutEffect(() => {
+    if (!isActive || !galleryCityId) {
+      pendingCityRef.current = null;
+      return;
+    }
+    const pending = pendingCityRef.current;
+    if (!pending) return;
+    const focus = () => {
+      pendingCityRef.current = null;
+      onCityClick(pending.group, pending.city);
+    };
+    if (sheetViewport.mobile && (sheetViewport.keyboard || getSheetViewport().keyboard)) {
+      // If the viewport stays obstructed, eventually focus in the area
+      // that is actually available. A viewport update cancels this fallback.
+      const timer = setTimeout(focus, Math.max(0, pending.deadline - performance.now()));
+      return () => clearTimeout(timer);
+    }
+    // The compact sheet and its camera anchor have committed before this frame.
+    const frame = requestAnimationFrame(focus);
+    return () => cancelAnimationFrame(frame);
+  }, [isActive, galleryCityId, sheetViewport.mobile, sheetViewport.keyboard, onCityClick]);
 
   useEffect(() => {
     let frame = 0;
@@ -97,8 +115,6 @@ export const CurationPanel: React.FC<CurationPanelProps> = ({
     window.visualViewport?.addEventListener('scroll', update);
     return () => {
       cancelAnimationFrame(frame);
-      cancelAnimationFrame(selectionFrameRef.current);
-      if (selectionTimerRef.current) clearTimeout(selectionTimerRef.current);
       window.removeEventListener('resize', update);
       window.visualViewport?.removeEventListener('resize', update);
       window.visualViewport?.removeEventListener('scroll', update);
@@ -109,18 +125,13 @@ export const CurationPanel: React.FC<CurationPanelProps> = ({
     const scroller = sheetViewport.mobile ? scrollRef.current : panelRef.current;
     listScrollTopRef.current = scroller?.scrollTop || 0;
     returnCityIdRef.current = city.id;
+    pendingCityRef.current = sheetViewport.mobile
+      ? { group, city, deadline: performance.now() + KEYBOARD_DISMISS_TIMEOUT_MS }
+      : null;
     setGalleryCityId(city.id);
     if (!sheetViewport.mobile) { onCityClick(group, city); return; }
     setIsSheetExpanded(false);
     searchInputRef.current?.blur();
-    cancelAnimationFrame(selectionFrameRef.current);
-    if (selectionTimerRef.current) clearTimeout(selectionTimerRef.current);
-    const focus = () => {
-      selectionFrameRef.current = requestAnimationFrame(() => onCityClick(group, city));
-    };
-    // Let the keyboard dismiss before measuring the destination's visible area.
-    if (sheetViewport.keyboard) selectionTimerRef.current = setTimeout(focus, 250);
-    else focus();
   };
 
   const togglePanel = () => {
@@ -163,7 +174,6 @@ export const CurationPanel: React.FC<CurationPanelProps> = ({
       aria-label="探索地点"
       data-mobile={sheetViewport.mobile}
       data-sheet-state={isPanelCollapsed ? 'peek' : isSheetExpanded ? 'expanded' : 'compact'}
-      data-focus-height={sheetViewport.mobile ? sheetHeight : undefined}
       style={{ '--curation-sheet-height': `${sheetHeight}px`, '--curation-keyboard-inset': `${sheetViewport.keyboard}px` } as React.CSSProperties}
     >
       <div ref={bodyRef} className="curation-panel-body">

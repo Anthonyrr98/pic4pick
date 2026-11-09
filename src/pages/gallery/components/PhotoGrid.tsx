@@ -32,7 +32,7 @@ const GRID_IMAGE_FALLBACKS = [
 interface PhotoGridProps {
   photos: GalleryPhoto[];
   likedPhotoIds: string[];
-  onPhotoClick: (photo: GalleryPhoto) => void;
+  onPhotoClick: (photo: GalleryPhoto, card: HTMLElement) => void;
   onToggleLike: (photo: GalleryPhoto) => void;
   hasMore: boolean;
   isLoadingMore: boolean;
@@ -102,12 +102,12 @@ const PhotoCard = memo(function PhotoCard({
     <article
       className={`photo-card${filmFrames ? ' has-film-negative' : ''}`}
       data-photo-id={item.id}
-      onClick={() => onPhotoClick(item)}
+      onClick={(event) => onPhotoClick(item, event.currentTarget)}
       onKeyDown={(event) => {
         if (event.target !== event.currentTarget) return;
         if (event.key === 'Enter' || event.key === ' ') {
           event.preventDefault();
-          onPhotoClick(item);
+          onPhotoClick(item, event.currentTarget);
         }
       }}
       role="button"

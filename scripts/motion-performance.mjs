@@ -15,10 +15,10 @@ const { outputFiles } = await build({
     import {CurationPanel} from './src/pages/gallery/components/CurationPanel';
     import {PhotoGrid} from './src/pages/gallery/components/PhotoGrid';
     import {useLightboxImageMotion} from './src/hooks/useLightboxImageMotion';
-    const photos=Array.from({length:48},(_,i)=>({id:String(i),title:'Photo '+i,
+    const photos=Array.from({length:240},(_,i)=>({id:String(i),title:'Photo '+i,
       image:'/__motion-perf-image__.svg?'+i,category:'film',filmStock:'Fuji C200'}));
     const groups=[{id:'province',title:'Places',items:[{id:'city',label:'City',
-      image:photos[0].image,photos,photoCount:48}]}];
+      image:photos[0].image,photos:photos.slice(0,48),photoCount:48}]}];
     function Harness(){
       const [view,setView]=useState('explore'),[rows,setRows]=useState(photos);
       const [film,setFilm]=useState(false),[filter,setFilter]=useState('latest');
@@ -26,7 +26,8 @@ const { outputFiles } = await build({
       const load=useRef(null),prepare=useRef(null),image=useRef(null),media=useRef(null);
       const switchImage=useLightboxImageMotion(photo?.id,photo?.image,false,image,media);
       window.perfFixture={setView,film(){document.documentElement.dataset.theme='darkroom';setFilm(true)},
-        reorder(){prepare.current?.('random');setFilter(f=>f==='latest'?'random':'latest');setRows(p=>[...p].reverse())},
+        reorder(){prepare.current?.('random');setFilter(f=>f==='latest'?'random':'latest');
+          setRows(p=>p.map((_,i)=>p[i^1]))},
         next(i){switchImage(1);setPhoto(photos[i])}};
       return <>
         <section id="explore-view" hidden={view!=='explore'} style={{height:'100vh'}}>
@@ -89,22 +90,66 @@ try {
   });
   await page.evaluate(() => window.perfFixture.setView('grid'));
   await page.waitForFunction(() => [...document.querySelectorAll('.photo-card')].every(card => card.style.opacity === ''));
-  for (let i = 0; i < 5; i++) { await page.evaluate(() => window.perfFixture.reorder()); await page.waitForTimeout(40); }
-  await page.waitForFunction(() => !document.querySelector('[data-layout-motion]'));
+  const reorder = {};
+  for (const [position, scrollTop] of [['top', 0], ['deep', 8000]]) {
+    await page.evaluate(top => scrollTo(0, top), scrollTop);
+    await page.evaluate(() => new Promise(requestAnimationFrame));
+    reorder[position] = [];
+    for (let i = 0; i < 5; i++) {
+      reorder[position].push(await page.evaluate(() => {
+        const { getBoundingClientRect } = Element.prototype;
+        let cardBoundsReads = 0;
+        Element.prototype.getBoundingClientRect = function () {
+          if (this.matches('.photo-card')) cardBoundsReads++;
+          return getBoundingClientRect.call(this);
+        };
+        try {
+          window.perfFixture.reorder();
+          return cardBoundsReads;
+        } finally {
+          Element.prototype.getBoundingClientRect = getBoundingClientRect;
+        }
+      }));
+      if (i === 0) await page.waitForFunction(() => document.querySelector('[data-layout-motion]'));
+      await page.waitForTimeout(40);
+    }
+    await page.waitForFunction(() => !document.querySelector('[data-layout-motion]'));
+  }
+  await page.evaluate(() => scrollTo(0, 0));
   for (let i = 0; i < 6; i++) { await page.evaluate(i => window.perfFixture.next(i), i); await page.waitForTimeout(40); }
   await page.evaluate(() => window.perfFixture.film());
-  await page.waitForFunction(() => document.querySelector('[data-film-developing]'));
+  await page.waitForFunction(() => {
+    const visible = [...document.querySelectorAll('.film-negative > img')].filter(image => {
+      const rect = image.getBoundingClientRect();
+      return rect.bottom > 0 && rect.top < innerHeight && rect.right > 0 && rect.left < innerWidth;
+    });
+    return visible.length === 16 && visible.every(image => image.closest('[data-film-developing]'));
+  });
   const film = await page.evaluate(async () => {
     const grid = document.querySelector('.gallery-grid');
     let scans = 0;
+    let frameStyleWrites = 0;
     const original = grid.querySelectorAll.bind(grid);
+    const { setProperty } = CSSStyleDeclaration.prototype;
+    CSSStyleDeclaration.prototype.setProperty = function (name, ...args) {
+      if (name === '--film-emulsion-opacity' || name === '--film-grain-opacity') frameStyleWrites++;
+      return setProperty.call(this, name, ...args);
+    };
     grid.querySelectorAll = selector => { if (selector === '.film-negative > img') scans++; return original(selector); };
-    for (let i = 0; i < 24; i++) {
-      grid.querySelector('.photo-card').classList.toggle('benchmark-update');
-      await new Promise(requestAnimationFrame);
+    const startCount = grid.querySelectorAll('[data-film-developing]').length;
+    performance.mark('film-sample-start');
+    try {
+      for (let i = 0; i < 24; i++) {
+        grid.querySelector('.photo-card').classList.toggle('benchmark-update');
+        await new Promise(requestAnimationFrame);
+      }
+    } finally {
+      performance.mark('film-sample-end');
+      grid.querySelectorAll = original;
+      CSSStyleDeclaration.prototype.setProperty = setProperty;
     }
-    grid.querySelectorAll = original;
-    return { unrelatedClassUpdates: 24, fullGridScans: scans, developing: grid.querySelectorAll('[data-film-developing]').length };
+    return { unrelatedClassUpdates: 24, fullGridScans: scans, frameStyleWrites,
+      developingAtStart: startCount, developing: grid.querySelectorAll('[data-film-developing]').length };
   });
   const ended = new Promise(resolve => cdp.once('Tracing.tracingComplete', resolve));
   await cdp.send('Tracing.end');
@@ -113,7 +158,18 @@ try {
   for (;;) { const chunk = await cdp.send('IO.read', { handle: stream }); trace += chunk.data; if (chunk.eof) break; }
   await cdp.send('IO.close', { handle: stream });
   await writeFile(`${directory}/performance-${label}.trace.json`, trace);
-  const report = { label, viewport: '1200x900', pointer, film, errors };
+  const { traceEvents } = JSON.parse(trace);
+  const start = traceEvents.find(event => event.name === 'film-sample-start');
+  const end = traceEvents.find(event => event.name === 'film-sample-end');
+  if (!start || !end) throw new Error('Film sample markers are missing from the trace');
+  const filmMainThreadMs = {};
+  for (const name of ['UpdateLayoutTree', 'Layout', 'Paint']) {
+    const duration = traceEvents.filter(event => event.name === name && event.pid === start.pid
+      && event.tid === start.tid && event.ts >= start.ts && event.ts < end.ts)
+      .reduce((sum, event) => sum + (event.dur || 0), 0);
+    filmMainThreadMs[name] = Math.round(duration / 100) / 10;
+  }
+  const report = { label, viewport: '1200x900', galleryCards: 240, pointer, reorder, film, filmMainThreadMs, errors };
   await writeFile(`${directory}/performance-${label}.json`, JSON.stringify(report, null, 2));
   console.log(JSON.stringify(report));
   if (errors.length) throw new Error(errors.join('\n'));

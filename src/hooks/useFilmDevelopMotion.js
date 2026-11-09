@@ -21,18 +21,16 @@ export function useFilmDevelopMotion(rootRef, active, filmFrames) {
     const running = new Map();
     let stopped = false;
     const keyOf = image => image.closest('[data-photo-id]')?.dataset.photoId;
-    const clear = (image, negative, frame = image.closest('.film-negative')) => {
-      negative?.remove();
-      frame?.removeAttribute('data-film-developing');
-      frame?.style.removeProperty('--film-emulsion-opacity');
-      frame?.style.removeProperty('--film-grain-opacity');
+    const clear = (image, { layers, frame }) => {
+      layers.forEach(layer => layer.remove());
+      frame.removeAttribute('data-film-developing');
       gsap.set(image, { clearProps: 'opacity,willChange' });
     };
     const finish = image => {
       const motion = running.get(image);
       running.delete(image);
-      motion?.timeline.kill();
-      clear(image, motion?.negative, motion?.frame);
+      motion.timeline.kill();
+      clear(image, motion);
     };
     const revealVisible = contextSafe(() => {
       if (stopped || preference.matches || document.hidden) return;
@@ -45,25 +43,30 @@ export function useFilmDevelopMotion(rootRef, active, filmFrames) {
         const frame = image.closest('.film-negative');
         if (!frame) continue;
         frame.dataset.filmDeveloping = '';
-        gsap.set(frame, { '--film-emulsion-opacity': 0.9, '--film-grain-opacity': 0.2 });
         // Crossfade a static negative over the untouched original. Removing a
         // filter mid-timeline caused a visible colour jump; interpolating the
         // filter on every frame would also repaint every visible photograph.
-        const negative = document.createElement('span');
-        negative.className = 'film-develop-negative';
-        negative.setAttribute('aria-hidden', 'true');
+        // Tween the overlays directly so their opacity can update without
+        // invalidating inherited custom properties on the entire print.
+        const layers = ['negative', 'emulsion', 'grain'].map(kind => {
+          const layer = document.createElement('span');
+          layer.className = `film-develop-layer film-develop-${kind}`;
+          layer.setAttribute('aria-hidden', 'true');
+          return layer;
+        });
+        const [negative, emulsion, grain] = layers;
         negative.style.backgroundImage = `url(${JSON.stringify(image.currentSrc || image.src)})`;
-        frame.appendChild(negative);
+        frame.append(...layers);
         gsap.set(image, { opacity: 0.65, willChange: 'opacity' });
         const timeline = gsap.timeline({ defaults: { ease: 'power2.out' }, onComplete: () => {
           running.delete(image);
-          clear(image, negative, frame);
+          clear(image, { layers, frame });
         } });
-        running.set(image, { timeline, negative, frame });
+        running.set(image, { timeline, layers, frame });
         timeline.to(negative, { opacity: 0, duration: FILM_MOTION.negativeDuration, ease: FILM_MOTION.ease }, 0.15)
           .to(image, { opacity: 1, duration: FILM_MOTION.imageDuration, ease: FILM_MOTION.ease }, 0.1)
-          .to(frame, { '--film-emulsion-opacity': 0, duration: FILM_MOTION.duration, ease: FILM_MOTION.ease }, 0)
-          .to(frame, { '--film-grain-opacity': 0, duration: FILM_MOTION.grainDuration, ease: FILM_MOTION.ease }, 0.4);
+          .to(emulsion, { opacity: 0, duration: FILM_MOTION.duration, ease: FILM_MOTION.ease }, 0)
+          .to(grain, { opacity: 0, duration: FILM_MOTION.grainDuration, ease: FILM_MOTION.ease }, 0.4);
       }
     });
     const observer = new IntersectionObserver(entries => {
@@ -90,7 +93,9 @@ export function useFilmDevelopMotion(rootRef, active, filmFrames) {
     const visit = (node, callback, removing = false) => {
       if (!(node instanceof Element)) return;
       if (removing ? observed.has(node) : node.matches('.film-negative > img')) callback(node);
-      for (const image of node.querySelectorAll(removing ? 'img' : '.film-negative > img')) callback(image);
+      if (node.childElementCount) {
+        for (const image of node.querySelectorAll(removing ? 'img' : '.film-negative > img')) callback(image);
+      }
     };
     const mutations = new MutationObserver(records => {
       let reveal = false;

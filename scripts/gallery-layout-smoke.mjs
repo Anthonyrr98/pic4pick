@@ -128,7 +128,7 @@ try {
     assert.ok(admission.fade.some(value=>value>0.2&&value<0.8),'Colour emerges through a gradual negative-layer crossfade');
     assert.ok(admission.fade.every((value,index)=>index===0||value<=admission.fade[index-1]+0.001),'Negative layer fades continuously');
     assert.ok(admission.fade.at(-1)<0.01,'Negative layer is invisible before removal');
-    assert.equal(await page.locator('.film-develop-negative').count(),0,'Completed development removes temporary layers');
+    assert.equal(await page.locator('.film-develop-layer').count(),0,'Completed development removes temporary layers');
     assert.equal(await page.locator('.film-negative img').first().evaluate(img=>getComputedStyle(img).animationName),'none','CSS development is retired');
     assert.equal(await page.locator('.film-negative img').first().evaluate(img=>getComputedStyle(img).filter),'none','Original image remains unfiltered');
     const first=page.locator('.photo-card').first();
@@ -144,13 +144,13 @@ try {
     await page.waitForFunction(()=>document.querySelector('[data-photo-id="new-film"] [data-film-developing]'));
     await page.evaluate(()=>{window.removedFilmFrame=document.querySelector('[data-photo-id="new-film"] .film-negative');window.p4.removeNewFilm()});
     await page.waitForFunction(()=>!window.removedFilmFrame.hasAttribute('data-film-developing'));
-    assert.equal(await page.evaluate(()=>window.removedFilmFrame.querySelector('.film-develop-negative')),null,
+    assert.equal(await page.evaluate(()=>window.removedFilmFrame.querySelector('.film-develop-layer')),null,
       'Removing a newly inserted print releases its temporary layer during development');
     await page.locator('.photo-card').nth(12).scrollIntoViewIfNeeded();
     await page.waitForFunction(()=>document.querySelectorAll('[data-film-developing]').length>0);
     await page.evaluate(()=>window.p4.setActive(false));
     await page.waitForFunction(()=>document.querySelectorAll('[data-film-developing]').length===0);
-    assert.equal(await page.locator('.film-develop-negative').count(),0,'Stopping development removes temporary layers');
+    assert.equal(await page.locator('.film-develop-layer').count(),0,'Stopping development removes temporary layers');
     await page.evaluate(()=>window.p4.setActive(true));
     await page.evaluate(()=>scrollTo(0,0));
     await page.emulateMedia({reducedMotion:'reduce'});

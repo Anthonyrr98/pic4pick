@@ -10,6 +10,8 @@ export const FEEDBACK_MOTION = { duration: 0.18, ease: 'power2.out', offset: 3, 
 export const PRESENCE_MOTION = { duration: 0.18, panelDuration: 0.26, ease: 'power2.out',
   panelEase: 'power3.out', mobileOffset: 32, desktopOffset: 16, noticeOffset: -10 };
 export const LIGHTBOX_MOTION = { duration: 0.24, exitDuration: 0.2, ease: 'power2.out', offset: 18, exitOffset: 12 };
+export const LIGHTBOX_SWIPE_MOTION = { slop: 8, threshold: 56, maxDrag: 120, settle: 0.22, decodeGrace: 0.06, ease: 'power3.out' };
+export const SHARED_PHOTO_MOTION = { enter: 0.3, exit: PRESENCE_MOTION.duration, ease: 'power3.inOut' };
 export const VIEW_MOTION = { leave: 0.08, enter: 0.18, ease: 'power2.out' };
 export const FILM_MOTION = { duration: 3.2, negativeDuration: 2.75, imageDuration: 2.8,
   grainDuration: 2.8, ease: 'sine.inOut' };

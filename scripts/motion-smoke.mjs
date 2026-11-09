@@ -113,6 +113,7 @@ try {
     id: `motion-${index + 1}`, title: `Motion ${index + 1}`, status: 'approved', hidden: false,
     category: index === 3 ? 'film' : 'latest', film_stock: index === 3 ? 'Fuji C200' : '',
     image_url: `https://motion-images.invalid/${index + 1}.svg`,
+    thumbnail_url: index === 0 ? 'https://motion-images.invalid/thumb-1.svg' : '',
     created_at: `2026-10-${24 - index}T00:00:00Z`,
   }));
   for (const reducedMotion of ['no-preference', 'reduce']) {
@@ -129,8 +130,12 @@ try {
     await app.route('https://motion-api.invalid/**', route => route.fulfill({ json: {} }));
     let releaseSlow;
     const slowReady = new Promise(resolve => { releaseSlow = resolve; });
+    let releaseFirstPreview;
+    const firstPreviewReady = new Promise(resolve => { releaseFirstPreview = resolve; });
     await app.route('https://motion-images.invalid/**', async route => {
-      const number = Number(new URL(route.request().url()).pathname.match(/\d+/)[0]);
+      const path = new URL(route.request().url()).pathname;
+      const number = Number(path.match(/\d+/)[0]);
+      if (path === '/1.svg') await firstPreviewReady;
       if (number === 2) await slowReady;
       if (number === 5) { await route.fulfill({ status: 404, body: 'Unavailable' }); return; }
       const portrait = number % 2 === 0;
@@ -143,23 +148,96 @@ try {
     try {
       await page.goto(baseUrl, { waitUntil: 'domcontentloaded' });
       const card = page.getByRole('button', { name: '查看作品：Motion 1', exact: true });
+      await card.locator('img.loaded').waitFor();
+      await page.evaluate(() => {
+        const lightbox = document.querySelector('.lightbox');
+        window.sharedPhotoPhases = [];
+        new MutationObserver(() => {
+          const phase = lightbox.dataset.sharedPhotoMotion;
+          if (phase) window.sharedPhotoPhases.push(phase);
+          if (phase === 'enter') {
+            window.sharedPhotoEntry = {
+              layer: document.querySelector('.lightbox-shared-photo'),
+              aperture: lightbox.querySelector('.lightbox-media').getBoundingClientRect(),
+            };
+          }
+        }).observe(lightbox, { attributeFilter: ['data-shared-photo-motion'] });
+      });
       await card.focus();
       await card.press('Enter');
+      if (reducedMotion === 'no-preference') {
+        await page.waitForFunction(() => {
+          const root = document.querySelector('.lightbox');
+          return window.sharedPhotoPhases.includes('enter') && !root.dataset.sharedPhotoMotion
+            && root.querySelector('.lightbox-outgoing-image')?.currentSrc.endsWith('/thumb-1.svg')
+            && getComputedStyle(root.querySelector('.lightbox-media')).opacity === '1';
+        });
+        const endpointError = await page.evaluate(() => {
+          const { layer, aperture } = window.sharedPhotoEntry;
+          const transform = new DOMMatrix(layer.style.transform);
+          return Math.hypot(transform.e - aperture.left, transform.f - aperture.top);
+        });
+        assert.ok(endpointError < 1, `The expanded photo aligns with the aperture (error: ${endpointError}px)`);
+      }
+      releaseFirstPreview();
       await page.waitForFunction(() => {
-        const image = document.querySelector('.lightbox-media > img:not(.lightbox-outgoing-image)');
+        const image = document.querySelector('.lightbox-photo-track > img:not(.lightbox-outgoing-image)');
         return image?.naturalWidth > 0 && Number(getComputedStyle(image).opacity) === 1;
       });
-      await page.getByRole('button', { name: '下一张照片', exact: true }).click();
+      const touch = await app.newCDPSession(page);
+      const bounds = await page.locator('.lightbox-media').boundingBox();
+      const sendTouch = (type, dx = 0, dy = 0) => touch.send('Input.dispatchTouchEvent', {
+        type, touchPoints: type === 'touchEnd' || type === 'touchCancel' ? [] : [
+          { x: Math.round(bounds.x + bounds.width / 2) + dx, y: Math.round(bounds.y + bounds.height / 2) + dy },
+        ],
+      });
+      const waitForTrack = expected => page.waitForFunction(value => (
+        getComputedStyle(document.querySelector('.lightbox-photo-track')).translate === value
+      ), expected);
+      await sendTouch('touchStart');
+      await sendTouch('touchMove', 4, 60);
+      await sendTouch('touchEnd');
+      await waitForTrack('none');
+      assert.equal(await page.locator('#lightbox-title').textContent(), 'Motion 1', 'Vertical gestures leave the photo in place');
+
+      if (reducedMotion === 'no-preference') {
+        await sendTouch('touchStart');
+        await sendTouch('touchMove', -40);
+        await waitForTrack('-40px');
+        await sendTouch('touchMove', 26);
+        await waitForTrack('26px');
+        await sendTouch('touchEnd');
+        await waitForTrack('none');
+        assert.equal(await page.locator('#lightbox-title').textContent(), 'Motion 1', 'A short reversal settles on the same photo');
+
+        await sendTouch('touchStart');
+        await sendTouch('touchMove', 70);
+        await waitForTrack('70px');
+        await sendTouch('touchCancel');
+        await waitForTrack('none');
+        assert.equal(await page.locator('#lightbox-title').textContent(), 'Motion 1', 'A canceled touch never switches photos');
+      }
+      await sendTouch('touchStart');
+      await sendTouch('touchMove', -90);
+      await waitForTrack(reducedMotion === 'reduce' ? 'none' : '-90px');
+      await sendTouch('touchEnd');
       await page.waitForFunction(() => document.querySelector('#lightbox-title').textContent === 'Motion 2');
+      await waitForTrack('none');
       assert.equal(await page.locator('.lightbox-outgoing-image').count(), 1, 'Slow loads retain the last visible photograph');
+      await page.waitForFunction(() => {
+        const snapshot = document.querySelector('.lightbox-outgoing-image');
+        if (!snapshot?.currentSrc.endsWith('/1.svg')) return false;
+        const transform = getComputedStyle(snapshot).transform;
+        return transform === 'none' || Math.abs(new DOMMatrix(transform).m41) < 0.5;
+      });
       await page.getByRole('button', { name: '下一张照片', exact: true }).click();
       await page.waitForFunction(() => document.querySelector('#lightbox-title').textContent === 'Motion 3');
       releaseSlow();
       await page.locator('.lightbox-outgoing-image').waitFor({ state: 'detached' });
-      assert.equal(await page.locator('.lightbox-media > img').getAttribute('alt'), 'Motion 3', 'A stale load cannot replace the latest request');
+      assert.equal(await page.locator('.lightbox-photo-track > img').getAttribute('alt'), 'Motion 3', 'A stale load cannot replace the latest request');
       await page.keyboard.press('ArrowLeft');
       await page.waitForFunction(() => {
-        const image = document.querySelector('.lightbox-media > img:not(.lightbox-outgoing-image)');
+        const image = document.querySelector('.lightbox-photo-track > img:not(.lightbox-outgoing-image)');
         return image?.alt === 'Motion 2' && image.naturalWidth === 400 && Number(getComputedStyle(image).opacity) === 1;
       });
       await page.locator('.lightbox-outgoing-image').waitFor({ state: 'detached' });
@@ -187,6 +265,48 @@ try {
       await page.locator('.lightbox.active').waitFor({ state: 'hidden' });
       await page.waitForFunction(() => document.activeElement?.getAttribute('aria-label') === '查看作品：Motion 1');
       assert.equal(await page.locator('.lightbox-outgoing-image').count(), 0);
+      assert.deepEqual(await page.evaluate(() => window.sharedPhotoPhases),
+        reducedMotion === 'reduce' ? [] : ['enter'], 'Navigating to another photo uses the standard exit');
+
+      await card.press('Enter');
+      await page.waitForFunction(() => {
+        const root = document.querySelector('.lightbox');
+        return root.classList.contains('active') && !root.dataset.sharedPhotoMotion
+          && Number(getComputedStyle(root).opacity) === 1;
+      });
+      await page.keyboard.press('Escape');
+      await page.locator('.lightbox.active').waitFor({ state: 'hidden' });
+      assert.deepEqual(await page.evaluate(() => window.sharedPhotoPhases),
+        reducedMotion === 'reduce' ? [] : ['enter', 'enter', 'exit'], 'A visible source gets a return transition');
+      assert.equal(await page.locator('.lightbox-shared-photo, [data-shared-photo-source]').count(), 0);
+
+      if (reducedMotion === 'no-preference') {
+        await card.press('Enter');
+        await page.locator('[data-shared-photo-motion="enter"]').waitFor();
+        await page.keyboard.press('Escape');
+        await page.locator('.lightbox.active').waitFor({ state: 'hidden' });
+        assert.equal(await page.locator('.lightbox-shared-photo, [data-shared-photo-source]').count(), 0,
+          'Closing during entry clears the temporary layer');
+
+        await card.press('Enter');
+        await page.locator('[data-shared-photo-motion="enter"]').waitFor();
+        await card.evaluate(node => { node.style.visibility = 'hidden'; });
+        await page.keyboard.press('Escape');
+        await page.locator('.lightbox.active').waitFor({ state: 'hidden' });
+        assert.deepEqual(await page.evaluate(() => window.sharedPhotoPhases),
+          ['enter', 'enter', 'exit', 'enter', 'exit', 'enter'], 'An unavailable source falls back to a fade');
+        await page.locator('[data-photo-id="motion-1"]').evaluate(node => {
+          node.style.removeProperty('visibility');
+        });
+        await page.setViewportSize({ width: 1200, height: 900 });
+        await card.press('Enter');
+        await page.locator('[data-shared-photo-motion="enter"]').waitFor({ state: 'attached' });
+        await page.locator('.lightbox-shared-photo').waitFor({ state: 'detached' });
+        await page.keyboard.press('Escape');
+        await page.locator('[data-shared-photo-motion="exit"]').waitFor({ state: 'attached' });
+        await page.locator('.lightbox.active').waitFor({ state: 'hidden' });
+        await page.setViewportSize({ width: 390, height: 844 });
+      }
       await page.getByRole('tab', { name: '胶片', exact: true }).click();
       await page.getByRole('button', { name: '查看作品：Motion 4', exact: true }).click();
       await page.waitForFunction(() => {
@@ -201,21 +321,22 @@ try {
       await page.getByRole('tab', { name: '最新', exact: true }).click();
       await card.click();
       await page.waitForFunction(() => {
-        const image = document.querySelector('.lightbox-media > img');
+        const image = document.querySelector('.lightbox-photo-track > img');
         return image?.alt === 'Motion 1' && image.naturalWidth > 0 && Number(getComputedStyle(image).opacity) === 1;
       });
       // Swiping backwards wraps to the broken last photo. A terminal failure
       // must remove the outgoing snapshot and expose the fallback message.
+      await page.locator('.lightbox-shared-photo').waitFor({ state: 'detached' });
       await page.locator('.lightbox-media').evaluate(el => {
-        el.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerType: 'touch', clientX: 100, clientY: 200 }));
-        el.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerType: 'touch', clientX: 220, clientY: 202 }));
+        el.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerType: 'touch', isPrimary: true, clientX: 100, clientY: 200 }));
+        el.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerType: 'touch', isPrimary: true, clientX: 220, clientY: 202 }));
       });
       await page.locator('.lightbox-media-fallback').waitFor();
       assert.equal(await page.locator('.lightbox-outgoing-image').count(), 0);
       await page.keyboard.press('Escape');
       await page.locator('.lightbox.active').waitFor({ state: 'hidden' });
-    } finally { releaseSlow(); await app.close(); }
+    } finally { releaseFirstPreview(); releaseSlow(); await app.close(); }
   }
   assert.deepEqual(errors, []);
-  console.log('P1 motion passed: upload rendering/reset/reduced motion, tab interruption/resizing/fonts, reversible dialogs/cleanup, slow and stale image loads, keyboard/focus, portrait and film frames.');
+  console.log('P1 motion passed: touch tracking and rebound, shared photo entry/return/fallback, upload and tab motion, reversible dialogs, slow and stale image loads, keyboard/focus, portrait and film frames.');
 } finally { await browser.close(); }

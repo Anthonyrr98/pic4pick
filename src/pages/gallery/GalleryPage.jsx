@@ -41,6 +41,8 @@ import { SpatialSceneControls, SpatialSceneStatus } from '../../components/Spati
 import { useSpatialScene } from '../../hooks/useSpatialScene';
 import { useAnimatedPresence } from '../../hooks/useAnimatedPresence';
 import { useLightboxImageMotion } from '../../hooks/useLightboxImageMotion';
+import { captureLightboxSource, useLightboxSharedMotion } from '../../hooks/useLightboxSharedMotion';
+import { useLightboxSwipe } from '../../hooks/useLightboxSwipe';
 import { useGalleryHeaderEntry } from '../../hooks/useGalleryEntryMotion';
 import { useViewTransition } from '../../hooks/useViewTransition';
 import { advanceImageFallback } from '../../utils/imageFallback';
@@ -164,14 +166,16 @@ export function GalleryPage() {
   const [isLightboxPortrait, setIsLightboxPortrait] = useState(false);
   const [lightboxAspectRatio, setLightboxAspectRatio] = useState(null);
   const [lightboxPreviewFailed, setLightboxPreviewFailed] = useState(false);
-  const lightboxPointerRef = useRef(null);
   const lightboxRef = useRef(null);
+  const lightboxSourceRef = useRef(null);
   const lightboxReturnFocusRef = useRef(null);
   const lightboxImageRef = useRef(null);
   const lightboxMediaRef = useRef(null);
+  const lightboxTrackRef = useRef(null);
   const spatialCanvasRef = useRef(null);
   const finishLightboxClose = useCallback(() => {
     setLightboxPhoto(null);
+    lightboxSourceRef.current = null;
     window.requestAnimationFrame(() => {
       if (lightboxRef.current && !lightboxRef.current.classList.contains('active')) {
         lightboxReturnFocusRef.current?.focus?.({ preventScroll: true });
@@ -293,7 +297,11 @@ export function GalleryPage() {
       ].filter(Boolean)
     : [];
   const prepareLightboxSwitch = useLightboxImageMotion(lightboxPhoto?.id, lightboxVisualSrc,
-    lightboxPreviewFailed, lightboxImageRef, lightboxMediaRef, lightboxOpen);
+    lightboxPreviewFailed, lightboxImageRef, lightboxTrackRef, lightboxOpen, lightboxSourceRef);
+  const returnToLightboxSource = useLightboxSharedMotion({
+    rootRef: lightboxRef, mediaRef: lightboxMediaRef, imageRef: lightboxImageRef,
+    sourceRef: lightboxSourceRef, photoId: lightboxPhoto?.id, present: lightboxPresent, failed: lightboxPreviewFailed,
+  });
 
   // 鈹€鈹€ 鍦扮悊淇℃伅锛圠ightbox 鐢級
   const getGeoInfo = useMemo(() => {
@@ -346,64 +354,40 @@ export function GalleryPage() {
     }, 300);
   }, [isLoadingMore, displayedCount, filteredPhotos.length]);
 
-  const openLightboxPhoto = useCallback((photo) => {
+  const openLightboxPhoto = useCallback((photo, card) => {
+    const source = activeView === 'gallery-view' && !isFilmSection && card
+      ? captureLightboxSource(card, photo.id)
+      : null;
     lightboxReturnFocusRef.current = document.activeElement;
     setShowPhotoDetails(false);
-    setLightboxAspectRatio(null);
-    setIsLightboxPortrait(false);
+    lightboxSourceRef.current = source;
+    setLightboxAspectRatio(source?.aspect ?? null);
+    setIsLightboxPortrait(Boolean(source && source.aspect < 1));
     setLightboxPreviewFailed(false);
     setLightboxPhoto(photo);
     setLightboxOpen(true);
-  }, []);
+  }, [activeView, isFilmSection]);
 
   const closeLightbox = useCallback(() => {
+    returnToLightboxSource();
     setShowPhotoDetails(false);
     setLightboxOpen(false);
-  }, []);
+  }, [returnToLightboxSource]);
 
-  const goToAdjacentLightboxPhoto = useCallback((direction) => {
+  const goToAdjacentLightboxPhoto = useCallback((direction, dragX = 0) => {
     if (!canNavigateLightbox || !lightboxOpen) return;
     const nextIndex = (lightboxIndex + direction + lightboxSequence.length) % lightboxSequence.length;
     const nextPhoto = lightboxSequence[nextIndex];
     if (!nextPhoto) return;
-    prepareLightboxSwitch(direction);
+    prepareLightboxSwitch(direction, dragX);
+    lightboxSourceRef.current = null;
     setShowPhotoDetails(false);
     setLightboxPreviewFailed(false);
     setLightboxPhoto(nextPhoto);
   }, [canNavigateLightbox, lightboxOpen, lightboxIndex, lightboxSequence, prepareLightboxSwitch]);
 
-  const handleLightboxPointerDown = useCallback((event) => {
-    if (event.pointerType === 'mouse') return;
-    lightboxPointerRef.current = {
-      x: event.clientX,
-      y: event.clientY,
-      at: Date.now(),
-    };
-  }, []);
-
-  const handleLightboxPointerUp = useCallback((event) => {
-    const start = lightboxPointerRef.current;
-    lightboxPointerRef.current = null;
-    if (!start) return;
-
-    const dx = event.clientX - start.x;
-    const dy = event.clientY - start.y;
-    const absX = Math.abs(dx);
-    const absY = Math.abs(dy);
-    const elapsed = Date.now() - start.at;
-
-    if (absX > 56 && absX > absY * 1.2 && elapsed < 800) {
-      if (spatialScene.ready) return;
-      event.preventDefault();
-      goToAdjacentLightboxPhoto(dx < 0 ? 1 : -1);
-      return;
-    }
-
-  }, [goToAdjacentLightboxPhoto, spatialScene.ready]);
-
-  const handleLightboxPointerCancel = useCallback(() => {
-    lightboxPointerRef.current = null;
-  }, []);
+  useLightboxSwipe(lightboxMediaRef, lightboxOpen && lightboxPresent && canNavigateLightbox
+    && !showPhotoDetails && !spatialScene.ready, lightboxPhoto?.id, goToAdjacentLightboxPhoto);
 
   const openPhotoDetails = useCallback(() => {
     setShowPhotoDetails(true);
@@ -798,51 +782,50 @@ export function GalleryPage() {
           )}
           <div className="lightbox-content-wrapper">
             <div ref={lightboxMediaRef} className={`lightbox-media ${isLightboxPortrait ? 'portrait-fit' : ''} ${lightboxAspectRatio ? 'aspect-fit' : ''} ${spatialScene.ready ? 'spatial-scene-active' : ''}`}
-              style={lightboxAspectRatio ? { '--lightbox-aspect-ratio': lightboxAspectRatio } : undefined}
-              onPointerDown={handleLightboxPointerDown}
-              onPointerUp={handleLightboxPointerUp}
-              onPointerCancel={handleLightboxPointerCancel}>
-              {lightboxPhoto && lightboxVisualSrc && !lightboxPreviewFailed ? (
-                <img
-                  ref={lightboxImageRef}
-                  key={lightboxPhoto.id}
-                  src={lightboxVisualSrc}
-                  srcSet={lightboxVisualSrcSet || undefined}
-                  sizes={lightboxVisualSrcSet ? (isFilmSection ? '100vw' : LIGHTBOX_IMAGE_SIZES) : undefined}
-                  alt={lightboxPhoto.title}
-                  loading="eager"
-                  fetchPriority="high"
-                  decoding="async"
-                  referrerPolicy="no-referrer"
-                  onLoad={(e) => {
-                    const img = e.currentTarget;
-                    delete img.dataset.previewFallbackIndex;
-                    setIsLightboxPortrait(img.naturalHeight > img.naturalWidth);
-                    setLightboxAspectRatio(img.naturalWidth / img.naturalHeight);
-                  }}
-                  onError={(e) => {
-                    if (advanceImageFallback(e.currentTarget, lightboxFallbackUrls)) return;
+              style={lightboxAspectRatio ? { '--lightbox-aspect-ratio': lightboxAspectRatio } : undefined}>
+              <div ref={lightboxTrackRef} className="lightbox-photo-track">
+                {lightboxPhoto && lightboxVisualSrc && !lightboxPreviewFailed ? (
+                  <img
+                    ref={lightboxImageRef}
+                    key={lightboxPhoto.id}
+                    src={lightboxVisualSrc}
+                    srcSet={lightboxVisualSrcSet || undefined}
+                    sizes={lightboxVisualSrcSet ? (isFilmSection ? '100vw' : LIGHTBOX_IMAGE_SIZES) : undefined}
+                    alt={lightboxPhoto.title}
+                    loading="eager"
+                    fetchPriority="high"
+                    decoding="async"
+                    referrerPolicy="no-referrer"
+                    onLoad={(e) => {
+                      const img = e.currentTarget;
+                      delete img.dataset.previewFallbackIndex;
+                      setIsLightboxPortrait(img.naturalHeight > img.naturalWidth);
+                      setLightboxAspectRatio(img.naturalWidth / img.naturalHeight);
+                    }}
+                    onError={(e) => {
+                      if (advanceImageFallback(e.currentTarget, lightboxFallbackUrls)) return;
 
-                    handleError(new Error(`Lightbox preview unavailable: ${lightboxPhoto.title}`), {
-                      context: 'GalleryPage.lightboxPreview',
-                      type: ErrorType.NETWORK,
-                      silent: true,
-                    });
-                    setLightboxPreviewFailed(true);
-                  }}
-                />
-              ) : (
-                <div className="lightbox-media-fallback">预览图暂不可用</div>
-              )}
+                      handleError(new Error(`Lightbox preview unavailable: ${lightboxPhoto.title}`), {
+                        context: 'GalleryPage.lightboxPreview',
+                        type: ErrorType.NETWORK,
+                        silent: true,
+                      });
+                      setLightboxPreviewFailed(true);
+                    }}
+                  />
+                ) : (
+                  <div className="lightbox-media-fallback">预览图暂不可用</div>
+                )}
+                {lightboxPhoto && lightboxVisualSrc && !lightboxPreviewFailed && (
+                  <span className="lightbox-watermark-frame" aria-hidden="true">
+                    <span className="lightbox-watermark" />
+                  </span>
+                )}
+              </div>
               {lightboxPhoto && (
                 <canvas ref={spatialCanvasRef} className={`spatial-scene-canvas ${spatialScene.ready ? 'is-ready' : ''}`} aria-hidden="true" />
               )}
               {lightboxPhoto && <SpatialSceneStatus scene={spatialScene} />}
-              {lightboxPhoto && lightboxVisualSrc && !lightboxPreviewFailed && (
-                <span className="lightbox-watermark-frame" aria-hidden="true">
-                  <span className="lightbox-watermark" />
-                </span>
-              )}
             </div>
 
           </div>

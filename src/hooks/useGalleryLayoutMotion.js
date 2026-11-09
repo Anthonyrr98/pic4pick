@@ -11,6 +11,30 @@ const inViewport = node => {
   return rect.bottom > 0 && rect.top < window.innerHeight && rect.right > 0 && rect.left < window.innerWidth;
 };
 
+function visibleCards(root, moving) {
+  const cards = root.querySelectorAll(':scope > .photo-card');
+  const viewportTop = -root.getBoundingClientRect().top - root.clientTop;
+  const viewportBottom = viewportTop + window.innerHeight;
+  // The grid flows in DOM order. offsetTop uses each row's layout position,
+  // even while an interrupted Flip is rendering a card elsewhere.
+  let first = 0;
+  let end = cards.length;
+  while (first < end) {
+    const middle = (first + end) >>> 1;
+    if (cards[middle].offsetTop < viewportTop) first = middle + 1;
+    else end = middle;
+  }
+  const previousRow = cards[first - 1]?.offsetTop;
+  while (first > 0 && cards[first - 1].offsetTop === previousRow) first--;
+  const candidates = new Set(moving);
+  // Include the preceding row for a partial intersection and allow one pixel
+  // for offsetTop rounding. Rects are read only for these rows and active cards.
+  for (let i = first; i < cards.length && cards[i].offsetTop <= viewportBottom + 1; i++) {
+    candidates.add(cards[i]);
+  }
+  return [...candidates].filter(inViewport);
+}
+
 // Capture explicitly before the filter state changes. Refreshes, likes and
 // pagination never capture a state, so they cannot replay a layout transition.
 export function useGalleryLayoutMotion(rootRef, active, filterKey, prepareRef, filmFrames) {
@@ -28,29 +52,30 @@ export function useGalleryLayoutMotion(rootRef, active, filterKey, prepareRef, f
       // the previous Flip without allowing its completion to clear the next.
       animation?.eventCallback('onComplete', null);
       animation?.kill(); animation = null;
-      gsap.set(targets, { clearProps: 'transform,transformOrigin,translate,rotate,scale,width,height,position,top,left' });
+      if (targets.length) {
+        gsap.set(targets, { clearProps: 'transform,transformOrigin,translate,rotate,scale,width,height,position,top,left' });
+      }
       targets = [];
       delete root.dataset.layoutMotion;
     };
     const cancel = () => { pendingRef.current = null; clear(); };
     const capture = nextFilter => {
       root.dispatchEvent(new Event('gallerylayoutstart'));
-      const cards = [...root.querySelectorAll('.photo-card')];
       // Film changes the whole print geometry and theme. Keep its full-image
       // reveal instead of stretching a cropped card into a film aperture.
       if (!active || preference.matches || document.hidden || (nextFilter === 'film') !== filmFrames) {
         cancel(); return;
       }
-      const visible = cards.filter(inViewport);
-      const state = Flip.getState(visible, { kill: false });
+      const cards = visibleCards(root, targets);
+      const state = cards.length ? Flip.getState(cards, { kill: false }) : null;
       clear();
-      pendingRef.current = { state, ids: new Set(visible.map(card => card.dataset.photoId)) };
+      pendingRef.current = state ? { state, cards } : null;
     };
     const play = contextSafe(() => {
       const pending = pendingRef.current;
       pendingRef.current = null;
       if (!pending || preference.matches || document.hidden || !active) { clear(); return; }
-      targets = [...root.querySelectorAll('.photo-card')].filter(card => pending.ids.has(card.dataset.photoId));
+      targets = pending.cards.filter(card => card.parentElement === root);
       if (!targets.length) return;
       root.dataset.layoutMotion = '';
       animation = Flip.from(pending.state, { targets, ...LAYOUT_MOTION,

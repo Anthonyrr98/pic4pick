@@ -27,18 +27,19 @@ export function useCurationPanelMotion(panelRef, bodyRef, { active, mobile, coll
       if (!rect.height || !rect.width) {
         tween?.kill(); previous = null;
         gsap.set([panel, body], { clearProps: 'transform,transformOrigin' });
-        delete panel.dataset.animating; delete panel.dataset.focusBottom;
+        delete panel.dataset.animating; delete panel.dataset.focusTop;
         return;
       }
       const next = { height: rect.height / scale, bottom: rect.bottom - y, width: rect.width };
-      // The camera uses final geometry, even while the panel is still moving.
-      panel.dataset.focusBottom = String(next.bottom);
       if (!instant && previous && Math.abs(previous.height - next.height) < 0.5 &&
         Math.abs(previous.bottom - next.bottom) < 0.5 && Math.abs(previous.width - next.width) < 0.5) return;
+      // The camera uses the settled top edge, even while the panel is moving.
+      panel.dataset.focusTop = String(next.bottom - next.height);
       tween?.kill();
       const old = previous;
       previous = next;
-      if (!old || instant || preference.matches || !activeRef.current || Math.abs(old.width - next.width) > 1) {
+      if (!old || instant || viewportRef.current.keyboard || preference.matches || !activeRef.current
+        || Math.abs(old.width - next.width) > 1) {
         gsap.set([panel, body], { clearProps: 'transform,transformOrigin' });
         delete panel.dataset.animating;
         return;
@@ -76,7 +77,7 @@ export function useCurationPanelMotion(panelRef, bodyRef, { active, mobile, coll
       cancelAnimationFrame(frame); observer.disconnect(); tween?.kill();
       preference.removeEventListener('change', preferenceChanged);
       document.removeEventListener('visibilitychange', visibilityChanged);
-      delete panel.dataset.animating; delete panel.dataset.focusBottom;
+      delete panel.dataset.animating; delete panel.dataset.focusTop;
       updateRef.current = null;
     };
   }, { scope: panelRef });

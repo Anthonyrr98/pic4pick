@@ -225,11 +225,10 @@ export const useFocusMapOnCity = (
       const rect = container.getBoundingClientRect();
       const panel = section.querySelector<HTMLElement>('.curation-panel');
       const panelRect = panel?.getBoundingClientRect();
-      // During a sheet resize, aim using its settled height rather than an intermediate frame.
-      const focusHeight = Number(panel?.dataset.focusHeight);
-      const focusRect = panelRect && panel?.dataset.mobile === 'true' && focusHeight > 0
-        ? { width: panelRect.width, height: focusHeight, right: panelRect.right,
-          top: Number(panel.dataset.focusBottom || panelRect.bottom) - focusHeight }
+      // The mobile sheet publishes its settled top before its resize tween.
+      const focusTop = panel?.dataset.focusTop;
+      const focusRect = panelRect && panel?.dataset.mobile === 'true' && focusTop !== undefined
+        ? { width: panelRect.width, height: panelRect.height, right: panelRect.right, top: Number(focusTop) }
         : panelRect;
       const offset = getCityFocusOffset(rect, focusRect);
       // MapLibre's 512px world tiles use one less zoom level for the same city scale.

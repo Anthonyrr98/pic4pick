@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { mkdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { chromium } from 'playwright';
+import { createCityFlight, getCityFocusOffset } from '../src/pages/gallery/utils/cityFlight.js';
 
 const baseUrl = (process.env.UI_BASE_URL || 'http://127.0.0.1:5173').replace(/\/$/, '');
 const artifacts = process.env.UI_ARTIFACT_DIR || '';
@@ -408,17 +409,31 @@ try {
   await mobileSheet.page.evaluate(() => {
     Object.defineProperty(window.visualViewport, 'height', { configurable: true, get: () => 460 });
     window.visualViewport.dispatchEvent(new Event('resize'));
-    document.querySelector('.discover-search input').addEventListener('blur', () => {
-      delete window.visualViewport.height;
-      window.visualViewport.dispatchEvent(new Event('resize'));
-    }, { once: true });
   });
   await mobileSheet.page.waitForFunction(() => Number.parseFloat(document.querySelector('.curation-panel').style.getPropertyValue('--curation-keyboard-inset')) > 300);
   assert.ok((await mobileInput.boundingBox()).y < 400, 'Search must remain above the mobile keyboard');
   await mobileSheet.page.locator('.discover-search-result').click();
+  // A soft keyboard can still occupy the viewport for several hundred
+  // milliseconds after blur. Focusing then would aim at the wrong map area.
+  await mobileSheet.page.waitForTimeout(400);
+  assert.equal(await mobileSheet.page.evaluate(() => window.mapChecks.maps[0].calls.length), 0,
+    'City focus waits for the keyboard viewport to recover');
+  await mobileSheet.page.evaluate(() => {
+    delete window.visualViewport.height;
+    window.visualViewport.dispatchEvent(new Event('resize'));
+  });
   await mobileSheet.page.waitForFunction(() => document.querySelector('#explore-view').classList.contains('map-in-motion'));
   assert.equal(await sheet.getAttribute('data-sheet-state'), 'compact');
   await mobileSheet.page.waitForFunction(() => !document.querySelector('#explore-view').classList.contains('map-in-motion'));
+  const arrival = await mobileSheet.page.evaluate(() => ({
+    center: window.mapChecks.maps[0].calls.at(-1).center,
+    map: document.querySelector('#mapCanvas').getBoundingClientRect().toJSON(),
+    sheet: document.querySelector('.curation-panel').getBoundingClientRect().toJSON(),
+  }));
+  const expected = createCityFlight({ from: [114, 35], to: [114.3076, 34.7973], zoom: 5,
+    width: arrival.map.width, height: arrival.map.height, offset: getCityFocusOffset(arrival.map, arrival.sheet) });
+  assert.ok(Math.hypot(...arrival.center.map((coordinate, index) => coordinate - expected.destination[index])) < 0.00001,
+    'City focus ends at the center of the map area above the settled sheet');
   assert.equal(await mobileSheet.page.getByRole('searchbox', { name: '搜索地点' }).count(), 0);
   assert.equal(await mobileSheet.page.locator('#curation-gallery-title').innerText(), '开封');
   await mobileSheet.page.getByRole('button', { name: '返回地点列表' }).click();

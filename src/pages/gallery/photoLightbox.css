@@ -10,8 +10,31 @@
 }
 
 /* Image crossfades live inside the aperture; the frame and controls stay still. */
-.lightbox-media > .lightbox-watermark-frame { z-index: 2; }
-.lightbox-media > img:not(.lightbox-outgoing-image) { transition: none; }
+.lightbox-photo-track {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  border-radius: inherit;
+  translate: var(--lightbox-swipe-x, none);
+}
+
+.lightbox-photo-track > .lightbox-watermark-frame { z-index: 2; }
+.lightbox-photo-track > img:not(.lightbox-outgoing-image) { transition: none; }
+
+.lightbox-shared-photo {
+  position: fixed;
+  inset: 0 auto auto 0;
+  z-index: 1000;
+  object-fit: contain;
+  pointer-events: none;
+  transform-origin: 0 0;
+}
+
+.lightbox[data-shared-photo-motion] .lightbox-media { opacity: 0; }
+.photo-card[data-shared-photo-source] img { visibility: hidden; }
 
 :root[data-theme] .lightbox-panel--photo-only .lightbox-media::after { display: none; }
 .lightbox-navigation { display: contents; }
