@@ -50,6 +50,7 @@ struct WebsiteMap: UIViewRepresentable {
         var parent: WebsiteMap
         weak var web: WKWebView?
         var ready = false
+        private var initialDocumentAllowed = false
         var sent: WebsiteMapPayload?
         var sentClearance: Double?
         var sentAttributionTop: Double?
@@ -94,7 +95,13 @@ struct WebsiteMap: UIViewRepresentable {
             }
         }
         func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
-            guard message.frameInfo.isMainFrame, let values = message.body as? [String: Any], let type = values["type"] as? String else { return }
+            let origin = message.frameInfo.securityOrigin
+            guard message.frameInfo.isMainFrame,
+                  origin.protocol == "https", origin.host == parent.baseURL.host,
+                  (origin.port == 0 ? 443 : origin.port) == (parent.baseURL.port ?? 443),
+                  let values = message.body as? [String: Any],
+                  let data = try? JSONSerialization.data(withJSONObject: values), data.count <= 16_000,
+                  let type = values["type"] as? String else { return }
             switch type {
             case "documentReady": ready = true; send()
             case "ready": parent.onStatus("ready")
@@ -102,8 +109,7 @@ struct WebsiteMap: UIViewRepresentable {
             case "location":
                 if let id = values["id"] as? String, parent.payload.locations.contains(where: { $0.id == id }) { parent.onLocation(id) }
             case "address":
-                guard let data = try? JSONSerialization.data(withJSONObject: values), data.count < 16000,
-                      let result = try? JSONDecoder().decode([String: JSONValue].self, from: data),
+                guard let result = try? JSONDecoder().decode([String: JSONValue].self, from: data),
                       result["id"] == parent.payload.geocode?["id"] else { return }
                 parent.onAddress(result)
             default: break
@@ -113,10 +119,16 @@ struct WebsiteMap: UIViewRepresentable {
         func webViewWebContentProcessDidTerminate(_ webView: WKWebView) { parent.onStatus("failure") }
         func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction) async -> WKNavigationActionPolicy {
             if action.navigationType == .linkActivated {
-                if let url = action.request.url, url.scheme == "https" { await UIApplication.shared.open(url) }
+                if action.sourceFrame.isMainFrame, let url = action.request.url, url.scheme == "https" {
+                    await UIApplication.shared.open(url)
+                }
                 return .cancel
             }
-            return ["about", "https"].contains(action.request.url?.scheme ?? "") ? .allow : .cancel
+            guard !initialDocumentAllowed, action.targetFrame?.isMainFrame == true,
+                  let url = action.request.url,
+                  url.absoluteString == "about:blank" || url == parent.baseURL else { return .cancel }
+            initialDocumentAllowed = true
+            return .allow
         }
     }
 }

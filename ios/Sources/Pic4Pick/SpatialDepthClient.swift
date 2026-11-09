@@ -39,10 +39,13 @@ actor SpatialDepthClient {
 
     private func metadata(_ photoID: String) async throws -> SpatialMetadata? {
         guard UUID(uuidString: photoID) != nil else { throw SpatialFailure.message("无效的照片编号。") }
-        var url = URLComponents(string: config.supabaseURL + "/rest/v1/photo_spatial")!
-        url.queryItems = [.init(name: "select", value: "photo_id,generation,status,storage_backend,depth_path,width,height"),
+        var components = URLComponents(string: config.supabaseURL + "/rest/v1/photo_spatial")
+        components?.queryItems = [.init(name: "select", value: "photo_id,generation,status,storage_backend,depth_path,width,height"),
                           .init(name: "photo_id", value: "eq." + photoID), .init(name: "limit", value: "1")]
-        let rows = try JSONDecoder().decode([SpatialMetadata].self, from: await fetch(request(url.url!, publicRead: true)))
+        guard let url = components?.url, ClientConfig.httpsURL(url.absoluteString) != nil else {
+            throw SpatialFailure.message("空间照片服务地址无效。")
+        }
+        let rows = try JSONDecoder().decode([SpatialMetadata].self, from: await fetch(request(url, publicRead: true)))
         guard let row = rows.first else { return nil }
         guard row.photoID == photoID else { throw SpatialFailure.message("空间照片编号不匹配。") }
         return row
@@ -52,20 +55,27 @@ actor SpatialDepthClient {
         let data: Data
         let raw: String
         if row.storageBackend == "oss" {
-            data = try await fetch(request(URL(string: config.apiBaseURL + "/api/photos/\(row.photoID)/spatial-depth")!))
+            guard let url = ClientConfig.httpsURL(config.apiBaseURL + "/api/photos/\(row.photoID)/spatial-depth") else {
+                throw SpatialFailure.message("空间照片服务地址无效。")
+            }
+            data = try await fetch(request(url))
             struct Signature: Decodable { let signedUrl: String; let generation: String }
             let value = try JSONDecoder().decode(Signature.self, from: data)
             guard value.generation == row.generation else { throw SpatialFailure.message("照片已更新，请重新打开空间场景。") }
             raw = value.signedUrl
         } else {
             guard row.storageBackend == nil || row.storageBackend == "supabase" else { throw SpatialFailure.message("暂不支持此景深存储。") }
-            data = try await fetch(request(URL(string: config.supabaseURL + "/storage/v1/object/sign/spatial-depth/" + row.depthPath!)!,
+            guard let path = row.depthPath,
+                  let url = ClientConfig.httpsURL(config.supabaseURL + "/storage/v1/object/sign/spatial-depth/" + path) else {
+                throw SpatialFailure.message("景深存储地址无效。")
+            }
+            data = try await fetch(request(url,
                 publicRead: true, body: Data("{\"expiresIn\":300}".utf8)))
             struct Signature: Decodable { let signedURL: String }
             let value = try JSONDecoder().decode(Signature.self, from: data)
             raw = value.signedURL.hasPrefix("/") ? config.supabaseURL + "/storage/v1" + value.signedURL : value.signedURL
         }
-        guard let url = URL(string: raw), url.scheme == "https", url.host != nil else { throw SpatialFailure.message("景深链接无效。") }
+        guard let url = ClientConfig.httpsURL(raw) else { throw SpatialFailure.message("景深链接无效。") }
         return url
     }
 
@@ -81,10 +91,12 @@ actor SpatialDepthClient {
             }
             if row.status == "failed" { throw SpatialFailure.message("这张作品的空间效果暂未生成成功，请稍后再试。") }
             if row.status == "ready" {
-                guard row.validReady else { throw SpatialFailure.message("空间照片数据异常，请稍后重试。") }
+                guard row.validReady, let width = row.width, let height = row.height else {
+                    throw SpatialFailure.message("空间照片数据异常，请稍后重试。")
+                }
                 if let index = cache.firstIndex(where: { $0.key == row.cacheKey }) {
                     let cached = cache.remove(at: index)
-                    if cached.depth.width == row.width && cached.depth.height == row.height { cache.append(cached); return cached.depth }
+                    if cached.depth.width == width && cached.depth.height == height { cache.append(cached); return cached.depth }
                 }
                 let png: Data
                 do { png = try await fetch(request(try await signedURL(row))) }
@@ -92,7 +104,7 @@ actor SpatialDepthClient {
                     // Refresh one expired signature, without an unbounded retry loop.
                     png = try await fetch(request(try await signedURL(row)))
                 }
-                let depth = try Self.decode(png, width: row.width!, height: row.height!)
+                let depth = try Self.decode(png, width: width, height: height)
                 try Task.checkCancellation()
                 cache.removeAll { $0.key.hasPrefix(photoID + ":") }
                 cache.append((row.cacheKey, depth))

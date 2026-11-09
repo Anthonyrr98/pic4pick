@@ -1,5 +1,4 @@
 import SwiftUI
-import MapKit
 
 enum Palette {
     static let paper = Color(red: 0.97, green: 0.96, blue: 0.93)
@@ -419,84 +418,5 @@ struct PhotoCard: View {
                 if store.favorites.contains(photo.id) { Image(systemName: "bookmark.fill").font(.caption).foregroundStyle(Palette.accent) }
             }
         }.contentShape(Rectangle())
-    }
-}
-
-struct AppleExploreView: View {
-    @EnvironmentObject private var store: GalleryStore
-    @State private var selected: PhotoSelection?
-    @State private var camera: MapCameraPosition = .automatic
-    private var photos: [Photo] { store.photos.filter(\.hasCoordinate) }
-    // Group nearby works to keep the native map responsive and avoid overlapping pins.
-    private var groups: [[Photo]] {
-        let grouped = Dictionary(grouping: photos) { String(format: "%.2f,%.2f", $0.latitude!, $0.longitude!) }
-        return grouped.keys.sorted().compactMap { grouped[$0] }
-    }
-    var body: some View {
-        NavigationStack {
-            Map(position: $camera) {
-                ForEach(groups, id: \.first!.id) { group in
-                    let photo = group[0]
-                    Annotation(photo.location.isEmpty ? photo.displayTitle : photo.location,
-                        coordinate: CLLocationCoordinate2D(latitude: photo.latitude!, longitude: photo.longitude!)) {
-                        Button { selected = PhotoSelection(id: photo.id, photos: group) } label: {
-                            VStack(spacing: 3) {
-                                Image(systemName: "camera.fill").font(.headline)
-                                if group.count > 1 { Text("\(group.count)").font(.caption2.bold()) }
-                            }.padding(11).background(Palette.accent, in: RoundedRectangle(cornerRadius: 12)).foregroundStyle(.white)
-                        }.accessibilityLabel("\(photo.place)，\(group.count) 张作品")
-                    }
-                }
-            }
-            .mapStyle(.standard(elevation: .flat, pointsOfInterest: .excludingAll))
-            .mapControls { MapCompass(); MapScaleView() }
-            .overlay(alignment: .bottomLeading) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("光的足迹").font(.system(.title2, design: .serif))
-                    Text("\(photos.count) 张作品 · 点按标记查看").font(.caption).foregroundStyle(.secondary)
-                }.padding(18).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 18)).padding()
-            }
-            .overlay {
-                if photos.isEmpty {
-                    ContentUnavailableView("尚无位置作品", systemImage: "map", description: Text(store.loading ? "正在加载…" : "带有拍摄坐标的作品会出现在这里。"))
-                        .background(.regularMaterial)
-                }
-            }
-            .navigationTitle("足迹").navigationBarTitleDisplayMode(.inline)
-            .toolbar { Button { camera = .automatic } label: { Label("查看全部", systemImage: "arrow.up.left.and.arrow.down.right") } }
-            .photoPreview(item: $selected)
-        }
-    }
-}
-
-struct SettingsView: View {
-    @EnvironmentObject private var store: GalleryStore
-    @State private var website = false
-    @Environment(\.galleryAppearance) private var theme
-    var body: some View {
-        NavigationStack {
-            Form {
-                Section {
-                    VStack(alignment: .leading, spacing: 10) {
-                        BrandMark(value: store.brandLogo).foregroundStyle(theme.accent)
-                        Text(store.brandTitle).font(.system(.title, design: .serif))
-                        Text("随身携带的摄影档案").font(.subheadline).foregroundStyle(.secondary)
-                    }.padding(.vertical, 12)
-                    LabeledContent("公开作品", value: "\(store.photos.count)")
-                    LabeledContent("本机收藏", value: "\(store.favorites.count)")
-                }
-                Section("更多") {
-                    Button { website = true } label: { Label("完整网站", systemImage: "safari") }
-                    Text("照片详情支持原生空间场景。收藏保存在本机，点赞同步至网站。")
-                        .font(.caption).foregroundStyle(.secondary)
-                    LabeledContent("版本", value: "\(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "") (\(Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? ""))")
-                }
-            }
-            .scrollContentBackground(.hidden).background(theme.background)
-            .navigationTitle("我的")
-            .sheet(isPresented: $website) {
-                WebsiteView(url: URL(string: store.config?.websiteURL ?? "https://pic.rlzhao.com")!, title: "完整网站")
-            }
-        }
     }
 }

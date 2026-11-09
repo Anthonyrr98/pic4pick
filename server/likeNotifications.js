@@ -45,7 +45,7 @@ export function readLikeMailConfig(env = process.env) {
   };
 }
 
-export function buildLikeMessage(config, photo, likes, date = new Date(), clientIp = null) {
+export function buildLikeMessage(config, photo, likes, date = new Date()) {
   const title = String(photo.title || '未命名照片').replace(/[\r\n]+/g, ' ').slice(0, 200);
   const photoUrl = safeUrl(photo.image_url);
   const time = date.toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai', hour12: false });
@@ -54,7 +54,6 @@ export function buildLikeMessage(config, photo, likes, date = new Date(), client
     `当前点赞数：${likes}`,
     `时间：${time}（北京时间）`,
     `照片 ID：${photo.id}`,
-    ...(clientIp ? [`点赞 IP：${clientIp}`] : []),
     ...(photoUrl ? [`查看照片：${photoUrl}`] : []),
     ...(config.siteUrl ? [`打开图库：${config.siteUrl}`] : []),
   ];
@@ -66,7 +65,6 @@ export function buildLikeMessage(config, photo, likes, date = new Date(), client
     html: `<h2>你的照片收到一个新的点赞</h2><p>「${escapeHtml(title)}」</p>`
       + `<p>当前点赞数：<strong>${escapeHtml(likes)}</strong></p>`
       + `<p>时间：${escapeHtml(time)}（北京时间）</p><p>照片 ID：${escapeHtml(photo.id)}</p>`
-      + (clientIp ? `<p>点赞 IP：${escapeHtml(clientIp)}</p>` : '')
       + (photoUrl ? `<p><a href="${escapeHtml(photoUrl)}">查看照片</a></p>` : '')
       + (config.siteUrl ? `<p><a href="${escapeHtml(config.siteUrl)}">打开图库</a></p>` : ''),
   };
@@ -109,7 +107,7 @@ export function createLikeNotificationService({
         }));
         const photo = rows?.[0];
         if (!photo) return false;
-        await transporter.sendMail(buildLikeMessage(config, photo, result.likes, new Date(), result.clientIp));
+        await transporter.sendMail(buildLikeMessage(config, photo, result.likes));
         logger.info('点赞邮件已发送', { photoId: result.id });
         return true;
       } catch (error) {

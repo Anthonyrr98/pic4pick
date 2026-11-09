@@ -2,26 +2,36 @@ import { readFile, writeFile, mkdir, copyFile } from 'node:fs/promises';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import path from 'node:path';
 import { build } from 'esbuild';
+import { createHash } from 'node:crypto';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
+const [environment, file] = process.argv.slice(2);
+if (!['staging', 'production'].includes(environment)) throw new Error('Usage: node ios/scripts/prepare.mjs staging|production [env-file]');
 const env = {};
-for (const file of ['.env.local', '.env.production', 'miniapp/.env.local']) {
-  try {
-    for (const line of (await readFile(path.join(root, file), 'utf8')).split(/\r?\n/)) {
-      const match = line.match(/^\s*([A-Z_]+)\s*=\s*(.*?)\s*$/);
-      if (match) env[match[1]] = match[2].replace(/^(['"])(.*)\1$/, '$2');
-    }
-  } catch (error) { if (error.code !== 'ENOENT') throw error; }
+for (const line of (file ? await readFile(file, 'utf8') : '').split(/\r?\n/)) {
+  const match = line.match(/^\s*([A-Z_]+)\s*=\s*(.*?)\s*$/);
+  if (match) env[match[1]] = match[2].replace(/^(['"])(.*)\1$/, '$2');
 }
-const get = name => process.env[`PIC4PICK_${name}`] || env[`PIC4PICK_${name}`] || env[`VITE_${name}`] || '';
+const get = name => process.env[`PIC4PICK_${environment.toUpperCase()}_${name}`] || env[`PIC4PICK_${name}`] || '';
+if (get('ENVIRONMENT') !== environment) throw new Error('The configuration must declare its matching PIC4PICK_ENVIRONMENT.');
 const config = {
+  environment,
   supabaseURL: get('SUPABASE_URL'), publicKey: get('SUPABASE_ANON_KEY'),
   apiBaseURL: get('API_BASE_URL').replace(/\/+$/, '').replace(/\/api$/, ''),
-  websiteURL: process.env.PIC4PICK_WEBSITE_URL || 'https://pic.rlzhao.com',
+  websiteURL: get('WEBSITE_URL') || 'https://pic.rlzhao.com',
   mediaBaseURL: get('MEDIA_BASE_URL') || 'https://pic.rlzhao.com',
 };
 for (const name of ['supabaseURL', 'apiBaseURL', 'websiteURL', 'mediaBaseURL']) {
-  if (new URL(config[name]).protocol !== 'https:') throw new Error(`${name} 必须是 HTTPS`);
+  const url = new URL(config[name]);
+  if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash) {
+    throw new Error(`${name} 必须是无凭证、查询或片段的 HTTPS 地址`);
+  }
+  config[name] = url.href.replace(/\/+$/, '');
+  if (environment === 'staging' && ['apiBaseURL', 'supabaseURL'].includes(name)) {
+    const production = process.env[`PIC4PICK_PRODUCTION_${name === 'apiBaseURL' ? 'API_BASE_URL' : 'SUPABASE_URL'}`];
+    if (['pic.rlzhao.com', 'pic4pick-backend.onrender.com', 'iwlwbnvhgxlnqozduhrp.supabase.co'].includes(url.hostname)
+      || (production && new URL(production).origin === url.origin)) throw new Error(`Staging cannot use the production ${name}.`);
+  }
 }
 let isPublic = config.publicKey.startsWith('sb_publishable_');
 if (!isPublic) {
@@ -40,7 +50,7 @@ await writeFile(path.join(resources, 'AdminMapPresets.json'), JSON.stringify(MAP
   ({ id, label, kind, rasterStyle, amapStyle }) => ({ id, label, kind, rasterStyle, amapStyle })), null, 2) + '\n');
 const mapConfig = Object.fromEntries(['VITE_AMAP_WEB_KEY', 'VITE_AMAP_KEY', 'VITE_AMAP_SECURITY_JS_CODE',
   'VITE_MAP_STYLE_PRESET', 'VITE_MAP_USE_AMAP_SDK', 'VITE_AMAP_MAP_STYLE', 'VITE_GAODE_RASTER_STYLE']
-  .map(key => [key, env[key] || '']));
+  .map(key => [key, get(key.replace(/^VITE_/, ''))]));
 await writeFile(path.join(resources, 'PublicMapConfig.json'), JSON.stringify(mapConfig));
 const common = { bundle: true, write: false, minify: true, target: 'safari17', logLevel: 'warning' };
 const shared = await build({ ...common, entryPoints: [path.join(root, 'ios/Web/GalleryShared.ts')], format: 'iife', globalName: 'Pic4PickShared' });
@@ -50,8 +60,10 @@ const map = await build({ ...common, entryPoints: [path.join(root, 'ios/Web/Map.
   define: { __WORKER_SOURCE__: JSON.stringify(worker.outputFiles[0].text), 'import.meta.url': JSON.stringify('https://pic.rlzhao.com/'), 'import.meta.env': '{}' } });
 const css = await readFile(path.join(root, 'node_modules/maplibre-gl/dist/maplibre-gl.css'), 'utf8');
 const template = await readFile(path.join(root, 'ios/Web/Map.html'), 'utf8');
+const mapScript = map.outputFiles[0].text.replace(/<\/script/gi, '<\\/script').replace(/\r\n?/g, '\n');
+const mapHash = createHash('sha256').update(mapScript).digest('base64');
 await writeFile(path.join(resources, 'GalleryMap.html'), template.replace('__MAP_CSS__', () => css)
-  .replace('__MAP_JS__', () => map.outputFiles[0].text.replace(/<\/script/gi, '<\\/script')));
+  .replace('__MAP_SCRIPT_HASH__', () => mapHash).replace('__MAP_JS__', () => mapScript));
 for (const [source, name] of [['public/loa-cropped.png', 'brand-wordmark.png'], ['public/images/film-desktop.png', 'film-desktop.png'],
   ['public/film-frames/35mm-controls.png', '35mm-controls.png'], ['public/images/cameras/nikon-fm2.png', 'nikon-fm2.png'],
   ['public/images/film-stocks/fuji-c200.png', 'fuji-c200-artwork.png']]) {

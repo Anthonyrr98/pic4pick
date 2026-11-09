@@ -1,0 +1,48 @@
+name: iOS native checks
+
+on:
+  pull_request:
+    paths: ['ios/**', 'packages/shared/**', 'public/**', 'package-lock.json', '.github/workflows/ios.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  simulator:
+    runs-on: macos-26
+    timeout-minutes: 35
+    env:
+      PIC4PICK_STAGING_ENVIRONMENT: staging
+      PIC4PICK_STAGING_SUPABASE_URL: https://db.example.invalid
+      PIC4PICK_STAGING_SUPABASE_ANON_KEY: sb_publishable_simulator_fixture
+      PIC4PICK_STAGING_API_BASE_URL: https://api.example.invalid
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: command -v xcodegen >/dev/null || brew install xcodegen
+      - run: bash ios/scripts/prepare-store.sh staging
+      - name: Run XCTest and XCUITest
+        run: |
+          set -euo pipefail
+          simulator=$(xcrun simctl list devices available --json | node -e '
+            const devices = JSON.parse(require("fs").readFileSync(0, "utf8")).devices;
+            const phone = Object.entries(devices).reverse().flatMap(([runtime, rows]) =>
+              runtime.includes(".iOS-") ? rows : []).find(device => device.name.startsWith("iPhone"));
+            if (!phone) process.exit(1);
+            console.log(phone.udid);
+          ')
+          xcodebuild -project ios/Pic4Pick.xcodeproj -scheme Pic4Pick -destination "platform=iOS Simulator,id=$simulator" \
+            -parallel-testing-enabled NO -resultBundlePath "$RUNNER_TEMP/Pic4Pick.xcresult" CODE_SIGNING_ALLOWED=NO test
+          xcrun xccov view --report "$RUNNER_TEMP/Pic4Pick.xcresult" | tee "$RUNNER_TEMP/ios-coverage.txt"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ios-simulator-results
+          path: |
+            ${{ runner.temp }}/Pic4Pick.xcresult
+            ${{ runner.temp }}/ios-coverage.txt

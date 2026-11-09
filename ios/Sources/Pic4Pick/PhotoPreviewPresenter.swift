@@ -4,7 +4,12 @@ import OSLog
 
 @MainActor enum PhotoPreviewDiagnostics {
     private static let logger = Logger(subsystem: "com.rlzhao.pic4pick", category: "PhotoPreview")
-    static func event(_ message: String) { logger.notice("PhotoPreview: \(message, privacy: .public)") }
+    static func event(_ message: @autoclosure () -> String) {
+        #if DEBUG
+        let detail = message()
+        logger.debug("PhotoPreview: \(detail, privacy: .private)")
+        #endif
+    }
 }
 
 extension View {
@@ -58,8 +63,8 @@ private struct PhotoPreviewPresenter: UIViewControllerRepresentable {
                 session = nil
             }
             guard let selection = configuration.selection else { session?.close(); return }
-            guard session == nil else {
-                PhotoPreviewDiagnostics.event("active session: \(String(describing: session!.phase))")
+            if let session {
+                PhotoPreviewDiagnostics.event("active session: \(String(describing: session.phase))")
                 return
             }
             var presenter: UIViewController = anchor

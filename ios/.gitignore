@@ -2,6 +2,10 @@
 .swiftpm/
 .bsp/
 xtool/
+.store-generated/
+Pic4Pick.xcodeproj/
+*.xcarchive/
+*.xcresult/
 Sources/Pic4Pick/Resources/ClientConfig.json
 Sources/Pic4Pick/Resources/*.png
 Sources/Pic4Pick/Resources/AdminMapPresets.json

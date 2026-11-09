@@ -118,7 +118,7 @@ struct ExploreView: View {
         let map = WebsiteMap(payload: .init(config: store.mapConfig, locations: store.catalog.locations, focus: focus,
             reduceMotion: reduceMotion, active: isActive || preloading,
             compactMarkers: true, requireConfiguredStyle: true),
-            baseURL: URL(string: store.config?.websiteURL ?? "https://pic.rlzhao.com")!,
+            baseURL: store.websiteURL,
             panelClearance: layout.height(at: detent),
             attributionTop: attributionTop,
             onLocation: { id in
@@ -126,6 +126,17 @@ struct ExploreView: View {
             }, onStatus: { status in mapReady = status == "ready"; mapFailed = status == "failure" })
         return ExploreMapMotion(map: map, motion: panelMotion, layout: layout, detent: detent)
             .id(mapRetry)
+            .overlay(alignment: .topTrailing) {
+                if !preloading && store.usingBundledMapConfig {
+                    Text("地图暂用内置配置")
+                        .font(.caption)
+                        .padding(8)
+                        .background(.regularMaterial, in: Capsule())
+                        .padding(.top, attributionTop)
+                        .padding(.trailing, 12)
+                        .allowsHitTesting(false)
+                }
+            }
             .overlay {
                 if !preloading {
                     if mapFailed {

@@ -82,16 +82,18 @@ SwiftUI 原生 iOS 客户端，最低 iOS 17。源码和构建工程位于本目
 从仓库根目录运行：
 
 ```powershell
-node ios/scripts/prepare.mjs
+node ios/scripts/prepare.mjs staging path/to/ios-staging.env
 ```
 
-脚本按顺序读取根目录 `.env.local`、`.env.production` 和 `miniapp/.env.local`，后者覆盖前者；也接受 `PIC4PICK_*` 进程环境变量覆盖。只输出以下公开客户端配置：
+Debug 使用 `staging`，Release 使用 `production`。传入该环境的单个配置文件，或设置 `PIC4PICK_STAGING_*` / `PIC4PICK_PRODUCTION_*` 进程变量。配置文件使用以下键：
 
-- `PIC4PICK_SUPABASE_URL` / `VITE_SUPABASE_URL`
-- `PIC4PICK_SUPABASE_ANON_KEY` / `VITE_SUPABASE_ANON_KEY`（支持 publishable 或旧 anon key）
-- `PIC4PICK_API_BASE_URL` / `VITE_API_BASE_URL`
+- `PIC4PICK_ENVIRONMENT` 对应 `staging` 或 `production`
+- `PIC4PICK_SUPABASE_URL`
+- `PIC4PICK_SUPABASE_ANON_KEY`（支持 publishable 或旧 anon key）
+- `PIC4PICK_API_BASE_URL`
 - `PIC4PICK_MEDIA_BASE_URL`（默认为线上网站）
 - `PIC4PICK_WEBSITE_URL`（默认 `https://pic.rlzhao.com`）
+- 可选地图值使用 `PIC4PICK_AMAP_WEB_KEY`、`PIC4PICK_AMAP_SECURITY_JS_CODE`、`PIC4PICK_MAP_STYLE_PRESET` 等键。准备脚本将它们作为公开客户端配置打包。
 
 生成的 `Sources/Pic4Pick/Resources/ClientConfig.json`、边框副本和地图预设均忽略提交。准备脚本需要 Node.js 24 或支持默认 TypeScript 类型剥离的 Node.js 22.18+。脚本拒绝服务端密钥和非 HTTPS 地址。App 不包含管理员密码、服务角色密钥或 OSS 密钥。公开读取显式设置 `Accept-Profile: public`，保留数据库现有 RLS。当前安装包不编译原生管理会话与上传模块。
 
@@ -101,16 +103,16 @@ node ios/scripts/prepare.mjs
 
 ```powershell
 # 准备配置、运行模型检查、编译
-powershell -NoProfile -ExecutionPolicy Bypass -File ios/scripts/build.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File ios/scripts/build.ps1 -ConfigFile path/to/ios-staging.env
 
 # 编译、签名并安装到已连接且解锁的手机
-powershell -NoProfile -ExecutionPolicy Bypass -File ios/scripts/build.ps1 -Install
+powershell -NoProfile -ExecutionPolicy Bypass -File ios/scripts/build.ps1 -Install -ConfigFile path/to/ios-staging.env
 
 # 导出签名 IPA
-powershell -NoProfile -ExecutionPolicy Bypass -File ios/scripts/build.ps1 -Ipa
+powershell -NoProfile -ExecutionPolicy Bypass -File ios/scripts/build.ps1 -Ipa -ConfigFile path/to/ios-staging.env
 
-# 性能体验与分发使用 Release 优化编译（也可和 -Install 组合）
-powershell -NoProfile -ExecutionPolicy Bypass -File ios/scripts/build.ps1 -Ipa -Release
+# Release 优化编译的设备测试包
+powershell -NoProfile -ExecutionPolicy Bypass -File ios/scripts/build.ps1 -Ipa -Release -ConfigFile path/to/ios-production.env
 ```
 
 或先运行准备脚本，再在 Ubuntu 中执行：
@@ -127,6 +129,22 @@ bash scripts/build.sh ipa
 Windows 苹果转接配置失效时，按环境说明重新运行 `configure-apple-relay.ps1`；不需要 USBIP attach。当前手机的旧版 debugserver 自动启动和 screenshotr 截图接口不可用，安装后从手机桌面打开 App。
 
 App 桌面名称为「见远方」，图标使用用户提供的「云雾雪山与枯树秘境.png」，保存在 `Resources/AppIcon.png`，由 xtool 生成平台图标规格。在装有 Pillow 的 Python 环境运行 `python ios/scripts/make-icon.py` 验证，或附加新 PNG 路径替换；脚本不会重新生成旧光圈图标。Bundle ID 保持不变，以覆盖升级并保留现有数据。
+
+## App Store 归档
+
+在安装 Xcode 26 或更新版、Node 24、Python 3 和 XcodeGen 的 macOS 上，先核对 App Store Connect 的团队和 `com.rlzhao.pic4pick` 记录，准备对应的签名证书与描述文件。从已提交的干净工作区运行：
+
+```bash
+npm ci
+PIC4PICK_DEVELOPMENT_TEAM=YOURTEAMID PIC4PICK_BUILD_NUMBER=105 \
+  bash ios/scripts/archive-store.sh /absolute/path/to/rc /absolute/path/to/ios-production.env
+```
+
+脚本生成 App target 与共享 Scheme，归档并导出 App Store Connect 分发 IPA，校验包 ID、构建号、SDK、签名、描述文件、UUID、图标和隐私清单。输出目录保存提交 SHA 和构建哈希。使用 Xcode Organizer 生成隐私报告并执行 Validate App。在 App Store Connect 录入已发布的 `https://pic.rlzhao.com/privacy.html`，从未登录的浏览器确认能打开，核对 App Privacy 问卷，再安排 TestFlight。
+
+原生模拟器工作流生成 XCTest、XCUITest 和覆盖率报告。真机通过 Windows 苹果驱动转接安装开发包，按发布审计手工清单验收。
+
+为 staging 准备至少 1001 条公开作品夹具并生成 staging 配置后，运行 `node ios/scripts/check-staging.mjs`，检查分页、地图允许字段、匿名无法读取原始设置，以及 API 拒绝压缩正文后仍可用。
 
 ## 验证记录
 

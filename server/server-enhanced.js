@@ -13,6 +13,7 @@ import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { Readable } from 'node:stream';
 import { parsePublicPhotoSource } from './publicPhotoSource.js';
+import { createPublicMapConfigHandler } from './publicMapConfig.js';
 import { createPhotoDeletionService } from './photoDeletion.js';
 import { createPhotoUploadService } from './photoUploads.js';
 import { uploadPhotoObject, createUploadProgressStore } from './ossPhotoUpload.js';
@@ -83,7 +84,10 @@ const logger = winston.createLogger({
 
 // 中间件
 app.disable('x-powered-by');
-app.set('trust proxy', 1);
+// The Render web service receives public traffic through its edge. Direct
+// deployments use the socket address so a caller cannot choose its own IP.
+const behindRenderEdge = process.env.RENDER === 'true' && process.env.RENDER_SERVICE_TYPE === 'web';
+app.set('trust proxy', behindRenderEdge ? 1 : false);
 
 app.use((_req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -108,10 +112,6 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
-
-// 处理预检请求
-app.use(express.json({ limit: '1mb' }));
-app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
 const createMemoryRateLimiter = ({ windowMs, max, key = (req) => req.ip }) => {
   const buckets = new Map();
@@ -141,10 +141,20 @@ const createMemoryRateLimiter = ({ windowMs, max, key = (req) => req.ip }) => {
 };
 
 const loginRateLimit = createMemoryRateLimiter({ windowMs: 15 * 60 * 1000, max: 8 });
+const bodyRateLimit = createMemoryRateLimiter({ windowMs: 60_000, max: 180 });
+const jsonParser = express.json({ limit: '1mb', inflate: false });
+const formParser = express.urlencoded({ extended: true, limit: '1mb', inflate: false, parameterLimit: 1000 });
+app.use('/api', (req, res, next) => {
+  if (!req.is('application/json', 'application/x-www-form-urlencoded')) return next();
+  return bodyRateLimit(req, res, () => jsonParser(req, res, (error) => {
+    if (error) return next(error);
+    return formParser(req, res, next);
+  }));
+});
 const likeRateLimit = createMemoryRateLimiter({
   windowMs: 60 * 1000,
   max: 30,
-  key: (req) => `${req.ip}:${req.params.id || 'unknown'}`,
+  key: (req) => `${req.ip}:${req.params.id?.toLowerCase() || 'unknown'}`,
 });
 
 // 配置上传目录
@@ -173,16 +183,15 @@ const storage = multer.diskStorage({
 
 // 增强的文件过滤器
 const fileFilter = (req, file, cb) => {
-  const allowedTypes = /jpeg|jpg|png|gif|webp|heic/;
-  const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
-  const mimetype = allowedTypes.test(file.mimetype);
+  const extname = /^\.(?:jpe?g|png|gif|webp|heic)$/.test(path.extname(file.originalname).toLowerCase());
+  const mimetype = /^image\/(?:jpe?g|png|gif|webp|heic|heif)$/i.test(file.mimetype);
 
   if (mimetype && extname) {
     logger.info(`File upload: ${file.originalname}, type: ${file.mimetype}`);
     return cb(null, true);
   } else {
     logger.warn(`Rejected file upload: ${file.originalname}, invalid type: ${file.mimetype}`);
-    cb(new Error('只允许上传图片文件（JPG、PNG、GIF、WebP、HEIC）'));
+    cb(Object.assign(new Error('只允许上传图片文件（JPG、PNG、GIF、WebP、HEIC）'), { code: 'UNSUPPORTED_UPLOAD_TYPE' }));
   }
 };
 
@@ -381,6 +390,7 @@ const supabaseAdminFetch = async (table, params = new URLSearchParams(), options
   const query = params.toString();
   const response = await fetch(`${SUPABASE_URL}/rest/v1/${table}${query ? `?${query}` : ''}`, {
     method: options.method || 'GET',
+    signal: options.signal,
     headers: {
       apikey: SUPABASE_SERVICE_ROLE_KEY,
       Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
@@ -450,6 +460,11 @@ const getBeijingDatePrefix = (date = new Date()) => {
   return `${year}/${month}/${day}`;
 };
 
+app.get('/api/public/map-config', createMemoryRateLimiter({ windowMs: 60_000, max: 120 }), createPublicMapConfigHandler({
+  db: supabaseAdminFetch,
+  logger,
+}));
+
 // 代理读取 OSS 对象（供前端在无法直连 OSS 时使用）
 let spatialOssClient;
 app.get('/api/photos/:id/spatial-depth', createMemoryRateLimiter({ windowMs: 60_000, max: 120 }), createSpatialDepthHandler({
@@ -498,13 +513,16 @@ app.post('/api/admin/notifications/likes/test', authenticateToken, requireAdmin,
     sendSupabaseAdminError(res, error, '测试邮件发送失败');
   }
 });
-const photoLikeHandler = createPhotoLikeHandler({
+const photoLikeDependencies = {
   db: supabaseAdminFetch,
   notifications: likeNotifications,
   logger,
   sendError: sendSupabaseAdminError,
-});
-registerLikeRoutes(app, likeRateLimit, photoLikeHandler);
+};
+registerLikeRoutes(app, likeRateLimit, createPhotoLikeHandler(photoLikeDependencies));
+app.patch('/api/v2/photos/:id/likes', likeRateLimit, createPhotoLikeHandler({
+  ...photoLikeDependencies, requireOperationId: true,
+}));
 
 const uploadProgress = createUploadProgressStore();
 app.get('/api/upload/oss/progress/:id', authenticateToken, requireAdmin, (req, res) => {
@@ -747,7 +765,7 @@ app.delete('/api/upload/oss/*filename', authenticateToken, requireAdmin, async (
 // 用户登录
 app.post('/api/auth/login', loginRateLimit, async (req, res) => {
   try {
-    const { username, password } = req.body;
+    const { username, password } = req.body ?? {};
 
     if (!username || !password) {
       return res.status(400).json({ error: '用户名和密码不能为空' });
@@ -985,6 +1003,11 @@ registerFrontendStatic(app, {
 
 // 错误处理中间件
 app.use((error, req, res, _next) => {
+  if (error.code === 'UNSUPPORTED_UPLOAD_TYPE') return res.status(415).json({ error: error.message });
+  if (error.type === 'encoding.unsupported') return res.status(415).json({ error: '请求体不支持压缩' });
+  if (['entity.too.large', 'parameters.too.many'].includes(error.type)) return res.status(413).json({ error: '请求体超过限制' });
+  if (['entity.parse.failed', 'request.size.invalid'].includes(error.type)) return res.status(400).json({ error: '请求体无效' });
+  if (error.type === 'request.aborted') return;
   if (error instanceof multer.MulterError) {
     if (error.code === 'LIMIT_FILE_SIZE') {
       return res.status(400).json({ error: '文件大小超过限制（最大 100MB）' });

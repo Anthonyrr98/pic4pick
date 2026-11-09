@@ -9,6 +9,9 @@ fi
 if [[ -f "$HOME/.local/share/swiftly/env.sh" ]]; then
     source "$HOME/.local/share/swiftly/env.sh"
 fi
+expected_environment=staging
+if [[ "$configuration" == release ]]; then expected_environment=production; fi
+python3 -c 'import json,sys; assert json.load(open("Sources/Pic4Pick/Resources/ClientConfig.json"))["environment"] == sys.argv[1], "Run prepare.mjs with the matching environment first."' "$expected_environment"
 mkdir -p .build/checks
 swiftc Sources/Pic4Pick/DiskImageCache.swift Tests/DiskImageCacheChecks.swift -o .build/checks/disk-image-cache-checks
 .build/checks/disk-image-cache-checks

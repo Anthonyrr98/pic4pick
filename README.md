@@ -15,6 +15,8 @@ separated.
 
 **Live site:** [https://pic.rlzhao.com](https://pic.rlzhao.com)
 
+**iPhone app:** Native SwiftUI client in [`ios/`](./ios/README.md), built and installed with WSL Ubuntu + xtool.
+
 ![Light of Anthony photography archive](./public/og-image.png)
 
 ## Features

@@ -7,7 +7,7 @@ enum GalleryFilter: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
-struct GalleryCache: Codable {
+struct GalleryCache: Codable, Sendable {
     let source: String
     let fetchedAt: Date
     let photos: [Photo]
@@ -37,6 +37,17 @@ private struct PhotoLikeResponse: Decodable {
     let data: Result
 }
 
+private struct PendingLikeOperation: Codable {
+    let id: UUID
+    let delta: Int
+    let createdAt: Date
+}
+
+private struct StoredLikes: Codable {
+    let liked: Set<String>
+    let pending: [String: PendingLikeOperation]
+}
+
 @MainActor
 final class GalleryStore: ObservableObject {
     enum RefreshFeedback { case silent, opening, pull }
@@ -50,15 +61,18 @@ final class GalleryStore: ObservableObject {
     @Published var search = ""
     @Published var favorites: Set<String>
     private var liked: Set<String>
+    private var pendingLikes: [String: PendingLikeOperation]
     private var likeUpdates: [String: PhotoLikeUpdate] = [:]
     @Published private(set) var brandTitle = "Light of Anthony"
     @Published private(set) var brandSubtitle = "PHOTOGRAPHIC ARCHIVE"
     @Published private(set) var brandLogo = ""
     @Published private(set) var catalog = GalleryCatalog.empty
     @Published private(set) var mapConfig: [String: JSONValue] = [:]
+    @Published private(set) var usingBundledMapConfig = false
     @Published private(set) var updatedAt: Date?
     let config: ClientConfig?
     let spatialClient: SpatialDepthClient?
+    private let defaultMapConfig: [String: JSONValue]
     private var fetchedAt: Date?
     private var readGeneration = 0
     private var lastKnownPhotoIDs: Set<String> = []
@@ -69,32 +83,26 @@ final class GalleryStore: ObservableObject {
     private var likesUpdatedDuringRefresh: [String: Int] = [:]
     private var randomIDs: [String] = []
     private let defaults = UserDefaults.standard
-    private var cacheURL: URL {
-        FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0].appendingPathComponent("pic4pick-photos-v1.json")
-    }
+    private let reader = GalleryReader()
+    private var didLoadCache = false
+    var websiteURL: URL { config.flatMap { ClientConfig.httpsURL($0.websiteURL) } ?? ClientConfig.defaultWebsiteURL }
 
     init() {
         favorites = Set(UserDefaults.standard.stringArray(forKey: "pic4pick.favorites") ?? [])
-        liked = Set(UserDefaults.standard.stringArray(forKey: "pic4pick.likes") ?? [])
+        let storedLikes = UserDefaults.standard.data(forKey: "pic4pick.likeState.v2")
+            .flatMap { try? JSONDecoder().decode(StoredLikes.self, from: $0) }
+        liked = storedLikes?.liked ?? Set(UserDefaults.standard.stringArray(forKey: "pic4pick.likes") ?? [])
+        pendingLikes = storedLikes?.pending ?? [:]
         config = Bundle.module.url(forResource: "ClientConfig", withExtension: "json")
-            .flatMap { try? Data(contentsOf: $0) }.flatMap { try? JSONDecoder().decode(ClientConfig.self, from: $0) }
+            .flatMap { try? Data(contentsOf: $0) }
+            .flatMap { try? JSONDecoder().decode(ClientConfig.self, from: $0) }
+            .flatMap { $0.isValid ? $0 : nil }
         spatialClient = config.map { SpatialDepthClient(config: $0) }
-        if let url = Bundle.module.url(forResource: "PublicMapConfig", withExtension: "json"), let data = try? Data(contentsOf: url) {
-            mapConfig = (try? JSONDecoder().decode([String: JSONValue].self, from: data)) ?? [:]
-        }
-        if let data = try? Data(contentsOf: cacheURL),
-           let cache = try? JSONDecoder().decode(GalleryCache.self, from: data),
-           cache.source == config?.supabaseURL {
-            let publicPhotos = cache.photos.filter(\.isPublic)
-            lastKnownPhotoIDs = Set(publicPhotos.map(\.id))
-            let age = Date().timeIntervalSince(cache.fetchedAt)
-            if age >= 0 && age < 300 {
-                photos = publicPhotos
-                fetchedAt = cache.fetchedAt
-            }
-        }
-        reshuffle()
-        catalog = GalleryCatalogEngine.make(photos)
+        let bundledMapConfig = Bundle.module.url(forResource: "PublicMapConfig", withExtension: "json")
+            .flatMap { try? Data(contentsOf: $0) }
+            .flatMap { try? JSONDecoder().decode([String: JSONValue].self, from: $0) } ?? [:]
+        defaultMapConfig = bundledMapConfig
+        mapConfig = bundledMapConfig
     }
 
     func reshuffle() { randomIDs = photos.map(\.id).shuffled() }
@@ -118,22 +126,6 @@ final class GalleryStore: ObservableObject {
         return result.sorted { (catalog.summaries[$0.id]?.time ?? 0) > (catalog.summaries[$1.id]?.time ?? 0) }
     }
 
-    private func read(_ table: String, params: [URLQueryItem]) async throws -> Data {
-        guard let config else { throw ClientError.message("缺少客户端配置，请运行 node ios/scripts/prepare.mjs 后重新构建。") }
-        var components = URLComponents(string: config.supabaseURL + "/rest/v1/" + table)!
-        components.queryItems = params
-        var request = URLRequest(url: components.url!, timeoutInterval: 25)
-        request.setValue(config.publicKey, forHTTPHeaderField: "apikey")
-        request.setValue("public", forHTTPHeaderField: "Accept-Profile")
-        if !config.publicKey.hasPrefix("sb_publishable_") { request.setValue("Bearer " + config.publicKey, forHTTPHeaderField: "Authorization") }
-        let (data, response) = try await URLSession.shared.data(for: request)
-        guard let response = response as? HTTPURLResponse, (200..<300).contains(response.statusCode) else {
-            let body = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
-            throw ClientError.message(body?["message"] as? String ?? "作品请求失败，请稍后重试。")
-        }
-        return data
-    }
-
     func invalidatePublicCache() {
         readGeneration += 1
         photos = []; fetchedAt = nil; loading = false
@@ -142,7 +134,9 @@ final class GalleryStore: ObservableObject {
         activeRefreshResult = nil
         showRefreshNotice(nil)
         catalog = .empty
-        try? FileManager.default.removeItem(at: cacheURL)
+        didLoadCache = true
+        let generation = readGeneration
+        Task { await reader.invalidate(generation: generation) }
     }
 
     func refreshOnForeground() async {
@@ -173,23 +167,30 @@ final class GalleryStore: ObservableObject {
                 activeRefreshResult = nil
             }
         }
+        async let mapConfigRefresh: Void = loadMapConfig(generation: generation)
         do {
-            let fields = "id,title,location,country,category,tags,image_url,thumbnail_url,latitude,longitude,altitude,rating,camera,lens,focal,aperture,shutter,iso,film_stock,shot_date,created_at,status,hidden,likes"
-            var params = [URLQueryItem(name: "select", value: fields), URLQueryItem(name: "status", value: "eq.approved"),
-                          URLQueryItem(name: "hidden", value: "eq.false"), URLQueryItem(name: "limit", value: "1000"),
-                          URLQueryItem(name: "order", value: "created_at.desc")]
-            let data: Data
-            do { data = try await read("photos", params: params) }
-            catch {
-                guard error.localizedDescription.localizedCaseInsensitiveContains("statement timeout") else { throw error }
-                params.removeAll { $0.name == "order" }
-                data = try await read("photos", params: params)
+            guard let config else { throw ClientError.message("缺少有效的客户端配置。") }
+            await reader.invalidate(generation: generation)
+            if !didLoadCache {
+                let cached = await reader.cached(source: config.supabaseURL, generation: generation)
+                try Task.checkCancellation()
+                guard generation == readGeneration else { return }
+                didLoadCache = true
+                if let (cache, cachedCatalog) = cached {
+                    lastKnownPhotoIDs = Set(cache.photos.map(\.id))
+                    if (0..<300).contains(Date().timeIntervalSince(cache.fetchedAt)) {
+                        photos = cache.photos
+                        catalog = cachedCatalog
+                        fetchedAt = cache.fetchedAt
+                        reshuffle()
+                    }
+                }
             }
+            let (cache, nextCatalog) = try await reader.fetch(config: config, generation: generation)
             try Task.checkCancellation()
-            let decoded = try JSONDecoder().decode([Photo].self, from: data).filter(\.isPublic)
             guard generation == readGeneration else { return }
-            var ids = Set<String>()
-            photos = decoded.filter { ids.insert($0.id).inserted }.map { photo in
+            let ids = Set(cache.photos.map(\.id))
+            photos = cache.photos.map { photo in
                 guard let likes = likesUpdatedDuringRefresh[photo.id] else { return photo }
                 var updated = photo
                 updated.likes = likes
@@ -197,24 +198,25 @@ final class GalleryStore: ObservableObject {
             }
             activeRefreshResult = ids.isSubset(of: lastKnownPhotoIDs) ? .noNewPhotos : .newPhotos
             lastKnownPhotoIDs = ids
-            fetchedAt = Date()
+            fetchedAt = cache.fetchedAt
             updatedAt = fetchedAt
-            catalog = GalleryCatalogEngine.make(photos)
+            catalog = nextCatalog
             error = nil
             if randomIDs.isEmpty || Set(randomIDs) != Set(photos.map(\.id)) { reshuffle() }
-            if let config, let cache = try? JSONEncoder().encode(GalleryCache(source: config.supabaseURL, fetchedAt: Date(), photos: photos)) {
-                try? cache.write(to: cacheURL, options: .atomic)
-            }
             finishRefreshFeedback(activeRefreshResult)
+            await reader.save(GalleryCache(source: cache.source, fetchedAt: cache.fetchedAt, photos: photos), generation: generation)
             await loadBrand(generation: generation)
-            await loadMapConfig(generation: generation)
         } catch is CancellationError { }
         catch let error as URLError where error.code == .cancelled { }
         catch {
             guard !Task.isCancelled, generation == readGeneration else { return }
             self.error = error.localizedDescription
-            if fetchedAt == nil || Date().timeIntervalSince(fetchedAt!) >= 300 { photos = []; catalog = .empty; try? FileManager.default.removeItem(at: cacheURL) }
+            if fetchedAt.map({ Date().timeIntervalSince($0) >= 300 }) ?? true {
+                photos = []
+                catalog = .empty
+            }
         }
+        await mapConfigRefresh
     }
 
     private func finishRefreshFeedback(_ notice: GalleryRefreshNotice?) {
@@ -236,7 +238,7 @@ final class GalleryStore: ObservableObject {
     }
 
     private func loadBrand(generation: Int) async {
-        guard let data = try? await read("brand_settings", params: [.init(name: "select", value: "site_title,site_subtitle,logo_data,logo_url"),
+        guard let config, let data = try? await reader.read(config: config, table: "brand_settings", params: [.init(name: "select", value: "site_title,site_subtitle,logo_data,logo_url"),
             .init(name: "id", value: "eq.camarts_brand"), .init(name: "limit", value: "1")]),
               let rows = (try? JSONSerialization.jsonObject(with: data)) as? [[String: Any]], let row = rows.first else { return }
         guard generation == readGeneration else { return }
@@ -246,15 +248,29 @@ final class GalleryStore: ObservableObject {
     }
 
     private func loadMapConfig(generation: Int) async {
-        guard let data = try? await read("app_settings", params: [.init(name: "select", value: "data"), .init(name: "id", value: "eq.env_config"), .init(name: "limit", value: "1")]),
-              let rows = try? JSONDecoder().decode([JSONValue].self, from: data), generation == readGeneration else { return }
-        let allowed = Set(["VITE_AMAP_WEB_KEY", "VITE_AMAP_KEY", "VITE_AMAP_SECURITY_JS_CODE", "VITE_MAP_STYLE_PRESET", "VITE_MAP_USE_AMAP_SDK", "VITE_AMAP_MAP_STYLE", "VITE_GAODE_RASTER_STYLE"])
-        let cloud = rows.first?["data"].object ?? [:]
-        // Empty overrides retain the build defaults, matching getEnvValue on the website.
-        if let url = Bundle.module.url(forResource: "PublicMapConfig", withExtension: "json"), let data = try? Data(contentsOf: url),
-           let defaults = try? JSONDecoder().decode([String: JSONValue].self, from: data) {
-            mapConfig = defaults.merging(cloud.filter { allowed.contains($0.key) && !$0.value.string.isEmpty }) { _, cloud in cloud }
+        struct Response: Decodable { let data: [String: String] }
+        var cloud: [String: String] = [:]
+        var loaded = false
+        if let config, let url = ClientConfig.httpsURL(config.apiBaseURL + "/api/public/map-config"),
+           let (data, response) = try? await URLSession.shared.data(for: URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 10)),
+           let http = response as? HTTPURLResponse, http.statusCode == 200,
+           let result = try? JSONDecoder().decode(Response.self, from: data) {
+            cloud = result.data
+            loaded = true
         }
+        guard !Task.isCancelled, generation == readGeneration else { return }
+        usingBundledMapConfig = !loaded
+        let allowed = ["VITE_MAP_STYLE_PRESET", "VITE_MAP_USE_AMAP_SDK", "VITE_AMAP_MAP_STYLE", "VITE_GAODE_RASTER_STYLE"]
+        var next = defaultMapConfig
+        for key in allowed {
+            if let value = cloud[key], !value.isEmpty { next[key] = .string(value) }
+        }
+        // Legacy overrides can select an engine or theme without a preset ID.
+        if cloud["VITE_MAP_STYLE_PRESET"] == nil,
+           cloud["VITE_MAP_USE_AMAP_SDK"] != nil || cloud["VITE_AMAP_MAP_STYLE"] != nil {
+            next.removeValue(forKey: "VITE_MAP_STYLE_PRESET")
+        }
+        if next != mapConfig { mapConfig = next }
     }
 
     func toggleFavorite(_ photo: Photo) {
@@ -280,36 +296,56 @@ final class GalleryStore: ObservableObject {
     func toggleLike(_ photo: Photo) -> PhotoLikeState? {
         let update = likeUpdate(for: photo.id)
         guard update.pending == nil else { return nil }
-        guard let config, let url = URL(string: config.apiBaseURL + "/api/photos/\(photo.id)/likes") else {
+        guard let config, let photoID = UUID(uuidString: photo.id),
+              let url = ClientConfig.httpsURL(config.apiBaseURL + "/api/v2/photos/\(photoID.uuidString.lowercased())/likes") else {
             notice = "点赞服务暂不可用。"
             return nil
         }
         let wasLiked = liked.contains(photo.id)
-        let delta = wasLiked ? -1 : 1
+        if let prior = pendingLikes[photo.id], Date().timeIntervalSince(prior.createdAt) >= 7 * 24 * 60 * 60 {
+            pendingLikes.removeValue(forKey: photo.id)
+            savePendingLikes()
+            notice = "上次点赞结果已无法确认。再次点按会发起新操作。"
+            return nil
+        }
+        let operation = pendingLikes[photo.id] ?? PendingLikeOperation(id: UUID(), delta: wasLiked ? -1 : 1, createdAt: Date())
+        pendingLikes[photo.id] = operation
+        savePendingLikes()
         let count = photos.first(where: { $0.id == photo.id })?.likes ?? photo.likes
-        let pending = PhotoLikeState(liked: !wasLiked, count: max(0, count + delta))
+        let pending = PhotoLikeState(liked: operation.delta > 0, count: max(0, count + operation.delta))
         update.pending = pending
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
-        Task { await submitLike(id: photo.id, delta: delta, url: url, update: update) }
+        Task { await submitLike(id: photo.id, operation: operation, url: url, update: update) }
         return pending
     }
 
-    private func submitLike(id: String, delta: Int, url: URL, update: PhotoLikeUpdate) async {
+    private func savePendingLikes() {
+        if let data = try? JSONEncoder().encode(StoredLikes(liked: liked, pending: pendingLikes)) {
+            defaults.set(data, forKey: "pic4pick.likeState.v2")
+        }
+    }
+
+    private func submitLike(id: String, operation: PendingLikeOperation, url: URL, update: PhotoLikeUpdate) async {
         defer { update.pending = nil }
         do {
             var request = URLRequest(url: url, timeoutInterval: 60)
             request.httpMethod = "PATCH"
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            request.httpBody = try JSONSerialization.data(withJSONObject: ["delta": delta])
+            request.httpBody = try JSONSerialization.data(withJSONObject: ["delta": operation.delta, "operationId": operation.id.uuidString])
             let (data, response) = try await URLSession.shared.data(for: request)
+            if let status = (response as? HTTPURLResponse)?.statusCode, [400, 404, 409].contains(status) {
+                pendingLikes.removeValue(forKey: id)
+                savePendingLikes()
+            }
             guard let response = response as? HTTPURLResponse, (200..<300).contains(response.statusCode),
                   let result = try? JSONDecoder().decode(PhotoLikeResponse.self, from: data),
                   result.success, result.data.id.lowercased() == id.lowercased(), result.data.likes >= 0 else {
                 let body = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
                 throw ClientError.message(body?["error"] as? String ?? "点赞未成功，请重试。")
             }
-            if delta < 0 { liked.remove(id) } else { liked.insert(id) }
-            defaults.set(Array(liked), forKey: "pic4pick.likes")
+            if operation.delta < 0 { liked.remove(id) } else { liked.insert(id) }
+            pendingLikes.removeValue(forKey: id)
+            savePendingLikes()
             if loading { likesUpdatedDuringRefresh[id] = result.data.likes }
             if let index = photos.firstIndex(where: { $0.id == id }) { photos[index].likes = result.data.likes }
         } catch { notice = error.localizedDescription }

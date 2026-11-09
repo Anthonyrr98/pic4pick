@@ -80,7 +80,7 @@ final class SpatialSceneModel: ObservableObject {
                 self.content = SpatialContent(photoID: photo.id, image: loadedImage, framedImage: framed, depth: depth,
                     photoRect: CGRect(x: insets.left, y: insets.top, width: loadedImage.size.width, height: loadedImage.size.height))
                 self.message = ""; self.loading = false; self.prefetchTask = nil
-                Self.logger.info("Spatial assets ready: \(photo.id, privacy: .public), depth \(depth.width)x\(depth.height)")
+                Self.logger.info("Spatial assets ready")
             } catch {
                 guard !Task.isCancelled, self.generation == token else { return }
                 self.content = nil; self.loading = false; self.message = error.localizedDescription

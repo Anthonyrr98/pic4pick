@@ -47,13 +47,17 @@ Render 免费实例限制出站 SMTP 端口 25、465、587（[官方说明](http
 
 ### 点赞 IP 记录
 
-部署前先应用 `20261012072633_record_photo_like_ips.sql`。每次成功新增点赞时，新的 `update_public_photo_likes_with_ip` RPC 在同一事务内更新计数并写入 `photo_like_events`，保存照片 ID、点赞时间和 IP。记录保存失败则整个点赞回滚；取消点赞不会增加记录，也不会删除此前的点赞事件。部署前已有的点赞无法补录 IP。
+按数据库迁移、后端、iOS 的顺序发布。数据库先应用 `20261012072633_record_photo_like_ips.sql` 与 `20261107175941_harden_photo_likes_and_gallery_paging.sql`，后端再上线 `PATCH /api/v2/photos/:id/likes`。v2 请求包含 `delta` 和随机 UUID v4 `operationId`，同一操作可重试并返回当前计数，操作 ID 与不同作品或增量组合会返回 409。iOS 在收到确认前复用同一操作 ID。旧版 Web、小程序和 iOS 的点赞路由继续接收只含 `delta` 的请求，其重试语义维持原样。
 
-IP 来自 Express 的 `req.ip`，支持 IPv4 / IPv6；IPv4 映射地址会去掉 `::ffff:` 前缀，不读取请求正文中的 IP。线上沿用 Render 单层代理的 `trust proxy=1`，通过代理追加的地址判断来源；本地直接部署或改变代理层数时必须相应配置可信代理（[Express 官方说明](https://expressjs.com/en/guide/behind-proxies/)）。IP 标识的是网络出口，共用网络、代理或 VPN 下不能据此唯一识别个人。这版只记录，不增加按 IP 去重点赞限制。
+IP 来自 Express 的 `req.ip`，支持 IPv4 / IPv6。IPv4 映射地址会去掉 `::ffff:` 前缀。Render Web 服务沿用单跳代理信任，使用转发链中距离应用最近的地址。本地直连默认使用套接字地址，忽略客户端提供的转发头。如果将服务接入私有网络或改变入口路径，需按实际代理地址重新配置并验证限流。[Express 代理说明](https://expressjs.com/en/guide/behind-proxies/) · [Render 私有网络说明](https://render.com/docs/private-network)
 
-邮件通知会包含点赞 IP。数据表启用 RLS，匿名及普通登录数据库角色无权限；只有后端 service role 能读写，公开点赞响应不包含 IP。管理员可通过 Bearer token 调用 `GET /api/admin/like-events?photoId=<可选照片UUID>&limit=50&offset=0`，按时间倒序查询；`limit` 上限 100。删除照片时关联记录随之删除，目前没有自动过期清理。
+点赞记录使用网络连接识别出的来源地址。共用网络、代理和 VPN 下，多个访客可能共用同一个 IP。该地址用于记录来源和短期限流。
 
-这版按每次成功新增点赞发送一封通知，访客身份沿用现有匿名点赞机制，不提供跨设备去重。发信失败只记后端日志（`点赞邮件发送失败`），没有持久化队列或自动补发，进程重启可能丢失尚未发送的通知。部署服务器需允许出站 SMTP 连接，测试通知收到后再验证一次真实点赞。
+成功新增点赞的 IP、作品 ID 和时间一起写入 `photo_like_events`。匿名与普通登录角色无权访问。管理员可通过 Bearer token 调用 `GET /api/admin/like-events?photoId=<可选照片UUID>&limit=50&offset=0`。数据库作业 `purge-expired-photo-likes` 每 15 分钟清理超过 7 天的事件和超过 30 天的操作记录。上线后在 Supabase Cron 核对最近执行结果，并用测试记录确认清理生效。
+
+收到隐私删除请求后，在私下核验请求范围与来源地址，再由授权维护者调用 `delete_photo_like_ip(inet)`，向请求人确认结果。工单只记录编号、执行时间和删除行数。该操作删除事件记录，计数保留。新邮件只包含作品和点赞数。还需核查历史通知邮件、服务商日志及备份的保留和删除设置。
+
+服务器拒绝压缩的 JSON 和 URL 编码请求体，解析前限流，未压缩正文上限 1 MiB。上传仍通过经过鉴权的 multipart 端点。
 
 - ✅ 图片上传（支持 JPG、PNG、GIF、WebP）
 - ✅ 文件大小限制（默认 10MB）

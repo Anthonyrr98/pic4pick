@@ -32,7 +32,9 @@ actor ImageCache {
     private let artwork = NSCache<NSString, UIImage>()
     private var pending: [String: Task<UIImage, Error>] = [:]
     private var developmentHistory = FilmDevelopmentHistory()
-    private let disk = DiskImageCache()
+    private var disk = DiskImageCache()
+    private let downloads = ImageDownload()
+    private var pendingDownloads: [URL: Task<Data, Error>] = [:]
     private let backdrops = NSCache<NSURL, UIImage>()
     private var processingContext: CIContext?
     init() {
@@ -77,23 +79,10 @@ actor ImageCache {
     func load(_ url: URL, size: Int) async throws -> UIImage {
         let key = imageKey(url, size: size)
         if let value = images.object(forKey: key) { return value }
-        let requestKey = key.absoluteString!
+        let requestKey = key.absoluteString ?? "\(url.absoluteString)#size=\(size)"
         if let task = pending[requestKey] { return try await task.value }
         let task = Task {
-            let diskKey = SHA256.hash(data: Data(url.absoluteString.utf8))
-                .map { String(format: "%02x", $0) }.joined()
-            if let data = disk.data(forKey: diskKey) {
-                if let image = try? decode(data, size: size) { return image }
-                disk.remove(diskKey)
-            }
-            let (data, response) = try await URLSession.shared.data(for: URLRequest(url: url, timeoutInterval: 30))
-            guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
-                throw ClientError.message("图片加载失败")
-            }
-            let image = try decode(data, size: size)
-            let cacheControl = http.value(forHTTPHeaderField: "Cache-Control")?.lowercased() ?? ""
-            if !cacheControl.contains("no-store") { disk.store(data, forKey: diskKey) }
-            return image
+            try decode(try await sourceData(for: url), size: size)
         }
         pending[requestKey] = task
         defer { pending[requestKey] = nil }
@@ -103,14 +92,32 @@ actor ImageCache {
         return value
     }
 
+    private func sourceData(for url: URL) async throws -> Data {
+        if let pending = pendingDownloads[url] { return try await pending.value }
+        let diskKey = SHA256.hash(data: Data(url.absoluteString.utf8))
+            .map { String(format: "%02x", $0) }.joined()
+        if let data = disk.data(forKey: diskKey, maxBytes: ImageDownload.maximumBytes),
+           ImageDownload.validSource(data) != nil { return data }
+        let task = Task {
+            let (data, canStore) = try await downloads.fetch(url)
+            if canStore { disk.store(data, forKey: diskKey) }
+            return data
+        }
+        pendingDownloads[url] = task
+        defer { pendingDownloads[url] = nil }
+        return try await task.value
+    }
+
     private func imageKey(_ url: URL, size: Int) -> NSURL {
-        URL(string: url.absoluteString + "#size=\(size)")! as NSURL
+        var components = URLComponents(url: url, resolvingAgainstBaseURL: true)
+        components?.fragment = "size=\(size)"
+        return (components?.url ?? url) as NSURL
     }
 
     private func decode(_ data: Data, size: Int) throws -> UIImage {
         assert(!Thread.isMainThread, "Image decoding must not block scrolling")
         return try autoreleasepool {
-            guard let source = CGImageSourceCreateWithData(data as CFData, [kCGImageSourceShouldCache: false] as CFDictionary),
+            guard let source = ImageDownload.validSource(data),
                   let cg = CGImageSourceCreateThumbnailAtIndex(source, 0, [
                     kCGImageSourceCreateThumbnailFromImageAlways: true,
                     kCGImageSourceCreateThumbnailWithTransform: true,

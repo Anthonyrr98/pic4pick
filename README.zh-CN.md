@@ -11,6 +11,8 @@ Pic4Pick 是 **Light of Anthony** 的摄影作品集与内容管理系统。项�
 
 **在线访问：** [https://pic.rlzhao.com](https://pic.rlzhao.com)
 
+**iPhone App：** [`ios/`](./ios/README.md) 提供 SwiftUI 原生客户端，使用 WSL Ubuntu + xtool 构建并安装。
+
 ![Light of Anthony 摄影档案](./public/og-image.png)
 
 ## 功能特性

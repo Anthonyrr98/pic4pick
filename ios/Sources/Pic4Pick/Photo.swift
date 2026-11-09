@@ -121,11 +121,27 @@ struct ClientConfig: Codable, Sendable {
     let websiteURL: String
     let mediaBaseURL: String
 
+    static let defaultWebsiteURL = URL(string: "https://pic.rlzhao.com") ?? URL(fileURLWithPath: "/")
+
+    static func httpsURL(_ value: String) -> URL? {
+        guard let components = URLComponents(string: value),
+              components.scheme?.lowercased() == "https", let host = components.host, !host.isEmpty,
+              components.user == nil, components.password == nil else { return nil }
+        return components.url
+    }
+
+    var isValid: Bool {
+        [supabaseURL, apiBaseURL, websiteURL, mediaBaseURL].allSatisfy {
+            guard let url = Self.httpsURL($0) else { return false }
+            return url.query == nil && url.fragment == nil
+        } && !publicKey.isEmpty
+    }
+
     func mediaURL(_ raw: String) -> URL? {
         let value = raw.replacingOccurrences(of: "http://", with: "https://", options: [.anchored])
         guard !value.isEmpty else { return nil }
-        let base = URL(string: mediaBaseURL)
-        guard let url = URL(string: value, relativeTo: base)?.absoluteURL, url.scheme == "https" else { return nil }
+        let base = Self.httpsURL(mediaBaseURL)
+        guard let url = URL(string: value, relativeTo: base)?.absoluteURL, Self.httpsURL(url.absoluteString) != nil else { return nil }
         return url
     }
 }

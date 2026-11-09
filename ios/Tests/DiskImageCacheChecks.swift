@@ -6,7 +6,7 @@ struct DiskImageCacheChecks {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }
         let start = Date(timeIntervalSince1970: 1_800_000_000)
-        let cache = DiskImageCache(directory: root, capacity: 1100, maxAge: 100)
+        var cache = DiskImageCache(directory: root, capacity: 1100, maxAge: 100)
         let first = Data(repeating: 1, count: 400)
         let second = Data(repeating: 2, count: 400)
         precondition(cache.data(forKey: "a", now: start) == nil)
@@ -31,7 +31,7 @@ struct DiskImageCacheChecks {
         precondition(cache.data(forKey: "../escape", now: start) == nil)
         let blocked = root.appendingPathComponent("blocked")
         try Data([1]).write(to: blocked)
-        let unavailable = DiskImageCache(directory: blocked)
+        var unavailable = DiskImageCache(directory: blocked)
         unavailable.store(first, forKey: "f", now: start)
         precondition(unavailable.data(forKey: "f", now: start) == nil)
         print("Disk image cache checks passed: persistence, LRU capacity, expiry, corruption, invalid paths and unavailable storage.")

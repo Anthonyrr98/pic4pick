@@ -53,6 +53,12 @@ with sync_playwright() as p:
         page.goto('https://map-test.invalid/')
         page.wait_for_load_state('networkidle')
         assert page.locator('#map').count() == 1
+        page.evaluate("""() => {
+            const script = document.createElement('script');
+            script.textContent = 'window.untrustedMapScriptRan = true';
+            document.head.append(script);
+        }""")
+        assert page.evaluate("window.untrustedMapScriptRan") is None
         for preset in [item for item in PRESETS if item['kind'] == 'raster']:
             payload = {**PAYLOAD, 'config': {'VITE_MAP_STYLE_PRESET': preset['id']}}
             update(page, payload)
@@ -182,7 +188,8 @@ with sync_playwright() as p:
         page.route('https://photo-test.invalid/**', lambda route: route.fulfill(status=404, body='missing'))
         payload = {**payload, 'photoMarkerURL': 'https://photo-test.invalid/missing.jpg'}
         page.evaluate('(payload)=>Pic4PickMap.update(payload)', payload)
-        page.wait_for_function("document.querySelectorAll('.photo-marker').length===0 && document.querySelectorAll('.marker span').length===1")
+        page.locator('.marker span').wait_for()
+        assert page.locator('.photo-marker').count() == 0
         context.close()
 
         context = browser.new_context(viewport={'width': 390, 'height': 780})

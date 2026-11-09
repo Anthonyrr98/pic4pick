@@ -153,7 +153,7 @@ struct PhotoMetadataView: View {
                     geocode: ["id": .string(point.key), "latitude": .number(point.latitude), "longitude": .number(point.longitude), "coordinateSystem": .string(point.gps ? "gps" : "autonavi")], reduceMotion: reduceMotion,
                     active: active, photoDetailCard: immersive,
                     photoMarkerURL: immersive ? store.config?.mediaURL(photo.thumbnailURL.isEmpty ? photo.imageURL : photo.thumbnailURL)?.absoluteString : nil),
-                    baseURL: URL(string: store.config?.websiteURL ?? "https://pic.rlzhao.com")!, onAddress: { result in
+                    baseURL: store.websiteURL, onAddress: { result in
                         geography.address = result["address"]?.string ?? ""
                         geography.place = result["label"]?.string ?? ""
                         if case .number(let lat) = result["latitude"], case .number(let lon) = result["longitude"] {
