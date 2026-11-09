@@ -1,12 +1,10 @@
 import XCTest
 
 final class GalleryLaunchTests: XCTestCase {
-    @MainActor func testGalleryExposesPrivacyPolicyAndSearch() {
+    @MainActor func testGalleryHeaderShowsSearchWithoutPrivacyShortcut() {
         let app = XCUIApplication()
         app.launch()
-        let policy = app.descendants(matching: .any)["privacyPolicy"].firstMatch
-        XCTAssertTrue(policy.waitForExistence(timeout: 10))
-        XCTAssertEqual(policy.label, "隐私政策")
-        XCTAssertTrue(app.buttons["搜索作品"].exists)
+        XCTAssertTrue(app.buttons["搜索作品"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.descendants(matching: .any)["privacyPolicy"].firstMatch.exists)
     }
 }

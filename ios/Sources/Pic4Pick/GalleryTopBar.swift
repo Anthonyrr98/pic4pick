@@ -21,11 +21,6 @@ struct GalleryTopBar: View {
                 }
             }.accessibilityElement(children: .ignore).accessibilityLabel(store.brandTitle)
             Spacer(minLength: 0)
-            if let privacyURL = ClientConfig.httpsURL("https://pic.rlzhao.com/privacy.html") {
-                Link(destination: privacyURL) {
-                    Image(systemName: "hand.raised").frame(width: 44, height: 44)
-                }.accessibilityLabel("隐私政策").accessibilityIdentifier("privacyPolicy")
-            }
             if let onShuffle {
                 Button(action: onShuffle) {
                     Image(systemName: "shuffle").frame(width: 44, height: 44)
