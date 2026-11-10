@@ -516,7 +516,8 @@ try {
   const tile = mapbox.page.waitForResponse(response => response.url().includes('/test-tiles/') && response.ok());
   await mapbox.page.getByRole('button', { name: '发现', exact: true }).click();
   await tile;
-  await mapbox.page.locator('#mapCanvas .mapboxgl-ctrl-logo').waitFor();
+  await mapbox.page.locator('#mapCanvas .mapboxgl-canvas').waitFor();
+  assert.equal(await mapbox.page.locator('#mapCanvas .mapboxgl-ctrl-logo').isVisible(), false);
   const mapboxMarker = mapbox.page.locator('#mapCanvas .mapboxgl-marker.explore-marker-target').first();
   await mapboxMarker.press('Enter');
   await mapbox.page.locator('.location-panel-title').waitFor();
