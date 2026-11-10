@@ -2,18 +2,16 @@
 
 [English](./README.md) | **简体中文**
 
+Pic4Pick 是 **Light of Anthony** 的摄影档案。网页和 SwiftUI 原生 iPhone App **「见远方」** 都可以浏览作品、在地图上探索拍摄地点并查看照片参数。上传、审核和作品管理集中在网页后台。
+
+[打开网页图库](https://pic.rlzhao.com) · [iPhone App 与构建指南](./ios/README.md)
+
+![Light of Anthony 网页图库与「见远方」iPhone 图库的首页截图](./docs/images/pic4pick-homepages.webp)
+
 [![Deploy to GitHub Pages](https://github.com/Anthonyrr98/pic4pick/actions/workflows/deploy.yml/badge.svg)](https://github.com/Anthonyrr98/pic4pick/actions/workflows/deploy.yml)
 [![Supabase Keepalive](https://github.com/Anthonyrr98/pic4pick/actions/workflows/supabase-keepalive.yml/badge.svg)](https://github.com/Anthonyrr98/pic4pick/actions/workflows/supabase-keepalive.yml)
 [![React](https://img.shields.io/badge/React-19-149ECA?logo=react&logoColor=white)](https://react.dev/)
 [![Supabase](https://img.shields.io/badge/Supabase-Postgres-3FCF8E?logo=supabase&logoColor=white)](https://supabase.com/)
-
-Pic4Pick 是 **Light of Anthony** 的摄影作品集与内容管理系统。项目提供响应式图库、高清灯箱、地理位置探索、EXIF 信息展示和受保护的管理后台，并将公开数据、管理操作和图片存储分离部署。
-
-**在线访问：** [https://pic.rlzhao.com](https://pic.rlzhao.com)
-
-**iPhone App：** [`ios/`](./ios/README.md) 提供 SwiftUI 原生客户端，使用 WSL Ubuntu + xtool 构建并安装。
-
-![Light of Anthony 摄影档案](./public/og-image.png)
 
 ## 功能特性
 
@@ -40,7 +38,8 @@ Pic4Pick 是 **Light of Anthony** 的摄影作品集与内容管理系统。项�
 
 | 层级 | 技术 |
 | --- | --- |
-| 前端 | React 19、Vite 7、JavaScript / TypeScript、React Router、i18next、GSAP |
+| 网页 | React 19、Vite 7、JavaScript / TypeScript、React Router、i18next、GSAP |
+| iOS | SwiftUI、UIKit、Metal、Core Motion |
 | 地图 | MapLibre GL、高德地图 Web API |
 | 图片元数据 | exifr |
 | 数据库 | Supabase Postgres、PostgREST、RLS |
@@ -77,7 +76,10 @@ Owner's GPU worker → Supabase job queue → SharpDepth + UniDepth → private 
 ```text
 .
 ├─ .github/workflows/       # Pages / OSS 部署与 Supabase 定时访问
-├─ docs/                    # 架构、主题、空间场景与部署说明
+├─ docs/                    # 项目文档与 README 封面
+├─ ios/                     # SwiftUI 原生客户端
+├─ miniapp/                 # 微信小程序客户端
+├─ packages/shared/         # 共享的照片与地图逻辑
 ├─ public/                  # 静态资源、站点图标与社交分享图片
 ├─ scripts/                 # 回归检查、OSS 发布脚本与 GPU worker
 ├─ server/                  # Express API、图片处理与 OSS 上传
@@ -262,7 +264,7 @@ npx supabase db advisors --linked --type performance
 
 ## 微信小程序：开发中
 
-正在本地工作区开发独立的 Taro 4.3 + React 18 + TypeScript 客户端，工程位于 `miniapp/`，共享业务逻辑位于 `packages/shared/`。这两个目录尚未提交到公开仓库，克隆当前版本得到的是网页与后端工程。
+[微信小程序](./miniapp/README.md) 是基于 Taro 4.3、React 18 和 TypeScript 的独立客户端，复用 `packages/shared/` 中的业务逻辑。
 
 当前实现涵盖图库、主题、详情、原生地图发现、管理流程与空间 Canvas。已开展公开图库、详情、地图切换和空间渲染的模拟器验证；完整真机测试、管理员认证后的读写及上传、正式域名配置与完整功能和视觉验收仍在进行。
 
@@ -364,6 +366,7 @@ Render 使用 `/api/health` 进行健康检查，并在 `main` 更新后自动�
 
 | 文档 | 内容 |
 | --- | --- |
+| [iPhone App](./ios/README.md) | 原生图库、构建、安装与发布 |
 | [全局主题](./docs/global-themes.md) | 纸白画廊、暖调胶片、偏好保存与动效 |
 | [空间场景](./docs/spatial-scenes.md) | GPU 队列、私有景深存储、签名链接与模型环境 |
 | [阿里云前端部署](./docs/aliyun-frontend-deployment.md) | OSS + CDN 配置、发布与回退 |

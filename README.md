@@ -2,22 +2,19 @@
 
 **English** | [简体中文](./README.zh-CN.md)
 
+Pic4Pick is the photography archive behind **Light of Anthony**. Browse the
+collection on the web or in **见远方**, the native SwiftUI app for iPhone.
+Both clients offer a photo gallery, map-based discovery, and detailed photo metadata.
+The web app also handles uploads, review, and collection management.
+
+[Explore the web gallery](https://pic.rlzhao.com) · [iPhone app and build guide](./ios/README.md)
+
+![Light of Anthony desktop gallery and 见远方 iPhone gallery home screens side by side](./docs/images/pic4pick-homepages.webp)
+
 [![Deploy to GitHub Pages](https://github.com/Anthonyrr98/pic4pick/actions/workflows/deploy.yml/badge.svg)](https://github.com/Anthonyrr98/pic4pick/actions/workflows/deploy.yml)
 [![Supabase Keepalive](https://github.com/Anthonyrr98/pic4pick/actions/workflows/supabase-keepalive.yml/badge.svg)](https://github.com/Anthonyrr98/pic4pick/actions/workflows/supabase-keepalive.yml)
 [![React](https://img.shields.io/badge/React-19-149ECA?logo=react&logoColor=white)](https://react.dev/)
 [![Supabase](https://img.shields.io/badge/Supabase-Postgres-3FCF8E?logo=supabase&logoColor=white)](https://supabase.com/)
-
-Pic4Pick is the photography portfolio and content management system
-behind **Light of Anthony**. It combines a responsive gallery, high-resolution
-lightbox, geographic exploration, EXIF presentation, and a protected admin
-workflow while keeping public data, privileged operations, and image storage
-separated.
-
-**Live site:** [https://pic.rlzhao.com](https://pic.rlzhao.com)
-
-**iPhone app:** Native SwiftUI client in [`ios/`](./ios/README.md), built and installed with WSL Ubuntu + xtool.
-
-![Light of Anthony photography archive](./public/og-image.png)
 
 ## Features
 
@@ -44,7 +41,8 @@ separated.
 
 | Layer | Technology |
 | --- | --- |
-| Frontend | React 19, Vite 7, JavaScript / TypeScript, React Router, i18next, GSAP |
+| Web | React 19, Vite 7, JavaScript / TypeScript, React Router, i18next, GSAP |
+| iOS | SwiftUI, UIKit, Metal, Core Motion |
 | Maps | MapLibre GL, AMap Web API |
 | Image metadata | exifr |
 | Database | Supabase Postgres, PostgREST, RLS |
@@ -82,7 +80,10 @@ browser.
 ```text
 .
 ├─ .github/workflows/       # Pages / OSS deployment and Supabase keepalive
-├─ docs/                    # Architecture, themes, spatial scenes, and deployment
+├─ docs/                    # Project guides and README artwork
+├─ ios/                     # Native SwiftUI client
+├─ miniapp/                 # WeChat Mini Program client
+├─ packages/shared/         # Shared photo and map logic
 ├─ public/                  # Static assets, icons, and social preview images
 ├─ scripts/                 # Regression checks, OSS publisher, and GPU worker
 ├─ server/                  # Express API, image processing, and OSS uploads
@@ -311,10 +312,8 @@ for migrations, runtime paths, model licenses, and worker operation.
 
 ## WeChat Mini Program — In Development
 
-A separate Taro 4.3 + React 18 + TypeScript client is being developed in the local
-working tree under `miniapp/`, with reusable business logic under
-`packages/shared/`. These directories have not yet been committed to the public
-repository, so cloning this revision provides the web application and backend.
+The [WeChat Mini Program](./miniapp/README.md) is a separate client built with
+Taro 4.3, React 18, and TypeScript. It uses the business logic in `packages/shared/`.
 
 The implementation covers gallery browsing, themes, details, native-map
 exploration, admin workflows, and a spatial Canvas. Simulator checks have
@@ -438,6 +437,7 @@ The optional like-email feature also requires backend SMTP credentials; see
 
 | Guide | Contents |
 | --- | --- |
+| [iPhone app](./ios/README.md) | Native gallery, build, installation, and release |
 | [Global themes](./docs/global-themes.md) | Paper Gallery, Warm Analog, persistence, and animation |
 | [Spatial scenes](./docs/spatial-scenes.md) | GPU jobs, private depth storage, signed URLs, and model runtime |
 | [Aliyun frontend deployment](./docs/aliyun-frontend-deployment.md) | OSS + CDN setup, publishing, and rollback |
