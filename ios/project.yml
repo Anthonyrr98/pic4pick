@@ -24,18 +24,17 @@ targets:
         buildPhase: resources
     preBuildScripts:
       - name: Check client configuration environment
-        inputFiles: [$(SRCROOT)/Sources/Pic4Pick/Resources/ClientConfig.json]
+        inputFiles:
+          - $(SRCROOT)/scripts/check-client-config.py
+          - $(SRCROOT)/Sources/Pic4Pick/Resources/ClientConfig.json
+          - $(SRCROOT)/Sources/Pic4Pick/Resources/PublicMapConfig.json
         basedOnDependencyAnalysis: false
         showEnvVars: false
         script: |
           set -eu
           expected=staging
           if [ "$CONFIGURATION" = Release ]; then expected=production; fi
-          actual="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["environment"])' "$SCRIPT_INPUT_FILE_0")"
-          if [ "$actual" != "$expected" ]; then
-            echo "error: Run prepare-store.sh for $expected before building $CONFIGURATION."
-            exit 1
-          fi
+          python3 "$SCRIPT_INPUT_FILE_0" "$expected" "$(dirname "$SCRIPT_INPUT_FILE_1")"
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.rlzhao.pic4pick

@@ -11,12 +11,14 @@ if [[ -f "$HOME/.local/share/swiftly/env.sh" ]]; then
 fi
 expected_environment=staging
 if [[ "$configuration" == release ]]; then expected_environment=production; fi
-python3 -c 'import json,sys; assert json.load(open("Sources/Pic4Pick/Resources/ClientConfig.json"))["environment"] == sys.argv[1], "Run prepare.mjs with the matching environment first."' "$expected_environment"
+python3 scripts/check-client-config.py "$expected_environment" Sources/Pic4Pick/Resources
 mkdir -p .build/checks
 swiftc Sources/Pic4Pick/DiskImageCache.swift Tests/DiskImageCacheChecks.swift -o .build/checks/disk-image-cache-checks
 .build/checks/disk-image-cache-checks
 swiftc Sources/Pic4Pick/Photo.swift Tests/PhotoChecks.swift -o .build/checks/photo-checks
 .build/checks/photo-checks
+swiftc Sources/Pic4Pick/Photo.swift Sources/Pic4Pick/GalleryDiskCache.swift Tests/GalleryDiskCacheChecks.swift -o .build/checks/gallery-disk-cache-checks
+.build/checks/gallery-disk-cache-checks
 swiftc Sources/Pic4Pick/Photo.swift Sources/Pic4Pick/PanelSnapPolicy.swift Sources/Pic4Pick/ExploreDiscoveryModel.swift Tests/ExploreDiscoveryChecks.swift -o .build/checks/explore-discovery-checks
 .build/checks/explore-discovery-checks
 swiftc Sources/Pic4Pick/PanelSnapPolicy.swift Sources/Pic4Pick/PhotoViewerLayout.swift Tests/PhotoViewerLayoutChecks.swift -o .build/checks/photo-viewer-layout-checks

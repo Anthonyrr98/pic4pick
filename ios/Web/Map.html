@@ -1,5 +1,6 @@
 <!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-__MAP_SCRIPT_HASH__' 'wasm-unsafe-eval' https://webapi.amap.com; style-src 'unsafe-inline' https://webapi.amap.com; connect-src https://*.amap.com https://*.autonavi.com; img-src https: data: blob:; worker-src blob:; frame-src 'none'; base-uri 'none'; form-action 'none'">
+<!-- The AMap renderer compiles code at runtime. Keep external scripts restricted to its observed endpoints. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-__MAP_SCRIPT_HASH__' 'unsafe-eval' https://webapi.amap.com https://restapi.amap.com https://jsapi-service.amap.com; style-src 'unsafe-inline' https://webapi.amap.com; connect-src https://*.amap.com https://*.autonavi.com https://api.mapbox.com https://events.mapbox.com https://*.tiles.mapbox.com; img-src https: data: blob:; worker-src blob:; frame-src 'none'; base-uri 'none'; form-action 'none'">
 <style>__MAP_CSS__
 html,body,#map{margin:0;width:100%;height:100%;overflow:hidden;background:#e4eaef;font-family:system-ui}
 .discovery-map #map{translate:0 var(--panel-map-offset,0px)}
@@ -14,5 +15,12 @@ html,body,#map{margin:0;width:100%;height:100%;overflow:hidden;background:#e4eae
 .photo-detail-map .photo-marker img{width:30px;height:30px}
 .discovery-map .maplibregl-ctrl-top-right{display:none}
 .discovery-map :is(.amap-logo,.amap-copyright,.maplibregl-ctrl-bottom-left,.maplibregl-ctrl-bottom-right){top:var(--attribution-top,0px)!important;bottom:auto!important;translate:0 calc(0px - var(--panel-map-offset,0px))}
+.mapbox-discovery :is(.mapboxgl-ctrl-bottom-left,.mapboxgl-ctrl-bottom-right){bottom:calc(var(--mapbox-panel-clearance,var(--panel-padding,0px)) + 6px);translate:0 calc(0px - var(--panel-map-offset,0px))}
+.mapbox-discovery :is(.mapboxgl-ctrl-bottom-left,.mapboxgl-ctrl-bottom-right) .mapboxgl-ctrl{margin-bottom:0}
+.mapbox-discovery .mapboxgl-ctrl-attrib.mapboxgl-compact{padding-right:54px}
+.mapbox-discovery .mapboxgl-ctrl-attrib.mapboxgl-compact-show{padding-right:60px}
+.mapbox-discovery .mapboxgl-ctrl-attrib.mapboxgl-compact::after{content:none}
+.mapbox-discovery .mapboxgl-ctrl-attrib-button{width:54px;background-image:none;color:#4b5357;font:11px system-ui}
+.mapbox-discovery .mapboxgl-ctrl-attrib-button::after{content:attr(aria-label)}
 .maplibregl-ctrl-attrib{font-size:10px!important}
 </style></head><body><div id="map"></div><script>__MAP_JS__</script></body></html>

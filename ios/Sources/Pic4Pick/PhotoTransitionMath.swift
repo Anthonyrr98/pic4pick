@@ -27,9 +27,7 @@ enum PhotoPagingTransition {
 
 // All distances are points, velocities points/second. Shared by UIKit and Linux checks.
 enum PhotoTransitionTuning {
-    static let dismissDistanceThreshold = 120.0
-    static let dismissVelocityThreshold = 950.0
-    static let flickMinimumDistance = 18.0
+    static let dismissMinimumDistance = 18.0
     static let dragRange = 460.0
     static let interactiveMinimumScale = 0.82
     static let backgroundFadeProgress = 0.68
@@ -50,9 +48,7 @@ enum PhotoTransitionTuning {
     static func shouldDismiss(translation: Double, velocity: Double) -> Bool {
         guard translation.isFinite, velocity.isFinite else { return false }
         // A deliberate reversal cancels even after a long downward excursion.
-        let predicted = translation + velocity * 0.18
-        return velocity > -250 && (translation >= dismissDistanceThreshold ||
-            (translation >= flickMinimumDistance && velocity >= dismissVelocityThreshold && predicted >= dismissDistanceThreshold))
+        return translation >= dismissMinimumDistance && velocity > -250
     }
     static func duration(distance: Double, velocity: Double) -> Double {
         min(transitionDurationRange.upperBound, max(transitionDurationRange.lowerBound, (0.30 + sqrt(max(0, distance) / 1000) * 0.16) /
@@ -130,6 +126,17 @@ struct PhotoTransitionState {
 }
 
 enum PhotoTransitionSpring {
+    static func panelOpeningProgress(from: Double, velocity: Double, time: Double, duration: Double) -> Double {
+        let progress = min(1, max(0, time / duration))
+        let remaining = 1 - progress
+        let distance = 1 - from
+        // A cubic with zero end velocity stays monotonic when the initial
+        // tangent is between zero and three times the remaining travel.
+        let tangent = min(3 * distance, max(0, velocity * duration))
+        return from + distance * progress * progress * (3 - 2 * progress)
+            + tangent * progress * remaining * remaining
+    }
+
     private static func omega(_ duration: Double, response: Double) -> Double {
         2 * Double.pi / min(response, duration * 0.76)
     }

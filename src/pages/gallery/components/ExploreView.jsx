@@ -1,10 +1,17 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createMarkerReveal } from '../../../utils/markerReveal';
 import { loadMapLibre } from '../../../utils/maplibreLoader';
-import { useGaodeMapInit, useFocusMapOnCity, useMapMotion } from '../hooks/useMapInit';
+import { loadMapbox } from '../../../utils/mapboxLoader';
+import { useMapInit, useFocusMapOnCity, useMapMotion } from '../hooks/useMapInit';
 import { buildCityPhotoMap, buildCurationGroups, buildPhotosByLocation } from '../utils/photoDataUtils';
 import { CurationPanel } from './CurationPanel';
 import { EXPLORE_MARKER_COLORS, EXPLORE_MARKER_DOT_SIZE, EXPLORE_MARKER_BORDER_SIZE } from '../../../../packages/shared/exploreMarkerStyle';
+
+const loadMarkerEngine = provider => {
+  if (provider === 'mapbox') return loadMapbox();
+  if (provider === 'maplibre') return loadMapLibre();
+  return null;
+};
 
 export function ExploreView({
   isActive,
@@ -17,11 +24,10 @@ export function ExploreView({
 }) {
   const mapContainerRef = useRef(null);
   const sectionRef = useRef(null);
-  const maplibreRef = useRef(null);
   const exploreMarkersRef = useRef([]);
-  const exploreMaplibreMarkersRef = useRef([]);
+  const exploreWebGLMarkersRef = useRef([]);
   const currentLocationMarkerRef = useRef(null);
-  const currentLocationMaplibreMarkerRef = useRef(null);
+  const currentLocationWebGLMarkerRef = useRef(null);
   const pendingFocusRef = useRef(null);
   const markerRevealRef = useRef(null);
   const activeRef = useRef(isActive);
@@ -54,20 +60,15 @@ export function ExploreView({
   const {
     mapInstance,
     maplibreInstance,
+    mapboxInstance,
     isMapReady,
     mapProvider,
     resizeMap,
-  } = useGaodeMapInit(mapContainerRef, 'explore-view');
-  const focusMapOnCity = useFocusMapOnCity(mapInstance, maplibreInstance, mapProvider,
+  } = useMapInit(mapContainerRef, 'explore-view', { preferMapbox: true });
+  const webGLInstance = mapProvider === 'mapbox' ? mapboxInstance : maplibreInstance;
+  const focusMapOnCity = useFocusMapOnCity(mapInstance, webGLInstance, mapProvider,
     isMapReady, sectionRef, mapContainerRef, isActive);
-  useMapMotion(sectionRef, mapInstance, maplibreInstance, mapProvider, isMapReady, isActive);
-
-  const ensureMapLibre = useCallback(async () => {
-    if (!maplibreRef.current) {
-      maplibreRef.current = await loadMapLibre();
-    }
-    return maplibreRef.current;
-  }, []);
+  useMapMotion(sectionRef, mapInstance, webGLInstance, mapProvider, isMapReady, isActive);
 
   const handleCityCardClick = useCallback(
     (province, city) => {
@@ -113,12 +114,12 @@ export function ExploreView({
     let cancelled = false;
     exploreMarkersRef.current.forEach((marker) => marker?.setMap?.(null));
     exploreMarkersRef.current = [];
-    exploreMaplibreMarkersRef.current.forEach((marker) => marker.remove());
-    exploreMaplibreMarkersRef.current = [];
+    exploreWebGLMarkersRef.current.forEach((marker) => marker.remove());
+    exploreWebGLMarkersRef.current = [];
     if (!photosByLocation || photosByLocation.length === 0) return;
 
     const drawMarkers = async () => {
-      const maplibregl = mapProvider === 'maplibre' ? await ensureMapLibre() : null;
+      const engine = await loadMarkerEngine(mapProvider);
       if (cancelled) return;
 
       const markerDots = [];
@@ -187,12 +188,11 @@ export function ExploreView({
             map: mapInstance.current,
           });
           exploreMarkersRef.current.push(marker);
-        } else if (mapProvider === 'maplibre') {
-          if (!maplibreInstance.current || !maplibregl) return;
-          const marker = new maplibregl.Marker({ element: anchor, anchor: 'center' })
+        } else if (engine && webGLInstance.current) {
+          const marker = new engine.Marker({ element: anchor, anchor: 'center' })
             .setLngLat([group.lng, group.lat])
-            .addTo(maplibreInstance.current);
-          exploreMaplibreMarkersRef.current.push(marker);
+            .addTo(webGLInstance.current);
+          exploreWebGLMarkersRef.current.push(marker);
         } else {
           return;
         }
@@ -211,21 +211,21 @@ export function ExploreView({
       markerRevealRef.current = null;
       exploreMarkersRef.current.forEach((marker) => marker?.setMap?.(null));
       exploreMarkersRef.current = [];
-      exploreMaplibreMarkersRef.current.forEach((marker) => marker.remove());
-      exploreMaplibreMarkersRef.current = [];
+      exploreWebGLMarkersRef.current.forEach((marker) => marker.remove());
+      exploreWebGLMarkersRef.current = [];
     };
-  }, [ensureMapLibre, isMapReady, mapInstance, mapProvider, maplibreInstance, onShowLocationPanel, photosByLocation]);
+  }, [isMapReady, mapInstance, mapProvider, webGLInstance, onShowLocationPanel, photosByLocation]);
 
   useEffect(() => {
     if (!isMapReady || !browserLocation) return;
     let cancelled = false;
     currentLocationMarkerRef.current?.setMap?.(null);
     currentLocationMarkerRef.current = null;
-    currentLocationMaplibreMarkerRef.current?.remove();
-    currentLocationMaplibreMarkerRef.current = null;
+    currentLocationWebGLMarkerRef.current?.remove();
+    currentLocationWebGLMarkerRef.current = null;
 
     const addCurrentMarker = async () => {
-      const maplibregl = mapProvider === 'maplibre' ? await ensureMapLibre() : null;
+      const engine = await loadMarkerEngine(mapProvider);
       if (cancelled) return;
       const locAnchor = document.createElement('div');
       locAnchor.style.cssText = 'display:block;line-height:0;';
@@ -241,10 +241,10 @@ export function ExploreView({
           map: mapInstance.current,
           zIndex: 1000,
         });
-      } else if (mapProvider === 'maplibre' && maplibreInstance.current && maplibregl) {
-        currentLocationMaplibreMarkerRef.current = new maplibregl.Marker({ element: locAnchor, anchor: 'center' })
+      } else if (engine && webGLInstance.current) {
+        currentLocationWebGLMarkerRef.current = new engine.Marker({ element: locAnchor, anchor: 'center' })
           .setLngLat([browserLocation.lon, browserLocation.lat])
-          .addTo(maplibreInstance.current);
+          .addTo(webGLInstance.current);
       }
     };
 
@@ -253,10 +253,10 @@ export function ExploreView({
       cancelled = true;
       currentLocationMarkerRef.current?.setMap?.(null);
       currentLocationMarkerRef.current = null;
-      currentLocationMaplibreMarkerRef.current?.remove();
-      currentLocationMaplibreMarkerRef.current = null;
+      currentLocationWebGLMarkerRef.current?.remove();
+      currentLocationWebGLMarkerRef.current = null;
     };
-  }, [browserLocation, ensureMapLibre, isMapReady, mapInstance, mapProvider, maplibreInstance]);
+  }, [browserLocation, isMapReady, mapInstance, mapProvider, webGLInstance]);
 
   return (
     <section ref={sectionRef} id="explore-view" className="screen active">

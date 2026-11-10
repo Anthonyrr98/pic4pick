@@ -22,19 +22,40 @@ struct ExplorePlace: Identifiable, Sendable {
 
 struct ExploreDiscoveryIndex {
     let places: [ExplorePlace]
+    let featured: [ExplorePlace]
     private let photos: [String: Photo]
+    private let searchablePlaces: [ExplorePlace]
+    private let covers: [String: Photo]
 
-    init(places: [ExplorePlace], photos: [Photo]) {
-        self.photos = Dictionary(photos.filter(\.isPublic).map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+    init(places: [ExplorePlace], photos: [Photo], additionalSearchPlaces: [ExplorePlace] = []) {
+        let publicPhotos = Dictionary(photos.filter(\.isPublic).map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        self.photos = publicPhotos
         var seen = Set<String>()
-        self.places = places.filter { seen.insert($0.id).inserted }
+        let cities = places.filter { seen.insert($0.id).inserted }
+        self.places = cities
+        let searchablePlaces = cities + additionalSearchPlaces.filter { seen.insert($0.id).inserted }
+        self.searchablePlaces = searchablePlaces
+        let covers = Dictionary(uniqueKeysWithValues: searchablePlaces.compactMap { place in
+            Self.cover(for: place.photoIDs, in: publicPhotos).map { (place.id, $0) }
+        })
+        self.covers = covers
+        featured = cities.compactMap { place in
+            covers[place.id].map { (place: place, rating: $0.displayRating) }
+        }.sorted { a, b in
+            if a.rating != b.rating { return a.rating > b.rating }
+            return a.place.title.localizedStandardCompare(b.place.title) == .orderedAscending
+        }.map(\.place)
     }
 
     func cover(for place: ExplorePlace) -> Photo? {
-        cover(for: place.photoIDs)
+        covers[place.id]
     }
 
     func cover(for photoIDs: [String]) -> Photo? {
+        Self.cover(for: photoIDs, in: photos)
+    }
+
+    private static func cover(for photoIDs: [String], in photos: [String: Photo]) -> Photo? {
         // Keep album order when ratings tie, and never expose removed/private photos.
         var best: Photo?
         for id in photoIDs {
@@ -45,18 +66,8 @@ struct ExploreDiscoveryIndex {
         return best
     }
 
-    var featured: [ExplorePlace] {
-        let rated: [(place: ExplorePlace, rating: Int)] = places.compactMap { place in
-            cover(for: place).map { (place, $0.displayRating) }
-        }
-        return rated.sorted { a, b in
-            if a.rating != b.rating { return a.rating > b.rating }
-            return a.place.title.localizedStandardCompare(b.place.title) == .orderedAscending
-        }.map(\.place)
-    }
-
     func results(for query: String) -> [ExplorePlace] {
-        places.filter { $0.matches(query) && cover(for: $0) != nil }
+        searchablePlaces.filter { covers[$0.id] != nil && $0.matches(query) }
     }
 }
 
@@ -106,11 +117,11 @@ struct ExplorePanelLayout {
     let middle: Double
     let expanded: Double
 
-    init(availableHeight: Double, topInset: Double = 0, bottomInset: Double = 0) {
+    init(availableHeight: Double, topInset: Double = 0, bottomInset: Double = 0, mapControlHeight: Double = 24) {
         let height = max(0, availableHeight.isFinite ? availableHeight : 0)
         let fullHeight = height + topInset + bottomInset
         collapsed = min(height * 0.48 + bottomInset, max(172, fullHeight * 0.24))
-        let mapClearance = max(topInset + 24, fullHeight * 0.082)
+        let mapClearance = max(topInset + mapControlHeight, fullHeight * 0.082)
         expanded = max(collapsed, fullHeight - mapClearance)
         middle = min(expanded, max(collapsed, fullHeight * 0.632))
     }

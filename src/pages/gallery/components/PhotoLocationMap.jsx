@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { useGaodeMapInit } from '../hooks/useMapInit';
+import { useMapInit } from '../hooks/useMapInit';
 import { loadMapLibre } from '../../../utils/maplibreLoader';
 import { escapeHtml } from '../../../utils/security';
 import { handleError, ErrorType } from '../../../utils/errorHandler';
@@ -33,7 +33,7 @@ export function PhotoLocationMap({ geoInfo, title, thumbnail, compact = false })
   const longitude = geoInfo.mapLongitude ?? geoInfo.longitude;
   const browserLatitude = browserLocation?.lat;
   const browserLongitude = browserLocation?.lon;
-  const { mapInstance, maplibreInstance, isMapReady, mapProvider, resizeMap } = useGaodeMapInit(
+  const { mapInstance, maplibreInstance, isMapReady, mapProvider, resizeMap } = useMapInit(
     containerRef, 'explore-view', { center: [longitude, latitude], zoom: 10 }
   );
 

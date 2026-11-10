@@ -34,6 +34,7 @@ jobs:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
           VITE_AMAP_KEY: ${{ secrets.VITE_AMAP_KEY }}
+          VITE_MAPBOX_PUBLIC_TOKEN: ${{ secrets.VITE_MAPBOX_PUBLIC_TOKEN }}
           VITE_AMAP_WEB_KEY: ${{ secrets.VITE_AMAP_WEB_KEY }}
           VITE_AMAP_SECURITY_JS_CODE: ${{ secrets.VITE_AMAP_SECURITY_JS_CODE }}
           VITE_AMAP_WEB_SERVICE_KEY: ${{ secrets.VITE_AMAP_WEB_SERVICE_KEY }}

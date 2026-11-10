@@ -1,4 +1,4 @@
-import { readFile, writeFile, mkdir, copyFile } from 'node:fs/promises';
+import { readFile, writeFile, mkdir, copyFile, rm } from 'node:fs/promises';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import path from 'node:path';
 import { build } from 'esbuild';
@@ -9,7 +9,7 @@ const [environment, file] = process.argv.slice(2);
 if (!['staging', 'production'].includes(environment)) throw new Error('Usage: node ios/scripts/prepare.mjs staging|production [env-file]');
 const env = {};
 for (const line of (file ? await readFile(file, 'utf8') : '').split(/\r?\n/)) {
-  const match = line.match(/^\s*([A-Z_]+)\s*=\s*(.*?)\s*$/);
+  const match = line.match(/^\s*([A-Z_][A-Z0-9_]*)\s*=\s*(.*?)\s*$/);
   if (match) env[match[1]] = match[2].replace(/^(['"])(.*)\1$/, '$2');
 }
 const get = name => process.env[`PIC4PICK_${environment.toUpperCase()}_${name}`] || env[`PIC4PICK_${name}`] || '';
@@ -51,23 +51,37 @@ await writeFile(path.join(resources, 'AdminMapPresets.json'), JSON.stringify(MAP
 const mapConfig = Object.fromEntries(['VITE_AMAP_WEB_KEY', 'VITE_AMAP_KEY', 'VITE_AMAP_SECURITY_JS_CODE',
   'VITE_MAP_STYLE_PRESET', 'VITE_MAP_USE_AMAP_SDK', 'VITE_AMAP_MAP_STYLE', 'VITE_GAODE_RASTER_STYLE']
   .map(key => [key, get(key.replace(/^VITE_/, ''))]));
+const mapboxToken = get('MAPBOX_PUBLIC_TOKEN').trim();
+if (mapboxToken && !/^pk\.[A-Za-z0-9._-]+$/.test(mapboxToken)) throw new Error('Mapbox 仅接受 pk. 开头的公开令牌。');
+if (mapboxToken) mapConfig.VITE_MAPBOX_PUBLIC_TOKEN = mapboxToken;
 await writeFile(path.join(resources, 'PublicMapConfig.json'), JSON.stringify(mapConfig));
 const common = { bundle: true, write: false, minify: true, target: 'safari17', logLevel: 'warning' };
 const shared = await build({ ...common, entryPoints: [path.join(root, 'ios/Web/GalleryShared.ts')], format: 'iife', globalName: 'Pic4PickShared' });
 await writeFile(path.join(resources, 'GalleryShared.js'), shared.outputFiles[0].text);
 const worker = await build({ ...common, entryPoints: [path.join(root, 'node_modules/maplibre-gl/dist/maplibre-gl-worker.mjs')], format: 'iife' });
 const map = await build({ ...common, entryPoints: [path.join(root, 'ios/Web/Map.ts')], format: 'iife',
-  define: { __WORKER_SOURCE__: JSON.stringify(worker.outputFiles[0].text), 'import.meta.url': JSON.stringify('https://pic.rlzhao.com/'), 'import.meta.env': '{}' } });
-const css = await readFile(path.join(root, 'node_modules/maplibre-gl/dist/maplibre-gl.css'), 'utf8');
+  define: { __WORKER_SOURCE__: JSON.stringify(worker.outputFiles[0].text), __MAPBOX_ENABLED__: JSON.stringify(Boolean(mapboxToken)),
+    'import.meta.url': JSON.stringify('https://pic.rlzhao.com/'), 'import.meta.env': '{}' } });
+let css = await readFile(path.join(root, 'node_modules/maplibre-gl/dist/maplibre-gl.css'), 'utf8');
+if (mapboxToken) css += '\n' + await readFile(path.join(root, 'node_modules/mapbox-gl/dist/mapbox-gl.css'), 'utf8');
+if (process.env.PIC4PICK_INTERNAL_MAP_PREVIEW === '1') {
+  css += '\n:is(.discovery-map,.photo-detail-map) :is(.mapboxgl-ctrl-logo,.maplibregl-ctrl-logo,.amap-logo){display:none!important}';
+  css += '\n.mapbox-discovery .mapboxgl-ctrl-attrib{display:none!important}';
+}
 const template = await readFile(path.join(root, 'ios/Web/Map.html'), 'utf8');
 const mapScript = map.outputFiles[0].text.replace(/<\/script/gi, '<\\/script').replace(/\r\n?/g, '\n');
 const mapHash = createHash('sha256').update(mapScript).digest('base64');
 await writeFile(path.join(resources, 'GalleryMap.html'), template.replace('__MAP_CSS__', () => css)
   .replace('__MAP_SCRIPT_HASH__', () => mapHash).replace('__MAP_JS__', () => mapScript));
+// Remove the obsolete generated copy in existing checkouts as well as fresh builds.
+await rm(path.join(resources, '35mm-controls.png'), { force: true });
 for (const [source, name] of [['public/loa-cropped.png', 'brand-wordmark.png'], ['public/images/film-desktop.png', 'film-desktop.png'],
-  ['public/film-frames/35mm-controls.png', '35mm-controls.png'], ['public/images/cameras/nikon-fm2.png', 'nikon-fm2.png'],
+  ['public/images/cameras/nikon-fm2.png', 'nikon-fm2.png'],
   ['public/images/film-stocks/fuji-c200.png', 'fuji-c200-artwork.png']]) {
   await copyFile(path.join(root, source), path.join(resources, name));
 }
 await copyFile(path.join(root, 'node_modules/maplibre-gl/LICENSE.txt'), path.join(resources, 'MapLibre-LICENSE.txt'));
+const mapboxLicense = path.join(resources, 'Mapbox-LICENSE.txt');
+if (mapboxToken) await copyFile(path.join(root, 'node_modules/mapbox-gl/LICENSE.txt'), mapboxLicense);
+else await rm(mapboxLicense, { force: true });
 console.log('已生成共享城市规则、网站地图引擎、公开地图配置和胶片分区素材。');

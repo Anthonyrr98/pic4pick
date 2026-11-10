@@ -13,17 +13,18 @@ import UIKit
         addSubview(imageView)
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) is unavailable") }
+    func preparePanelHandle() {
+        guard panelHandle == nil else { return }
+        let configuration = UIImage.SymbolConfiguration(pointSize: 28, weight: .medium)
+        let handle = UIImageView(image: UIImage(systemName: "chevron.compact.down", withConfiguration: configuration))
+        handle.tintColor = .white
+        handle.alpha = 0
+        addSubview(handle)
+        panelHandle = handle
+    }
     func renderPanelHandle(progress: Double) {
-        guard progress > 0.65 else { panelHandle?.alpha = 0; return }
-        let handle: UIImageView
-        if let panelHandle { handle = panelHandle }
-        else {
-            let configuration = UIImage.SymbolConfiguration(pointSize: 28, weight: .medium)
-            handle = UIImageView(image: UIImage(systemName: "chevron.compact.down", withConfiguration: configuration))
-            handle.tintColor = .white
-            addSubview(handle)
-            panelHandle = handle
-        }
+        guard let handle = panelHandle else { return }
+        guard progress > 0.65 else { handle.alpha = 0; return }
         handle.center = CGPoint(x: bounds.midX, y: bounds.maxY - 22)
         handle.alpha = 0.8 * min(1, (progress - 0.65) / 0.35)
     }
@@ -59,6 +60,8 @@ import UIKit
     private let velocity: [Double]
     private let response: Double
     private let damping: Double
+    private let openingPanel: Bool
+    private let movingChannels: [Int]
     private let update: (PhotoTransitionState) -> Void
     private var completion: (() -> Void)?
     @MainActor private final class Proxy: NSObject {
@@ -68,10 +71,13 @@ import UIKit
     init(from: PhotoTransitionState, to: PhotoTransitionState, velocity: [Double], duration: Double,
          screen: UIScreen, response: Double = PhotoTransitionTuning.returnSpringResponse,
          damping: Double = PhotoTransitionTuning.returnSpringDamping,
+         openingPanel: Bool = false,
          update: @escaping (PhotoTransitionState) -> Void, completion: @escaping () -> Void) {
         self.from = from; self.to = to; self.velocity = velocity; self.duration = duration
         self.update = update; self.completion = completion
         self.response = response; self.damping = damping
+        self.openingPanel = openingPanel
+        movingChannels = from.values.indices.filter { from.values[$0] != to.values[$0] || velocity[$0] != 0 }
         super.init()
         let proxy = Proxy(); proxy.owner = self
         let link = CADisplayLink(target: proxy, selector: #selector(Proxy.tick(_:)))
@@ -84,9 +90,14 @@ import UIKit
         elapsed = time
         if time >= duration { finish(); return }
         var state = from
-        for index in state.values.indices {
-            state.values[index] = PhotoTransitionSpring.value(from: from.values[index], to: to.values[index],
-                velocity: velocity[index], time: time, duration: duration, response: response, damping: damping)
+        if openingPanel {
+            state.values[0] = PhotoTransitionSpring.panelOpeningProgress(from: from.values[0], velocity: velocity[0],
+                time: time, duration: duration)
+        } else {
+            for index in movingChannels {
+                state.values[index] = PhotoTransitionSpring.value(from: from.values[index], to: to.values[index],
+                    velocity: velocity[index], time: time, duration: duration, response: response, damping: damping)
+            }
         }
         update(state)
     }
@@ -108,7 +119,9 @@ import UIKit
     private(set) var contentState: ContentState = .photo {
         didSet { if oldValue != contentState { PhotoPreviewDiagnostics.event("content \(String(describing: contentState))") } }
     }
-    private(set) var panelProgress = 0.0
+    private(set) var panelProgress = 0.0 {
+        didSet { if panelProgress == 0, oldValue != 0 { resumeStabilityWaiters() } }
+    }
     private weak var headerView: UIView?
     private var panelBase: PhotoTransitionState?
     private var panelTarget: PhotoTransitionState?
@@ -119,6 +132,8 @@ import UIKit
     private var requestedInformation = false
     private weak var panelMotion: PhotoViewerMotion?
     private var rootPan: PhotoPanelPanDriver?
+    private var openingSwipeSurface: PhotoOpeningSwipeSurface?
+    private var openingSwipeDriver: PhotoPanelPanDriver?
     private var rootInteraction: PhotoPanelInteraction?
     private weak var touchedContentScroll: UIScrollView?
     var isInformationDragging: Bool { panelDragOrigin != nil }
@@ -126,7 +141,11 @@ import UIKit
     let owner = UUID()
     let selection: PhotoSelection
     private(set) var phase: Phase = .waiting {
-        didSet { if oldValue != phase { PhotoPreviewDiagnostics.event("phase \(String(describing: phase))") } }
+        didSet {
+            guard oldValue != phase else { return }
+            PhotoPreviewDiagnostics.event("phase \(String(describing: phase))")
+            resumeStabilityWaiters()
+        }
     }
     private(set) var currentID: String
     weak var controller: UIViewController?
@@ -151,14 +170,20 @@ import UIKit
     private var anchor = CGPoint.zero
     private var releaseVelocity = [Double](repeating: 0, count: 10)
     private var clock: PhotoSpringClock?
+    private var openingContext: UIViewControllerContextTransitioning?
     private var openingCompletion: (() -> Void)?
     private static let openingAnimationKey = "photo-opening"
+    private static let reducedMotionFadeDuration = 0.18
     private let sourceImage: UIImage?
     private var presentationWaiters: [CheckedContinuation<Void, Never>] = []
+    private var stabilityWaiters: [UUID: CheckedContinuation<Bool, Never>] = [:]
     var didClose: (() -> Void)?
     var isPhotoAvailable: (String) -> Bool = { _ in true }
     var isDragging: Bool { phase == .dragging || ignoringResizedGesture }
     var isStable: Bool { phase == .visible && panelProgress == 0 && !isPaging }
+    var isInformationSettled: Bool {
+        phase == .visible && requestedInformation && panelProgress == 1 && panelDragOrigin == nil && panelClock == nil
+    }
     var currentZoomScale: Double { Double(endpoints[currentID]?.scroll?.zoomScale ?? 1) }
     var canStartPaging: Bool { isStable && !hasInformationMotion && currentZoomScale <= 1.001 }
 
@@ -170,6 +195,7 @@ import UIKit
 
     func endPaging() {
         isPaging = false
+        resumeStabilityWaiters()
         if closeAfterPaging {
             closeAfterPaging = false
             DispatchQueue.main.async { [weak self] in self?.close() }
@@ -185,6 +211,31 @@ import UIKit
     func waitUntilPresented() async {
         guard phase == .waiting || phase == .opening, !Task.isCancelled else { return }
         await withCheckedContinuation { presentationWaiters.append($0) }
+    }
+
+    func waitUntilStable() async -> Bool {
+        guard !Task.isCancelled, phase != .closing, phase != .finished else { return false }
+        if isStable { return true }
+        let id = UUID()
+        return await withTaskCancellationHandler {
+            await withCheckedContinuation { continuation in
+                if Task.isCancelled { continuation.resume(returning: false) }
+                else { stabilityWaiters[id] = continuation }
+            }
+        } onCancel: {
+            Task { @MainActor [weak self] in
+                self?.stabilityWaiters.removeValue(forKey: id)?.resume(returning: false)
+            }
+        }
+    }
+
+    private func resumeStabilityWaiters() {
+        guard !stabilityWaiters.isEmpty else { return }
+        let stable = isStable
+        guard stable || phase == .closing || phase == .finished else { return }
+        let waiters = stabilityWaiters.values
+        stabilityWaiters.removeAll()
+        for waiter in waiters { waiter.resume(returning: stable) }
     }
     func register(id: String, imageView: PhotoZoomBitmapView, scroll: UIScrollView) {
         endpoints[id] = Endpoint(imageView, scroll: scroll)
@@ -279,6 +330,8 @@ import UIKit
             panelDragOrigin = panelProgress
             panelDragTranslation = interrupted ? sample.vertical : 0
         }
+        // Keep the panel still until release while retaining gesture ownership and snapping.
+        guard !UIAccessibility.isReduceMotionEnabled else { return true }
         let travel = max(1, layout.expandedPanel - layout.collapsedPanel)
         updatePanelProgress((panelDragOrigin ?? 0) - (sample.vertical - panelDragTranslation) / travel)
         return true
@@ -308,10 +361,13 @@ import UIKit
         from.values[0] = panelProgress
         var target = from; target.values[0] = expanded ? 1 : 0
         var speeds = Array(repeating: 0.0, count: 10); speeds[0] = velocity
-        if UIAccessibility.isReduceMotionEnabled { updatePanelProgress(target.values[0]); return }
+        if UIAccessibility.isReduceMotionEnabled || panelProgress == target.values[0] {
+            updatePanelProgress(target.values[0]); return
+        }
         panelClock = PhotoSpringClock(from: from, to: target, velocity: speeds,
             duration: PhotoTransitionTuning.panelSettleDuration, screen: screen,
             response: PhotoTransitionTuning.panelSpringResponse, damping: PhotoTransitionTuning.panelSpringDamping,
+            openingPanel: expanded,
             update: { [weak self] in self?.updatePanelProgress($0.values[0]) }, completion: { [weak self] in self?.panelClock = nil })
     }
     func updatePanelProgress(_ progress: Double) {
@@ -329,6 +385,7 @@ import UIKit
             guard let full = fullState(in: container, size: image.size) else { return }
             panelBase = full
             installSurface(image: image, state: full, in: container)
+            surface?.preparePanelHandle()
         }
         if panelTarget == nil {
             let clip = headerView.convert(headerView.bounds, to: container)
@@ -347,6 +404,7 @@ import UIKit
             scope: selection.source?.scope, container: container, size: size)
     }
     private func maskSource(container: UIView, size: CGSize) {
+        guard !UIAccessibility.isReduceMotionEnabled else { return }
         let next = source(in: container, size: size)
         if next !== hiddenSource { hiddenSource?.reveal(owner: owner); hiddenSource = next }
         hiddenSource?.hide(owner: owner)
@@ -391,7 +449,8 @@ import UIKit
         guard let from = current, let screen = container?.window?.screen else { completion(); return }
         clock?.stop()
         if UIAccessibility.isReduceMotionEnabled {
-            UIView.animate(withDuration: 0.18, animations: { self.render(target) }) { _ in completion() }
+            UIView.performWithoutAnimation { render(target) }
+            completion()
             return
         }
         clock = PhotoSpringClock(from: from, to: target, velocity: velocity ?? Array(repeating: 0, count: 10),
@@ -462,6 +521,77 @@ import UIKit
         removeOpeningAnimations()
         completion()
     }
+
+    private func captureOpeningSwipe(in container: UIView) {
+        // Keep this recognizer alive through the handoff so the same touch can
+        // drive the regular drag after UIKit completes presentation.
+        let capture = PhotoOpeningSwipeSurface(frame: container.bounds)
+        capture.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        capture.accessibilityElementsHidden = true
+        let driver = PhotoPanelPanDriver(view: capture)
+        driver.canBegin = { [weak driver] in
+            guard let recognizer = driver?.recognizer else { return false }
+            return recognizer.velocity(in: recognizer.view).y > 0
+        }
+        driver.interaction = PhotoPanelInteraction(expanded: false, enabled: true,
+            changed: { [weak self] sample in self?.trackOpeningSwipe(sample) }, ended: { [weak self] sample in
+                guard let self else { return }
+                if self.isDragging { self.endDrag(sample) }
+                else if PhotoTransitionTuning.shouldDismiss(translation: sample.vertical, velocity: Double(sample.velocity.y)) {
+                    self.close()
+                }
+            }, cancelled: { [weak self] in self?.cancelDrag() })
+        openingSwipeSurface = capture
+        openingSwipeDriver = driver
+        container.addSubview(capture)
+    }
+
+    private func trackOpeningSwipe(_ sample: PhotoPanSample) {
+        if phase == .opening {
+            guard !UIAccessibility.isReduceMotionEnabled, let to = controller,
+                  let container, let surface, let parent = surface.superview else { return }
+
+            let handingOff = parent === to.view
+            let clipLayer = surface.layer.presentation() ?? surface.layer
+            let imageLayer = surface.imageView.layer.presentation() ?? surface.imageView.layer
+            let center = parent.convert(clipLayer.position, to: container)
+            let clip = CGRect(x: center.x - clipLayer.bounds.width / 2,
+                y: center.y - clipLayer.bounds.height / 2, width: clipLayer.bounds.width, height: clipLayer.bounds.height)
+            let scale = imageLayer.affineTransform().a
+            let size = CGSize(width: imageLayer.bounds.width * scale, height: imageLayer.bounds.height * scale)
+            let image = CGRect(x: clip.minX + imageLayer.position.x - size.width / 2,
+                y: clip.minY + imageLayer.position.y - size.height / 2, width: size.width, height: size.height)
+            let backdrop = to.view.layer.presentation()?.opacity ?? Float(to.view.alpha)
+            let state = PhotoTransitionState(clip: clip, image: image, corner: clipLayer.cornerRadius,
+                backdrop: Double(backdrop), alpha: handingOff ? 1 : Double(clipLayer.opacity))
+
+            // Cancel the old completion before removing its keyframes. The
+            // settling phase lets drag rebase to this frame and this touch.
+            openingCompletion = nil
+            phase = .settling
+            CATransaction.begin(); CATransaction.setDisableActions(true)
+            removeOpeningAnimations()
+            if handingOff {
+                surface.layer.removeAllAnimations()
+                container.addSubview(surface)
+                hiddenFullImage = endpoints[currentID]?.imageView
+                hiddenFullImage?.isHidden = true
+            }
+            render(state)
+            CATransaction.commit()
+            completeOpeningContext()
+            activateViewer(to, phase: .settling)
+        }
+        if !isPaging { drag(sample) }
+    }
+
+    private func removeOpeningSwipeCapture() {
+        openingSwipeDriver?.detach()
+        openingSwipeDriver = nil
+        openingSwipeSurface?.removeFromSuperview()
+        openingSwipeSurface = nil
+    }
+
     func beginPresentation(context: UIViewControllerContextTransitioning) {
         guard let to = context.viewController(forKey: .to) else {
             context.completeTransition(false)
@@ -469,33 +599,46 @@ import UIKit
             return
         }
         let container = context.containerView; self.container = container; controller = to
+        openingContext = context
         let frame = context.finalFrame(for: to)
         to.view.frame = frame.isEmpty ? container.bounds : frame
         to.view.backgroundColor = .clear
         to.view.alpha = 0
         container.addSubview(to.view); to.view.layoutIfNeeded()
         phase = .opening; to.view.isUserInteractionEnabled = false
-        if let image = sourceImage, let start = source(in: container, size: image.size)?.state(in: container, imageSize: image.size) {
+        if !UIAccessibility.isReduceMotionEnabled, let image = sourceImage,
+           let start = source(in: container, size: image.size)?.state(in: container, imageSize: image.size) {
             maskSource(container: container, size: image.size)
             installSurface(image: image, state: start, in: container)
         }
+        captureOpeningSwipe(in: container)
         // SwiftUI mounts its native zoom endpoint on the next main-loop iteration.
-        DispatchQueue.main.async { [self] in completePresentation(context: context, to: to, attempt: 0) }
+        DispatchQueue.main.async { [self] in completePresentation(to: to, attempt: 0) }
     }
-    private func completePresentation(context: UIViewControllerContextTransitioning, to: UIViewController, attempt: Int) {
-        let container = context.containerView
+    private func completePresentation(to: UIViewController, attempt: Int) {
+        guard phase == .opening, let container else { return }
+        if UIAccessibility.isReduceMotionEnabled {
+            hiddenSource?.reveal(owner: owner); hiddenSource = nil
+            removeSurface()
+            UIView.animate(withDuration: Self.reducedMotionFadeDuration, delay: 0, options: .curveEaseOut) {
+                to.view.alpha = 1
+            } completion: { _ in
+                self.presentationFinished(to)
+            }
+            return
+        }
         to.view.layoutIfNeeded()
         let image = sourceImage ?? endpoints[currentID]?.imageView?.image
         guard let image, let full = fullState(in: container, size: image.size) else {
             if attempt < 4 {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.0 / 120) { [self] in
-                    completePresentation(context: context, to: to, attempt: attempt + 1)
+                    completePresentation(to: to, attempt: attempt + 1)
                 }
             } else {
                 // No decoded image/layout yet: do not invent either endpoint.
                 removeSurface()
                 UIView.animate(withDuration: 0.22, animations: { to.view.alpha = 1 }) { _ in
-                    self.presentationFinished(context: context, to: to)
+                    self.presentationFinished(to)
                 }
             }
             return
@@ -507,14 +650,14 @@ import UIKit
             hiddenFullImage = endpoints[currentID]?.imageView; hiddenFullImage?.isHidden = true
         }
         animateOpening(to: full) { [weak self] in
-            self?.handOffOpeningSurface(context: context, to: to)
+            self?.handOffOpeningSurface(to: to)
         }
     }
-    private func handOffOpeningSurface(context: UIViewControllerContextTransitioning, to: UIViewController) {
-        guard !UIAccessibility.isReduceMotionEnabled, let surface,
+    private func handOffOpeningSurface(to: UIViewController) {
+        guard !closeAfterOpening, !UIAccessibility.isReduceMotionEnabled, let surface,
               let endpoint = endpoints[currentID]?.imageView, endpoint.window != nil,
               let image = surface.imageView.image, image.hasOpaqueBitmap, endpoint.image === image else {
-            removeSurface(); to.view.alpha = 1; presentationFinished(context: context, to: to)
+            removeSurface(); to.view.alpha = 1; presentationFinished(to)
             return
         }
         // Keep the cover in the presented view through UIKit's presentation
@@ -526,22 +669,30 @@ import UIKit
             let center = surface.superview?.convert(surface.center, to: to.view) ?? surface.center
             to.view.addSubview(surface)
             surface.center = center
-            context.completeTransition(true)
+            completeOpeningContext()
         }
         UIView.animate(withDuration: PhotoTransitionTuning.thumbnailHandoffDuration, delay: 0, options: .curveLinear) {
             surface.alpha = 0
         } completion: { [self] _ in
+            guard phase == .opening else { return }
             removeSurface()
             activateViewer(to)
         }
     }
-    private func presentationFinished(context: UIViewControllerContextTransitioning, to: UIViewController) {
-        context.completeTransition(true)
+    private func completeOpeningContext() {
+        let context = openingContext
+        openingContext = nil
+        context?.completeTransition(true)
+    }
+    private func presentationFinished(_ to: UIViewController) {
+        completeOpeningContext()
         activateViewer(to)
     }
-    private func activateViewer(_ to: UIViewController) {
+    private func activateViewer(_ to: UIViewController, phase: Phase = .visible) {
         attachRootPan()
-        phase = .visible; to.view.isUserInteractionEnabled = true
+        // Existing touches can finish across the handoff; new touches go to the viewer.
+        openingSwipeSurface?.acceptsNewTouches = false
+        self.phase = phase; to.view.isUserInteractionEnabled = true
         resumePresentationWaiters()
         if closeAfterOpening { DispatchQueue.main.async { [weak self] in self?.close() } }
     }
@@ -553,9 +704,18 @@ import UIKit
     @discardableResult func drag(_ sample: PhotoPanSample) -> Bool {
         if ignoringResizedGesture { return true }
         guard phase == .visible || phase == .settling || phase == .dragging,
-              panelProgress <= 0.00001,
-              let container, let image = surface?.imageView.image ?? endpoints[currentID]?.imageView?.image else { return false }
-        if phase != .dragging {
+              panelProgress <= 0.00001 else { return false }
+        if UIAccessibility.isReduceMotionEnabled {
+            if surface != nil {
+                clock?.stop(); clock = nil
+                removeSurface()
+            }
+            phase = .dragging
+            controller?.view.alpha = 1 - CGFloat(min(0.10, max(0, sample.vertical) / 1_200))
+            return true
+        }
+        guard let container, let image = surface?.imageView.image ?? endpoints[currentID]?.imageView?.image else { return false }
+        if phase != .dragging || dragBase == nil {
             let wasSettling = phase == .settling
             clock?.stop(); clock = nil
             let state = wasSettling ? current : fullState(in: container, size: image.size)
@@ -581,15 +741,26 @@ import UIKit
         if ignoringResizedGesture { ignoringResizedGesture = false; return }
         guard phase == .dragging else { return }
         _ = drag(sample)
-        let distance = Double(sample.translation.y - dragOrigin.y)
-        if !cancelled && PhotoTransitionTuning.shouldDismiss(translation: distance, velocity: Double(sample.velocity.y)) { close() }
+        // The visual offset is rebased when interrupting a bounce. Count the
+        // full new swipe when deciding whether to close.
+        if !cancelled && PhotoTransitionTuning.shouldDismiss(translation: sample.vertical, velocity: Double(sample.velocity.y)) { close() }
         else { cancelDrag() }
     }
     func cancelDrag() {
         if ignoringResizedGesture { ignoringResizedGesture = false; return }
         guard phase == .dragging else { return }
+        if dragBase == nil || UIAccessibility.isReduceMotionEnabled {
+            removeSurface(); controller?.view.alpha = 1; phase = .visible
+            return
+        }
         guard let container, let image = surface?.imageView.image,
-              let target = fullState(in: container, size: image.size) else { close(); return }
+              let target = fullState(in: container, size: image.size) else {
+            // An early swipe can begin before the full image has a layout.
+            if isPhotoAvailable(currentID) {
+                removeSurface(); controller?.view.alpha = 1; phase = .visible
+            } else { close() }
+            return
+        }
         phase = .settling
         animate(to: target, velocity: releaseVelocity, duration: PhotoTransitionTuning.cancelDuration) { [self] in
             removeSurface(); controller?.view.alpha = 1; phase = .visible
@@ -609,6 +780,15 @@ import UIKit
     }
     func beginDismissal(context: UIViewControllerContextTransitioning) {
         let container = context.containerView; self.container = container
+        if UIAccessibility.isReduceMotionEnabled {
+            // Reveal the stationary gallery before fading the viewer and any panel preview.
+            hiddenSource?.reveal(owner: owner); hiddenSource = nil
+            UIView.animate(withDuration: Self.reducedMotionFadeDuration, delay: 0, options: .curveEaseOut) {
+                self.controller?.view.alpha = 0
+                self.surface?.alpha = 0
+            } completion: { _ in self.finish(context) }
+            return
+        }
         let image = surface?.imageView.image ?? endpoints[currentID]?.imageView?.image
         guard let image else {
             UIView.animate(withDuration: 0.2, animations: { self.controller?.view.alpha = 0 }) { _ in self.finish(context) }
@@ -662,6 +842,7 @@ import UIKit
     }
     private func finish(_ context: UIViewControllerContextTransitioning) {
         rootPan?.detach(); rootPan = nil; rootInteraction = nil
+        removeOpeningSwipeCapture()
         clock?.stop(); clock = nil
         panelClock?.stop(); panelClock = nil
         hiddenSource?.reveal(owner: owner); hiddenSource = nil
@@ -674,6 +855,8 @@ import UIKit
         reportedClose = true; phase = .finished
         resumePresentationWaiters()
         rootPan?.detach(); rootPan = nil; rootInteraction = nil
+        removeOpeningSwipeCapture()
+        openingContext = nil
         openingCompletion = nil
         removeOpeningAnimations()
         clock?.stop(); clock = nil
@@ -703,6 +886,14 @@ import UIKit
     }
     func presentationController(forPresented presented: UIViewController, presenting: UIViewController?, source: UIViewController) -> UIPresentationController? {
         PhotoPreviewPresentation(presentedViewController: presented, presenting: presenting, session: self)
+    }
+}
+
+@MainActor private final class PhotoOpeningSwipeSurface: UIView {
+    var acceptsNewTouches = true
+
+    override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
+        acceptsNewTouches && super.point(inside: point, with: event)
     }
 }
 

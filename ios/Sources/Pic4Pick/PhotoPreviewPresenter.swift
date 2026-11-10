@@ -72,7 +72,7 @@ private struct PhotoPreviewPresenter: UIViewControllerRepresentable {
             while let presented = presenter.presentedViewController { presenter = presented }
             guard !presenter.isBeingDismissed, !presenter.isBeingPresented else { return }
             let session = PhotoPreviewSession(selection: selection)
-            session.isPhotoAvailable = { [weak store = configuration.store] id in store?.photos.contains { $0.id == id } == true }
+            session.isPhotoAvailable = { [weak store = configuration.store] id in store?.containsPhoto(withID: id) == true }
             let viewer = PhotoViewer(photos: selection.photos, initialID: selection.id, transition: session)
                 .environmentObject(configuration.store).environmentObject(configuration.location)
                 .environment(\.galleryAppearance, configuration.appearance)

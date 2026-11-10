@@ -106,19 +106,28 @@ struct PhotoViewerInfoPanel<Actions: View>: View {
     let motion: PhotoViewerMotion
     let layout: PhotoViewerLayout
     let prepared: Bool
-    let liveMap: Bool
+    let prewarmMap: Bool
+    let mapActive: Bool
+    let liveMetadata: Bool
     let interaction: PhotoPanelInteraction
     let session: PhotoPreviewSession?
+    let sectionTextSize: CGFloat
+    let sectionControlHeight: CGFloat
     let actions: () -> Actions
     @EnvironmentObject private var store: GalleryStore
     @Environment(\.galleryAppearance) private var theme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.dynamicTypeSize) private var typeSize
+    @Environment(\.colorSchemeContrast) private var contrast
     @GestureState private var dragging = false
     @State private var handleCompleted = false
     @State private var scrollSpace = UUID()
     @State private var scrollRequest = 0
     @State private var automaticSectionUpdateAfter = ContinuousClock.now
+    private var needsLabelSpace: Bool { typeSize >= .xxxLarge }
+    private var solidSelection: Bool { reduceTransparency || contrast == .increased }
+    private var footerGrowth: CGFloat { sectionControlHeight - 44 }
     @Namespace private var sectionIndicator
     private var locationTitle: String {
         let city = photo.location.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -128,11 +137,15 @@ struct PhotoViewerInfoPanel<Actions: View>: View {
     }
 
     init(photo: Photo, section: Binding<PhotoInfoSection>, expanded: Binding<Bool>, motion: PhotoViewerMotion,
-        layout: PhotoViewerLayout, prepared: Bool, liveMap: Bool, interaction: PhotoPanelInteraction, session: PhotoPreviewSession? = nil,
-        @ViewBuilder actions: @escaping () -> Actions) {
+        layout: PhotoViewerLayout, prepared: Bool, prewarmMap: Bool, mapActive: Bool, liveMetadata: Bool,
+        interaction: PhotoPanelInteraction, session: PhotoPreviewSession? = nil,
+        sectionTextSize: CGFloat, sectionControlHeight: CGFloat, @ViewBuilder actions: @escaping () -> Actions) {
         self.photo = photo; _section = section; _expanded = expanded; self.motion = motion; self.layout = layout
-        self.prepared = prepared; self.liveMap = liveMap; self.interaction = interaction; self.actions = actions
+        self.prepared = prepared; self.prewarmMap = prewarmMap; self.mapActive = mapActive; self.liveMetadata = liveMetadata
+        self.interaction = interaction; self.actions = actions
         self.session = session
+        self.sectionTextSize = sectionTextSize
+        self.sectionControlHeight = sectionControlHeight
     }
 
     var body: some View {
@@ -142,9 +155,11 @@ struct PhotoViewerInfoPanel<Actions: View>: View {
                     handle(expanded: true).frame(height: CGFloat(layout.expandedHandleHeight))
                     ScrollViewReader { proxy in
                         ScrollView {
-                            PhotoMetadataView(photo: photo, section: section, embedded: true, immersive: true,
-                                active: liveMap, scrollSpaceID: scrollSpace)
-                                .id(photo.id).padding(.bottom, CGFloat(70 + layout.safeBottom))
+                            PhotoMetadataView(photo: photo, embedded: true, immersive: true,
+                                active: liveMetadata, mapActive: mapActive, prewarmMap: prewarmMap,
+                                scrollSpaceID: scrollSpace, scrollViewport: layout.expandedPanel - layout.expandedHandleHeight,
+                                onVisibleSectionChange: updateVisibleSection)
+                                .id(photo.id).padding(.bottom, CGFloat(70 + layout.safeBottom) + footerGrowth)
                                 .background {
                                     if session == nil { PhotoPanelScrollBridge(interaction: interaction, active: expanded) }
                                 }
@@ -157,16 +172,6 @@ struct PhotoViewerInfoPanel<Actions: View>: View {
                             guard expanded, request > 0 else { return }
                             withAnimation(sectionAnimation) {
                                 proxy.scrollTo(section.rawValue, anchor: .top)
-                            }
-                        }
-                        .onPreferenceChange(PhotoInfoSectionPositions.self) { positions in
-                            guard expanded, ContinuousClock.now >= automaticSectionUpdateAfter,
-                                  let top = positions["parameters"], let bottom = positions["parameters-bottom"] else { return }
-                            let current = PhotoInfoSection.visible(parametersTop: Double(top), parametersBottom: Double(bottom),
-                                viewport: layout.expandedPanel - layout.expandedHandleHeight)
-                            if section != current {
-                                section = current
-                                PhotoPreviewDiagnostics.event("metadata section \(current.rawValue)")
                             }
                         }
                     }
@@ -187,7 +192,8 @@ struct PhotoViewerInfoPanel<Actions: View>: View {
                         .frame(maxWidth: .infinity).frame(height: 46).padding(.horizontal, 16)
                         .padding(.top, 2)
                     Spacer(minLength: 0)
-                    tabs(floating: false).padding(.leading, 74).padding(.trailing, -8)
+                    tabs(floating: false).padding(.leading, needsLabelSpace ? 4 : 74)
+                        .padding(.trailing, needsLabelSpace ? 4 : -8)
                 }
                 .padding(.bottom, CGFloat(max(0, layout.safeBottom - CompactInfoStyle.navigationDrop)))
                 .background {
@@ -243,10 +249,10 @@ struct PhotoViewerInfoPanel<Actions: View>: View {
             .allowsHitTesting(!expanded).accessibilityHidden(expanded)
 
             tabs(floating: true)
-                .padding(.leading, 92).padding(.trailing, 18)
+                .padding(.leading, needsLabelSpace ? 18 : 92).padding(.trailing, 18)
                 .padding(.bottom, CGFloat(max(8, layout.safeBottom - 4))).padding(.top, 20)
                 .background(alignment: .bottom) {
-                    PhotoInfoScrollFrost(edge: .bottom).frame(height: CGFloat(84 + layout.safeBottom))
+                    PhotoInfoScrollFrost(edge: .bottom).frame(height: CGFloat(84 + layout.safeBottom) + footerGrowth)
                 }
                 .modifier(PhotoViewerMovingLayer(motion: motion, layout: layout, expanded: expanded, role: .footer))
                 .allowsHitTesting(expanded).accessibilityHidden(!expanded)
@@ -269,6 +275,12 @@ struct PhotoViewerInfoPanel<Actions: View>: View {
 
     private var sectionAnimation: Animation? {
         reduceMotion ? nil : .easeInOut(duration: 0.28)
+    }
+
+    private func updateVisibleSection(_ current: PhotoInfoSection) {
+        guard expanded, ContinuousClock.now >= automaticSectionUpdateAfter, section != current else { return }
+        section = current
+        PhotoPreviewDiagnostics.event("metadata section \(current.rawValue)")
     }
 
     private func handle(expanded: Bool) -> some View {
@@ -297,6 +309,26 @@ struct PhotoViewerInfoPanel<Actions: View>: View {
 
     private func tabs(floating: Bool) -> some View {
         HStack(spacing: 4) {
+            if #available(iOS 26.0, *), floating, !solidSelection {
+                sectionButtons(floating: floating)
+                    .glassEffect(.regular.interactive(!reduceMotion), in: Capsule())
+            } else {
+                sectionButtons(floating: floating)
+                    .background {
+                        if floating {
+                            if solidSelection { Capsule().fill(theme.surface) }
+                            else { Capsule().fill(.ultraThinMaterial) }
+                        }
+                    }
+            }
+            actions().padding(.leading, needsLabelSpace ? 4 : (floating ? 28 : 34))
+        }
+        .buttonStyle(.plain).foregroundStyle(theme.ink.opacity(0.8))
+        .animation(floating ? sectionAnimation : nil, value: section)
+    }
+
+    private func sectionButtons(floating: Bool) -> some View {
+        HStack(spacing: 4) {
             ForEach(PhotoInfoSection.allCases) { tab in
                 Button {
                     if expanded && section == tab { expanded = false }
@@ -306,53 +338,27 @@ struct PhotoViewerInfoPanel<Actions: View>: View {
                         scrollRequest += 1
                     }
                 } label: {
-                    Text(tab.title).font(.system(size: 15, weight: !floating || section == tab ? .semibold : .medium))
-                        .lineLimit(1).minimumScaleFactor(0.8).frame(maxWidth: .infinity).frame(minHeight: 44)
+                    let selected = floating && section == tab
+                    let title = typeSize.isAccessibilitySize ? (tab == .geography ? "地点" : "参数") : tab.title
+                    Text(title).font(.system(size: sectionTextSize, weight: .semibold))
+                        .lineLimit(1).frame(maxWidth: .infinity, minHeight: sectionControlHeight)
                         .background {
-                            if floating && section == tab {
-                                Capsule().fill(.black.opacity(0.23)).frame(maxWidth: 104, maxHeight: 34)
+                            if selected {
+                                Capsule().fill(theme.selectionFill.opacity(solidSelection ? 1 : 0.18))
+                                    .frame(maxWidth: needsLabelSpace ? .infinity : 104)
+                                    .frame(height: sectionControlHeight - 10)
                                     .matchedGeometryEffect(id: "selectedSection", in: sectionIndicator)
                             }
                         }
                         .contentShape(Rectangle())
-                        .foregroundStyle(floating && section == tab ? Color.white : theme.ink.opacity(0.8))
+                        .foregroundStyle(selected && solidSelection ? theme.selectionForeground
+                            : theme.ink.opacity(floating && !selected && !solidSelection ? 0.78 : 1))
                 }
+                .accessibilityLabel(tab.title)
                 .accessibilityAddTraits(expanded && section == tab ? [.isSelected] : [])
                 .accessibilityHint(expanded && section == tab ? "收起照片信息" : "展开并查看" + tab.title)
             }
-            actions().frame(width: 44, height: 44)
-                .foregroundStyle(theme.ink.opacity(floating ? 0.56 : 0.8))
-                .background {
-                    if floating {
-                        Circle().fill(theme.surface.opacity(0.9))
-                            .overlay { Circle().strokeBorder(.white.opacity(theme == .dark ? 0.20 : 0.65), lineWidth: 0.5) }
-                            .padding(6)
-                    }
-                }
-                .padding(.leading, floating ? 28 : 34)
         }
-        .buttonStyle(.plain).foregroundStyle(theme.ink.opacity(0.8))
-        .animation(floating ? sectionAnimation : nil, value: section)
-    }
-}
-
-struct PhotoInfoSectionPositions: PreferenceKey {
-    static let defaultValue: [String: CGFloat] = [:]
-    static func reduce(value: inout [String: CGFloat], nextValue: () -> [String: CGFloat]) {
-        value.merge(nextValue(), uniquingKeysWith: { _, latest in latest })
-    }
-}
-
-struct PhotoInfoSectionAnchor: View {
-    let section: PhotoInfoSection
-    let spaceID: UUID?
-    var body: some View {
-        GeometryReader { geometry in
-            if let spaceID {
-                let frame = geometry.frame(in: .named(spaceID))
-                Color.clear.preference(key: PhotoInfoSectionPositions.self,
-                    value: [section.rawValue: frame.minY, section.rawValue + "-bottom": frame.maxY])
-            }
-        }.allowsHitTesting(false).accessibilityHidden(true)
+        .padding(.horizontal, floating ? 8 : 0)
     }
 }

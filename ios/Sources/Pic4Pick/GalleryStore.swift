@@ -7,12 +7,6 @@ enum GalleryFilter: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
-struct GalleryCache: Codable, Sendable {
-    let source: String
-    let fetchedAt: Date
-    let photos: [Photo]
-}
-
 enum GalleryRefreshNotice: Equatable {
     case updating, noNewPhotos, newPhotos
 }
@@ -52,24 +46,43 @@ private struct StoredLikes: Codable {
 final class GalleryStore: ObservableObject {
     enum RefreshFeedback { case silent, opening, pull }
 
-    @Published private(set) var photos: [Photo] = []
+    private struct DisplayedPhotos {
+        let latitude: Double?
+        let longitude: Double?
+        var ordered: [Photo]?
+        var matches: (query: String, photos: [Photo])?
+    }
+
+    @Published private(set) var photos: [Photo] = [] {
+        didSet { displayedPhotos.removeAll() }
+    }
+    private var photoIndices: [String: Int] = [:]
     @Published private(set) var loading = false
     @Published private(set) var error: String?
     @Published private(set) var refreshNotice: GalleryRefreshNotice?
     @Published var notice: String?
     @Published var filter: GalleryFilter = .latest
     @Published var search = ""
-    @Published var favorites: Set<String>
+    @Published var favorites: Set<String> {
+        didSet { displayedPhotos.removeValue(forKey: nil) }
+    }
     private var liked: Set<String>
     private var pendingLikes: [String: PendingLikeOperation]
     private var likeUpdates: [String: PhotoLikeUpdate] = [:]
     @Published private(set) var brandTitle = "Light of Anthony"
     @Published private(set) var brandSubtitle = "PHOTOGRAPHIC ARCHIVE"
     @Published private(set) var brandLogo = ""
-    @Published private(set) var catalog = GalleryCatalog.empty
+    @Published private(set) var catalog = GalleryCatalog.empty {
+        didSet {
+            cachedDiscoveryIndex = nil
+            displayedPhotos.removeAll()
+            mapLocations = catalog.locations.map(\.mapMarker)
+        }
+    }
+    private var cachedDiscoveryIndex: ExploreDiscoveryIndex?
+    private var displayedPhotos: [GalleryFilter?: DisplayedPhotos] = [:]
+    private(set) var mapLocations: [WebsiteMapMarker] = []
     @Published private(set) var mapConfig: [String: JSONValue] = [:]
-    @Published private(set) var usingBundledMapConfig = false
-    @Published private(set) var updatedAt: Date?
     let config: ClientConfig?
     let spatialClient: SpatialDepthClient?
     private let defaultMapConfig: [String: JSONValue]
@@ -81,11 +94,22 @@ final class GalleryStore: ObservableObject {
     private var activeRefreshResult: GalleryRefreshNotice?
     private var dismissRefreshNotice: Task<Void, Never>?
     private var likesUpdatedDuringRefresh: [String: Int] = [:]
-    private var randomIDs: [String] = []
+    @Published private var randomRanks: [String: Int] = [:] {
+        didSet { displayedPhotos.removeValue(forKey: .random) }
+    }
     private let defaults = UserDefaults.standard
     private let reader = GalleryReader()
     private var didLoadCache = false
     var websiteURL: URL { config.flatMap { ClientConfig.httpsURL($0.websiteURL) } ?? ClientConfig.defaultWebsiteURL }
+
+    var discoveryIndex: ExploreDiscoveryIndex {
+        if let cachedDiscoveryIndex { return cachedDiscoveryIndex }
+        // Catalog replacement accompanies every photo snapshot. Local likes do not affect covers.
+        let index = ExploreDiscoveryIndex(places: catalog.provinces.flatMap(\.discoveryPlaces), photos: photos,
+            additionalSearchPlaces: catalog.locations.map(\.discoveryPlace))
+        cachedDiscoveryIndex = index
+        return index
+    }
 
     init() {
         favorites = Set(UserDefaults.standard.stringArray(forKey: "pic4pick.favorites") ?? [])
@@ -105,30 +129,78 @@ final class GalleryStore: ObservableObject {
         mapConfig = bundledMapConfig
     }
 
-    func reshuffle() { randomIDs = photos.map(\.id).shuffled() }
+    func reshuffle() {
+        randomRanks = Dictionary(photos.map(\.id).shuffled().enumerated().map { ($0.element, $0.offset) },
+            uniquingKeysWith: { first, _ in first })
+    }
+
+    func photo(withID id: String) -> Photo? {
+        photoIndices[id].map { photos[$0] }
+    }
+
+    func containsPhoto(withID id: String) -> Bool {
+        photoIndices[id] != nil
+    }
+
+    private func replacePhotos(with next: [Photo]) {
+        let indices = Dictionary(next.indices.lazy.map { (next[$0].id, $0) },
+            uniquingKeysWith: { first, _ in first })
+        photos = next
+        photoIndices = indices
+    }
 
     func displayed(favoritesOnly: Bool = false, location: CLLocation? = nil, filter: GalleryFilter? = nil) -> [Photo] {
-        let filter = filter ?? self.filter
-        var result = photos.filter { (!favoritesOnly || favorites.contains($0.id)) &&
-            (search.isEmpty || $0.searchable.localizedCaseInsensitiveContains(search)) }
-        if !favoritesOnly && filter == .film { result = result.filter(\.isFilm) }
-        if !favoritesOnly && filter == .random {
-            let ranks = Dictionary(uniqueKeysWithValues: randomIDs.enumerated().map { ($0.element, $0.offset) })
-            return result.sorted { ranks[$0.id, default: .max] < ranks[$1.id, default: .max] }
+        let filter = favoritesOnly ? nil : (filter ?? self.filter)
+        let coordinate = filter == .nearby || filter == .far ? location?.coordinate : nil
+        var snapshot: DisplayedPhotos
+        if let cached = displayedPhotos[filter], cached.latitude == coordinate?.latitude,
+           cached.longitude == coordinate?.longitude {
+            snapshot = cached
+        } else {
+            snapshot = DisplayedPhotos(latitude: coordinate?.latitude, longitude: coordinate?.longitude)
         }
-        if !favoritesOnly, [.nearby, .far].contains(filter), let location {
-            return result.filter(\.hasCoordinate).sorted {
-                let a = $0.distance(latitude: location.coordinate.latitude, longitude: location.coordinate.longitude)
-                let b = $1.distance(latitude: location.coordinate.latitude, longitude: location.coordinate.longitude)
-                return filter == .nearby ? a < b : a > b
-            }
+        let query = search
+        if query.isEmpty {
+            if let ordered = snapshot.ordered { return ordered }
+            let ordered = orderedPhotos(filter: filter, coordinate: coordinate, query: "")
+            snapshot.ordered = ordered
+            displayedPhotos[filter] = snapshot
+            return ordered
         }
-        return result.sorted { (catalog.summaries[$0.id]?.time ?? 0) > (catalog.summaries[$1.id]?.time ?? 0) }
+        if let matches = snapshot.matches, matches.query == query { return matches.photos }
+        // Without a cached order, only sort the works that match the search.
+        let matches = snapshot.ordered?.filter { $0.searchable.localizedCaseInsensitiveContains(query) }
+            ?? orderedPhotos(filter: filter, coordinate: coordinate, query: query)
+        snapshot.matches = (query, matches)
+        displayedPhotos[filter] = snapshot
+        return matches
+    }
+
+    private func orderedPhotos(filter: GalleryFilter?, coordinate: CLLocationCoordinate2D?, query: String) -> [Photo] {
+        var result = photos
+        if filter == nil || !query.isEmpty {
+            result = result.filter { (filter != nil || favorites.contains($0.id)) &&
+                (query.isEmpty || $0.searchable.localizedCaseInsensitiveContains(query)) }
+        }
+        if filter == .film { result = result.filter(\.isFilm) }
+        if filter == .random {
+            result.sort { randomRanks[$0.id, default: .max] < randomRanks[$1.id, default: .max] }
+        } else if let coordinate {
+            result = result.filter(\.hasCoordinate).map { photo in
+                (photo: photo, distance: photo.distance(latitude: coordinate.latitude, longitude: coordinate.longitude))
+            }.sorted {
+                filter == .nearby ? $0.distance < $1.distance : $0.distance > $1.distance
+            }.map(\.photo)
+        } else {
+            result.sort { (catalog.summaries[$0.id]?.time ?? 0) > (catalog.summaries[$1.id]?.time ?? 0) }
+        }
+        return result
     }
 
     func invalidatePublicCache() {
         readGeneration += 1
-        photos = []; fetchedAt = nil; loading = false
+        replacePhotos(with: [])
+        fetchedAt = nil; loading = false
         likesUpdatedDuringRefresh.removeAll()
         refreshFeedbackRequested = false
         activeRefreshResult = nil
@@ -179,7 +251,7 @@ final class GalleryStore: ObservableObject {
                 if let (cache, cachedCatalog) = cached {
                     lastKnownPhotoIDs = Set(cache.photos.map(\.id))
                     if (0..<300).contains(Date().timeIntervalSince(cache.fetchedAt)) {
-                        photos = cache.photos
+                        replacePhotos(with: cache.photos)
                         catalog = cachedCatalog
                         fetchedAt = cache.fetchedAt
                         reshuffle()
@@ -190,19 +262,24 @@ final class GalleryStore: ObservableObject {
             try Task.checkCancellation()
             guard generation == readGeneration else { return }
             let ids = Set(cache.photos.map(\.id))
-            photos = cache.photos.map { photo in
-                guard let likes = likesUpdatedDuringRefresh[photo.id] else { return photo }
-                var updated = photo
-                updated.likes = likes
-                return updated
+            var refreshedPhotos = cache.photos
+            if !likesUpdatedDuringRefresh.isEmpty {
+                for index in refreshedPhotos.indices {
+                    if let likes = likesUpdatedDuringRefresh[refreshedPhotos[index].id] {
+                        refreshedPhotos[index].likes = likes
+                    }
+                }
+            }
+            if photos != refreshedPhotos {
+                replacePhotos(with: refreshedPhotos)
+                cachedDiscoveryIndex = nil
             }
             activeRefreshResult = ids.isSubset(of: lastKnownPhotoIDs) ? .noNewPhotos : .newPhotos
             lastKnownPhotoIDs = ids
             fetchedAt = cache.fetchedAt
-            updatedAt = fetchedAt
-            catalog = nextCatalog
-            error = nil
-            if randomIDs.isEmpty || Set(randomIDs) != Set(photos.map(\.id)) { reshuffle() }
+            if catalog != nextCatalog { catalog = nextCatalog }
+            if error != nil { error = nil }
+            if randomRanks.isEmpty || Set(randomRanks.keys) != ids { reshuffle() }
             finishRefreshFeedback(activeRefreshResult)
             await reader.save(GalleryCache(source: cache.source, fetchedAt: cache.fetchedAt, photos: photos), generation: generation)
             await loadBrand(generation: generation)
@@ -212,7 +289,7 @@ final class GalleryStore: ObservableObject {
             guard !Task.isCancelled, generation == readGeneration else { return }
             self.error = error.localizedDescription
             if fetchedAt.map({ Date().timeIntervalSince($0) >= 300 }) ?? true {
-                photos = []
+                replacePhotos(with: [])
                 catalog = .empty
             }
         }
@@ -238,28 +315,23 @@ final class GalleryStore: ObservableObject {
     }
 
     private func loadBrand(generation: Int) async {
-        guard let config, let data = try? await reader.read(config: config, table: "brand_settings", params: [.init(name: "select", value: "site_title,site_subtitle,logo_data,logo_url"),
-            .init(name: "id", value: "eq.camarts_brand"), .init(name: "limit", value: "1")]),
-              let rows = (try? JSONSerialization.jsonObject(with: data)) as? [[String: Any]], let row = rows.first else { return }
-        guard generation == readGeneration else { return }
-        if let title = row["site_title"] as? String, !title.isEmpty { brandTitle = title }
-        if let subtitle = row["site_subtitle"] as? String, !subtitle.isEmpty { brandSubtitle = subtitle }
-        brandLogo = (row["logo_data"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? row["logo_url"] as? String ?? ""
+        guard let config, let brand = try? await reader.brand(config: config),
+              !Task.isCancelled, generation == readGeneration else { return }
+        if let title = brand.title, !title.isEmpty, title != brandTitle { brandTitle = title }
+        if let subtitle = brand.subtitle, !subtitle.isEmpty, subtitle != brandSubtitle { brandSubtitle = subtitle }
+        if brand.logo != brandLogo { brandLogo = brand.logo }
     }
 
     private func loadMapConfig(generation: Int) async {
         struct Response: Decodable { let data: [String: String] }
         var cloud: [String: String] = [:]
-        var loaded = false
         if let config, let url = ClientConfig.httpsURL(config.apiBaseURL + "/api/public/map-config"),
            let (data, response) = try? await URLSession.shared.data(for: URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 10)),
            let http = response as? HTTPURLResponse, http.statusCode == 200,
            let result = try? JSONDecoder().decode(Response.self, from: data) {
             cloud = result.data
-            loaded = true
         }
         guard !Task.isCancelled, generation == readGeneration else { return }
-        usingBundledMapConfig = !loaded
         let allowed = ["VITE_MAP_STYLE_PRESET", "VITE_MAP_USE_AMAP_SDK", "VITE_AMAP_MAP_STYLE", "VITE_GAODE_RASTER_STYLE"]
         var next = defaultMapConfig
         for key in allowed {
@@ -311,7 +383,7 @@ final class GalleryStore: ObservableObject {
         let operation = pendingLikes[photo.id] ?? PendingLikeOperation(id: UUID(), delta: wasLiked ? -1 : 1, createdAt: Date())
         pendingLikes[photo.id] = operation
         savePendingLikes()
-        let count = photos.first(where: { $0.id == photo.id })?.likes ?? photo.likes
+        let count = self.photo(withID: photo.id)?.likes ?? photo.likes
         let pending = PhotoLikeState(liked: operation.delta > 0, count: max(0, count + operation.delta))
         update.pending = pending
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
@@ -347,7 +419,7 @@ final class GalleryStore: ObservableObject {
             pendingLikes.removeValue(forKey: id)
             savePendingLikes()
             if loading { likesUpdatedDuringRefresh[id] = result.data.likes }
-            if let index = photos.firstIndex(where: { $0.id == id }) { photos[index].likes = result.data.likes }
+            if let index = photoIndices[id] { photos[index].likes = result.data.likes }
         } catch { notice = error.localizedDescription }
     }
 }

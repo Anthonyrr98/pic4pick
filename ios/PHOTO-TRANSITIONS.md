@@ -67,8 +67,7 @@
 
 | 参数 | 当前值 |
 | --- | --- |
-| dismissDistanceThreshold | 120 pt |
-| dismissVelocityThreshold | 950 pt/s，至少移动 18 pt |
+| dismissMinimumDistance | 单指下滑达到 18 pt，明显反向抬手时取消 |
 | interactiveMinimumScale | 0.82 |
 | backgroundFadeProgress | 0.68，归一化进度 |
 | returnSpringResponse / returnSpringDamping | 0.34 / 0.92 |

@@ -28,7 +28,7 @@ final class ReleaseContractTests: XCTestCase {
     func testMapBridgeAcceptsTrustedMainFrameAndRejectsIframeAndOversizedMessages() async throws {
         let accepted = expectation(description: "Trusted document sent one ready message")
         accepted.assertForOverFulfill = true
-        let map = WebsiteMap(payload: .init(config: [:], locations: [], focus: [:]),
+        let map = WebsiteMap(payload: .init(content: .init(config: [:], locations: []), camera: .init(focus: [:])),
                              baseURL: try XCTUnwrap(URL(string: "https://maps.example.invalid")),
                              onStatus: { if $0 == "ready" { accepted.fulfill() } })
         let coordinator = map.makeCoordinator()

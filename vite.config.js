@@ -1,6 +1,16 @@
 import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 
+// MapLibre registers built-in constructors for worker serialization. Give its
+// registry a separate key so those registrations cannot interfere with Mapbox.
+const isolateMapLibreRegistry = () => ({
+  name: 'pic4pick-maplibre-registry',
+  transform(code, id) {
+    if (!id.replaceAll('\\', '/').endsWith('/maplibre-gl/dist/maplibre-gl-shared.mjs')) return null
+    return code.replaceAll('_classRegistryKey', '_pic4pickMapLibreRegistryKey')
+  },
+})
+
 // https://vite.dev/config/
 export default defineConfig(({ command, mode }) => {
   if (command === 'build') {
@@ -20,7 +30,8 @@ export default defineConfig(({ command, mode }) => {
   return {
   // 自定义域名使用根路径，GitHub Pages 子路径使用 '/pic4pick/'
   base: '/',
-  plugins: [react()],
+  plugins: [react(), isolateMapLibreRegistry()],
+  optimizeDeps: { exclude: ['maplibre-gl'] },
 
   // 性能优化
   build: {

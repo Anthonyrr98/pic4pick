@@ -2,25 +2,24 @@ import Foundation
 
 actor GalleryReader {
     private let catalog = GalleryCatalogEngine()
-    private let cacheURL = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first?
-        .appendingPathComponent("pic4pick-photos-v1.json")
+    private var diskCache = GalleryDiskCache(url: FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)
+        .first?.appendingPathComponent("pic4pick-photos-v1.json"))
+    private var catalogSnapshot: (photos: [Photo], year: Int, timeZone: TimeZone, value: GalleryCatalog)?
     private var generation = 0
 
     func cached(source: String, generation: Int) -> (GalleryCache, GalleryCatalog)? {
-        guard generation == self.generation, let cacheURL,
-              let data = try? Data(contentsOf: cacheURL),
-              let cache = try? JSONDecoder().decode(GalleryCache.self, from: data),
-              cache.source == source else { return nil }
+        guard generation == self.generation, let cache = diskCache.load(source: source) else { return nil }
         let photos = cache.photos.filter(\.isPublic)
         let cleanCache = GalleryCache(source: cache.source, fetchedAt: cache.fetchedAt, photos: photos)
         let age = Date().timeIntervalSince(cache.fetchedAt)
-        return (cleanCache, (0..<300).contains(age) ? catalog.make(photos) : .empty)
+        return (cleanCache, (0..<300).contains(age) ? catalogForPhotos(photos) : .empty)
     }
 
     func invalidate(generation: Int) {
         guard generation > self.generation else { return }
         self.generation = generation
-        if let cacheURL { try? FileManager.default.removeItem(at: cacheURL) }
+        catalogSnapshot = nil
+        diskCache.invalidate()
     }
 
     func fetch(config: ClientConfig, generation: Int) async throws -> (GalleryCache, GalleryCatalog) {
@@ -47,16 +46,39 @@ actor GalleryReader {
         guard generation == self.generation else { throw CancellationError() }
         photos.sort { $0.createdAt == $1.createdAt ? $0.id < $1.id : $0.createdAt > $1.createdAt }
         let cache = GalleryCache(source: config.supabaseURL, fetchedAt: Date(), photos: photos)
-        return (cache, catalog.make(photos))
+        return (cache, catalogForPhotos(photos))
     }
 
     func save(_ cache: GalleryCache, generation: Int) {
-        guard generation == self.generation, !Task.isCancelled, let cacheURL,
-              let data = try? JSONEncoder().encode(cache) else { return }
-        try? data.write(to: cacheURL, options: .atomic)
+        guard generation == self.generation, !Task.isCancelled else { return }
+        diskCache.save(cache)
     }
 
-    func read(config: ClientConfig, table: String, params: [URLQueryItem]) async throws -> Data {
+    func brand(config: ClientConfig) async throws -> (title: String?, subtitle: String?, logo: String)? {
+        let data = try await read(config: config, table: "brand_settings", params: [
+            .init(name: "select", value: "site_title,site_subtitle,logo_data,logo_url"),
+            .init(name: "id", value: "eq.camarts_brand"), .init(name: "limit", value: "1")
+        ])
+        guard let rows = (try? JSONSerialization.jsonObject(with: data)) as? [[String: Any]],
+              let row = rows.first else { return nil }
+        let logo = (row["logo_data"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? row["logo_url"] as? String ?? ""
+        return (row["site_title"] as? String, row["site_subtitle"] as? String, logo)
+    }
+
+    private func catalogForPhotos(_ photos: [Photo]) -> GalleryCatalog {
+        let timeZone = TimeZone.current
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timeZone
+        let year = calendar.component(.year, from: Date())
+        if let catalogSnapshot, catalogSnapshot.year == year, catalogSnapshot.timeZone == timeZone,
+           catalogSnapshot.photos == photos { return catalogSnapshot.value }
+        let value = catalog.make(photos)
+        if photos.isEmpty || !value.summaries.isEmpty { catalogSnapshot = (photos, year, timeZone, value) }
+        return value
+    }
+
+    private func read(config: ClientConfig, table: String, params: [URLQueryItem]) async throws -> Data {
+        try Task.checkCancellation()
         guard var components = URLComponents(string: config.supabaseURL + "/rest/v1/" + table) else {
             throw ClientError.message("作品服务地址无效。")
         }
@@ -67,6 +89,7 @@ actor GalleryReader {
         request.setValue("public", forHTTPHeaderField: "Accept-Profile")
         if !config.publicKey.hasPrefix("sb_publishable_") { request.setValue("Bearer " + config.publicKey, forHTTPHeaderField: "Authorization") }
         let (data, response) = try await URLSession.shared.data(for: request)
+        try Task.checkCancellation()
         guard let response = response as? HTTPURLResponse, (200..<300).contains(response.statusCode) else {
             let body = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
             throw ClientError.message(body?["message"] as? String ?? "作品请求失败，请稍后重试。")

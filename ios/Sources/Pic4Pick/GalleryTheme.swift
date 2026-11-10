@@ -7,6 +7,8 @@ enum GalleryAppearance {
     var surface: Color { self == .paper ? .white : .hex(0x302e28) }
     var ink: Color { self == .paper ? .hex(0x1e2729) : .hex(0xd9d2c4) }
     var accent: Color { self == .paper ? .hex(0x48645e) : .hex(0xbe754c) }
+    var selectionFill: Color { self == .paper ? .hex(0x384852) : .hex(0xe1d9ca) }
+    var selectionForeground: Color { self == .paper ? .white : .hex(0x1e2729) }
     var radius: CGFloat { self == .paper ? 20 : 6 }
 }
 extension Color {
@@ -19,6 +21,42 @@ extension EnvironmentValues {
     var galleryAppearance: GalleryAppearance {
         get { self[GalleryAppearanceKey.self] }
         set { self[GalleryAppearanceKey.self] = newValue }
+    }
+}
+
+struct FloatingGlassControl: View {
+    let symbol: String
+    @Environment(\.galleryAppearance) private var theme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.colorSchemeContrast) private var contrast
+
+    private var solidSurface: Bool { reduceTransparency || contrast == .increased }
+
+    var body: some View {
+        Group {
+            if #available(iOS 26.0, *), !solidSurface {
+                icon.glassEffect(.regular.interactive(!reduceMotion), in: Circle())
+            } else {
+                icon.background {
+                    if solidSurface { Circle().fill(theme.surface) }
+                    else { Circle().fill(.regularMaterial) }
+                }
+                .overlay {
+                    Circle().strokeBorder(theme.ink.opacity(contrast == .increased ? 0.65 : 0.18))
+                        .allowsHitTesting(false)
+                }
+            }
+        }
+        .frame(width: 44, height: 44)
+        .contentShape(Rectangle())
+    }
+
+    private var icon: some View {
+        Image(systemName: symbol)
+            .font(.system(size: 16, weight: .semibold))
+            .foregroundStyle(theme.ink)
+            .frame(width: 34, height: 34)
     }
 }
 
@@ -66,7 +104,7 @@ struct GalleryBackdrop: View {
                 if film, let filmArtwork {
                     Image(uiImage: filmArtwork).resizable().scaledToFill().frame(width: proxy.size.width, height: proxy.size.height).clipped()
                     Color.black.opacity(0.35)
-                } else if !film, photo != nil, let image, store.photos.contains(where: { $0.id == image.photoID }) {
+                } else if !film, photo != nil, let image, store.containsPhoto(withID: image.photoID) {
                     Image(uiImage: image.bitmap).resizable().scaledToFill().frame(width: proxy.size.width, height: proxy.size.height).clipped().blur(radius: 18)
                     theme.background.opacity(theme == .dark ? 0.78 : 0.80)
                 }
@@ -103,9 +141,14 @@ struct BrandMark: View {
         .overlay { if circular { Circle().strokeBorder(.white.opacity(0.5), lineWidth: 1) } }
         .task(id: value) {
             image = nil
-            if value.hasPrefix("data:image/"), let comma = value.firstIndex(of: ","),
-               let data = Data(base64Encoded: String(value[value.index(after: comma)...])) { image = UIImage(data: data) }
-            else if let url = URL(string: value), url.scheme == "https" { image = try? await ImageCache.shared.load(url, size: 180) }
+            let loaded: UIImage?
+            if value.hasPrefix("data:image/") {
+                loaded = await ImageCache.shared.inlineBrandImage(value)
+            } else if let url = URL(string: value), url.scheme == "https" {
+                loaded = try? await ImageCache.shared.load(url, size: 180)
+            } else { return }
+            guard !Task.isCancelled else { return }
+            image = loaded
         }
     }
 }

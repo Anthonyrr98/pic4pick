@@ -1,18 +1,25 @@
 import Foundation
 import JavaScriptCore
 
-struct CityCollection: Decodable, Identifiable, Sendable {
+struct CityCollection: Decodable, Equatable, Identifiable, Sendable {
     let id: String
     let title: String
     let latitude: Double?
     let longitude: Double?
     let photoIDs: [String]
 }
-struct ProvinceCollection: Decodable, Identifiable, Sendable {
+struct ProvinceCollection: Decodable, Equatable, Identifiable, Sendable {
     let id: String
     let title: String
     let totalCount: Int
     let cities: [CityCollection]
+
+    var discoveryPlaces: [ExplorePlace] {
+        cities.map { city in
+            ExplorePlace(id: "city-" + city.id, title: city.title, subtitle: title,
+                latitude: city.latitude, longitude: city.longitude, photoIDs: city.photoIDs)
+        }
+    }
 }
 struct LocationCollection: Codable, Equatable, Identifiable, Sendable {
     let id: String
@@ -21,15 +28,24 @@ struct LocationCollection: Codable, Equatable, Identifiable, Sendable {
     let latitude: Double
     let longitude: Double
     let photoIDs: [String]
+
+    var discoveryPlace: ExplorePlace {
+        ExplorePlace(id: "location-" + id, title: title, subtitle: subtitle,
+            latitude: latitude, longitude: longitude, photoIDs: photoIDs)
+    }
+
+    var mapMarker: WebsiteMapMarker {
+        WebsiteMapMarker(id: id, title: title, latitude: latitude, longitude: longitude)
+    }
 }
-struct GalleryCatalog: Decodable, Sendable {
+struct GalleryCatalog: Decodable, Equatable, Sendable {
     let provinces: [ProvinceCollection]
     let locations: [LocationCollection]
     let summaries: [String: GalleryPhotoSummary]
     static let empty = GalleryCatalog(provinces: [], locations: [], summaries: [:])
 }
-struct GalleryPhotoSummary: Decodable, Sendable {
-    struct Shot: Decodable, Sendable { let yearsAgoText: String; let dateText: String }
+struct GalleryPhotoSummary: Decodable, Equatable, Sendable {
+    struct Shot: Decodable, Equatable, Sendable { let yearsAgoText: String; let dateText: String }
     let badge: String
     let shot: Shot
     let time: Double
@@ -37,7 +53,13 @@ struct GalleryPhotoSummary: Decodable, Sendable {
 
 final class GalleryCatalogEngine {
     struct Media: Decodable { let original: String; let candidates: [String] }
+    private struct MediaKey: Hashable {
+        let imageURL: String
+        let thumbnailURL: String
+        let detail: Bool
+    }
     @MainActor private static let mediaEngine = GalleryCatalogEngine()
+    @MainActor private static var mediaCache: [MediaKey: Media] = [:]
     private lazy var context: JSContext? = {
         guard let context = JSContext(), let url = Bundle.module.url(forResource: "GalleryShared", withExtension: "js"),
               let script = try? String(contentsOf: url, encoding: .utf8) else { return nil }
@@ -60,11 +82,18 @@ final class GalleryCatalogEngine {
         return decoded
     }
     @MainActor static func media(_ photo: Photo, detail: Bool) -> Media {
-        guard let context = mediaEngine.context, let data = try? JSONEncoder().encode(photo), let input = try? JSONSerialization.jsonObject(with: data),
+        let key = MediaKey(imageURL: photo.imageURL, thumbnailURL: photo.thumbnailURL, detail: detail)
+        if let cached = mediaCache[key] { return cached }
+        let input = ["image_url": key.imageURL, "thumbnail_url": key.thumbnailURL]
+        guard let context = mediaEngine.context,
               let result = context.objectForKeyedSubscript("Pic4PickShared")?.forProperty("media")?.call(withArguments: [input, detail])?.toString(),
               let media = try? JSONDecoder().decode(Media.self, from: Data(result.utf8)) else {
             return Media(original: photo.imageURL, candidates: [photo.thumbnailURL, photo.imageURL].filter { !$0.isEmpty })
         }
+        if mediaCache.count >= 1024, let keyToEvict = mediaCache.keys.first {
+            mediaCache.removeValue(forKey: keyToEvict)
+        }
+        mediaCache[key] = media
         return media
     }
 }

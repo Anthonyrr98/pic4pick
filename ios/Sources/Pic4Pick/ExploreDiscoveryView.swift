@@ -3,11 +3,9 @@ import CoreText
 
 struct ExploreView: View {
     var selectedTab: Binding<Int> = .constant(1)
-    var showsFloatingControls = true
     var preloading = false
     @EnvironmentObject private var store: GalleryStore
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @State private var query = ""
     @State private var detent = ExplorePanelDetent.collapsed
     @State private var panelMotion = ExplorePanelMotion()
@@ -18,24 +16,9 @@ struct ExploreView: View {
     @State private var mapRetry = 0
     @State private var selectedCollection: DiscoveryCollection?
 
-    private var cities: [ExplorePlace] {
-        store.catalog.provinces.flatMap { cityPlaces(in: $0) }
-    }
-
-    private func cityPlaces(in province: ProvinceCollection) -> [ExplorePlace] {
-        province.cities.map { city in
-            ExplorePlace(id: "city-" + city.id, title: city.title, subtitle: province.title,
-                latitude: city.latitude, longitude: city.longitude, photoIDs: city.photoIDs)
-        }
-    }
-    private var locations: [ExplorePlace] {
-        store.catalog.locations.map {
-            ExplorePlace(id: "location-" + $0.id, title: $0.title, subtitle: $0.subtitle,
-                latitude: $0.latitude, longitude: $0.longitude, photoIDs: $0.photoIDs)
-        }
-    }
     private var hasQuery: Bool { !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
     private var isActive: Bool { selectedTab.wrappedValue == AppSection.explore.rawValue }
+    private var usesMapbox: Bool { store.mapConfig["VITE_MAPBOX_PUBLIC_TOKEN"]?.string.isEmpty == false }
     private let panelShape = UnevenRoundedRectangle(topLeadingRadius: ExplorePanelLayout.cornerRadius,
         topTrailingRadius: ExplorePanelLayout.cornerRadius)
     private let inset = CGFloat(ExplorePanelLayout.horizontalInset)
@@ -50,9 +33,9 @@ struct ExploreView: View {
     var body: some View {
         GeometryReader { geometry in
             let layout = ExplorePanelLayout(availableHeight: Double(geometry.size.height),
-                topInset: Double(geometry.safeAreaInsets.top), bottomInset: Double(geometry.safeAreaInsets.bottom))
-            let index = preloading ? nil : ExploreDiscoveryIndex(
-                places: hasQuery ? cities + locations : cities, photos: store.photos)
+                topInset: Double(geometry.safeAreaInsets.top), bottomInset: Double(geometry.safeAreaInsets.bottom),
+                mapControlHeight: usesMapbox ? 34 : 24)
+            let index = preloading ? nil : store.discoveryIndex
             let featured = hasQuery ? [] : (index?.featured ?? [])
             let cardWidth = CGFloat(ExplorePanelLayout.cardWidth(for: Double(geometry.size.width)))
             Color.clear
@@ -78,13 +61,6 @@ struct ExploreView: View {
                         .modifier(ExplorePanelOffset(motion: panelMotion, layout: layout, detent: detent))
                 }
             }
-            .overlay(alignment: .bottomTrailing) {
-                if showsFloatingControls && !featured.isEmpty {
-                    mapMenu
-                        .padding(.trailing, 13)
-                        .padding(.bottom, geometry.safeAreaInsets.bottom + CGFloat(BottomNavigationMetrics.bottomPadding))
-                }
-            }
             .ignoresSafeArea(.container, edges: [.top, .bottom])
             .background(Color.hex(0xd7dcdf).ignoresSafeArea())
         }
@@ -106,6 +82,8 @@ struct ExploreView: View {
                     case .place(let place):
                         CollectionPhotosView(title: place.title, subtitle: place.subtitle, photoIDs: place.photoIDs,
                             allowsSwipeBack: true)
+                    case .nearby(let photoIDs):
+                        CollectionPhotosView(title: "附近作品", subtitle: "地图选区", photoIDs: photoIDs, allowsSwipeBack: true)
                     }
                 }
                 .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("完成") { selectedCollection = nil } } }
@@ -115,28 +93,18 @@ struct ExploreView: View {
     }
 
     private func mapSurface(layout: ExplorePanelLayout, attributionTop: Double) -> some View {
-        let map = WebsiteMap(payload: .init(config: store.mapConfig, locations: store.catalog.locations, focus: focus,
-            reduceMotion: reduceMotion, active: isActive || preloading,
-            compactMarkers: true, requireConfiguredStyle: true),
+        let map = WebsiteMap(payload: .init(content: .init(config: store.mapConfig, locations: store.mapLocations,
+            active: isActive || preloading, compactMarkers: true, requireConfiguredStyle: true),
+            camera: .init(focus: focus, reduceMotion: reduceMotion)),
             baseURL: store.websiteURL,
             panelClearance: layout.height(at: detent),
             attributionTop: attributionTop,
             onLocation: { id in
-                if let place = locations.first(where: { $0.id == "location-" + id }) { open(place) }
-            }, onStatus: { status in mapReady = status == "ready"; mapFailed = status == "failure" })
-        return ExploreMapMotion(map: map, motion: panelMotion, layout: layout, detent: detent)
+                if let location = store.catalog.locations.first(where: { $0.id == id }) { open(location.discoveryPlace) }
+            }, onNearbyLocations: openNearby,
+            onStatus: { status in mapReady = status == "ready"; mapFailed = status == "failure" })
+        return ExploreMapMotion(map: map, motion: panelMotion, layout: layout, detent: detent, active: isActive, usesMapbox: usesMapbox)
             .id(mapRetry)
-            .overlay(alignment: .topTrailing) {
-                if !preloading && store.usingBundledMapConfig {
-                    Text("地图暂用内置配置")
-                        .font(.caption)
-                        .padding(8)
-                        .background(.regularMaterial, in: Capsule())
-                        .padding(.top, attributionTop)
-                        .padding(.trailing, 12)
-                        .allowsHitTesting(false)
-                }
-            }
             .overlay {
                 if !preloading {
                     if mapFailed {
@@ -157,31 +125,6 @@ struct ExploreView: View {
 
     private var mapLoading: some View {
         ProgressView().padding(16).background(.regularMaterial, in: Capsule())
-    }
-
-    private var mapMenu: some View {
-        Menu {
-            Button("查看全部拍摄地点", systemImage: "arrow.up.left.and.arrow.down.right") {
-                focus = ["id": .string(UUID().uuidString), "all": .bool(true)]
-            }
-            Button("回到初始视角", systemImage: "map") {
-                focus = ["id": .string(UUID().uuidString), "initial": .bool(true)]
-            }
-        } label: {
-            Image(systemName: "ellipsis")
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(Color.hex(0x384852).opacity(0.82))
-                .frame(width: 30, height: 30)
-                .background {
-                    if reduceTransparency { Circle().fill(.white) }
-                    else { Circle().fill(.thinMaterial) }
-                }
-                .overlay { Circle().strokeBorder(.white.opacity(0.70), lineWidth: 0.7) }
-                .frame(width: 44, height: 44)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("发现地图更多操作")
     }
 
     private func discoveryPanel(layout: ExplorePanelLayout, index: ExploreDiscoveryIndex, featured: [ExplorePlace], cardWidth: CGFloat) -> some View {
@@ -270,20 +213,24 @@ struct ExploreView: View {
     }
 
     private func setDetent(_ next: ExplorePanelDetent) {
-        applyDetent(next, animation: .easeInOut(duration: 0.25))
+        applyDetent(next, duration: 0.25, curve: (0.42, 0, 0.58, 1))
     }
 
     private func settlePanel(at next: ExplorePanelDetent, layout: ExplorePanelLayout, velocity: Double) {
         // Offset increases as the panel moves down.
         let distance = layout.height(at: detent, drag: panelMotion.drag) - layout.height(at: next)
         let stop = ExplorePanelStop(distance: distance, velocity: velocity)
-        applyDetent(next, animation: .timingCurve(1.0 / 3, stop.firstControlY, 2.0 / 3, 1, duration: stop.duration))
+        applyDetent(next, duration: stop.duration, curve: (1.0 / 3, stop.firstControlY, 2.0 / 3, 1))
     }
 
-    private func applyDetent(_ next: ExplorePanelDetent, animation: Animation) {
+    private func applyDetent(_ next: ExplorePanelDetent, duration: Double, curve: (Double, Double, Double, Double)) {
+        let (x1, y1, x2, y2) = curve
+        let animation = Animation.timingCurve(x1, y1, x2, y2, duration: duration)
+        let easing = "cubic-bezier(\(x1), \(y1), \(x2), \(y2))"
+        let parallax = reduceMotion ? nil : MapPanelParallax.Settle(duration: duration, easing: easing)
         withAnimation(reduceMotion ? nil : animation) {
             if next != detent && next != .expanded { searching = false }
-            panelMotion.update(0)
+            panelMotion.update(0, settle: parallax)
             detent = next
         }
     }
@@ -305,11 +252,11 @@ struct ExploreView: View {
     }
 
     private func provinceCities(_ province: ProvinceCollection) -> some View {
-        let index = ExploreDiscoveryIndex(places: cityPlaces(in: province), photos: store.photos)
+        let index = store.discoveryIndex
         return ScrollView {
             LazyVStack(spacing: 0) {
-                ForEach(index.places) { city in
-                    if let cover = index.cover(for: city) {
+                ForEach(province.discoveryPlaces) { city in
+                    if let cover = index.cover(for: city.photoIDs) {
                         NavigationLink {
                             CollectionPhotosView(title: city.title, subtitle: city.subtitle, photoIDs: city.photoIDs,
                                 allowsSwipeBack: true)
@@ -361,6 +308,22 @@ struct ExploreView: View {
         selectedCollection = .place(place)
     }
 
+    private func openNearby(_ ids: [String]) {
+        guard isActive else { return }
+        let locations = Dictionary(store.catalog.locations.lazy.map { ($0.id, $0) },
+            uniquingKeysWith: { first, _ in first })
+        if ids.count == 1, let location = locations[ids[0]] {
+            open(location.discoveryPlace)
+            return
+        }
+        var seen = Set<String>()
+        let photoIDs = Array(ids.lazy.compactMap { locations[$0] }.flatMap(\.photoIDs)
+            .filter { store.containsPhoto(withID: $0) && seen.insert($0).inserted }.prefix(80))
+        guard !photoIDs.isEmpty else { return }
+        searching = false
+        selectedCollection = .nearby(photoIDs)
+    }
+
     private func focusMap(on place: ExplorePlace) {
         if place.hasCoordinate {
             focus = ["id": .string(UUID().uuidString), "latitude": .number(place.latitude!),
@@ -371,9 +334,12 @@ struct ExploreView: View {
 
 @MainActor private final class ExplorePanelMotion: ObservableObject {
     @Published private(set) var drag = 0.0
+    private(set) var settle: MapPanelParallax.Settle?
 
-    func update(_ value: Double) {
-        if drag != value { drag = value }
+    func update(_ value: Double, settle: MapPanelParallax.Settle? = nil) {
+        guard drag != value || self.settle != settle else { return }
+        self.settle = settle
+        drag = value
     }
 }
 
@@ -395,24 +361,16 @@ private struct ExploreMapMotion: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let layout: ExplorePanelLayout
     let detent: ExplorePanelDetent
-
-    var body: some View {
-        ExploreMapParallax(map: map, offset: reduceMotion ? 0 : layout.mapOffset(at: detent, drag: motion.drag))
-    }
-}
-
-private struct ExploreMapParallax: View, Animatable {
-    let map: WebsiteMap
-    nonisolated var offset: Double
-
-    nonisolated var animatableData: Double {
-        get { offset }
-        set { offset = newValue }
-    }
+    let active: Bool
+    let usesMapbox: Bool
 
     var body: some View {
         var surface = map
-        surface.panelParallax = offset
+        let drag = active ? motion.drag : 0
+        surface.panelParallax = MapPanelParallax(
+            offset: reduceMotion ? 0 : layout.mapOffset(at: detent, drag: drag),
+            settle: active && !reduceMotion ? motion.settle : nil,
+            visibleClearance: usesMapbox ? layout.height(at: detent, drag: drag) : nil)
         return surface
     }
 }
@@ -420,11 +378,13 @@ private struct ExploreMapParallax: View, Animatable {
 private enum DiscoveryCollection: Identifiable {
     case province(ProvinceCollection)
     case place(ExplorePlace)
+    case nearby([String])
 
     var id: String {
         switch self {
         case .province(let province): "province-" + province.id
         case .place(let place): place.id
+        case .nearby: "nearby"
         }
     }
 }

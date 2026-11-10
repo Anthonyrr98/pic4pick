@@ -23,14 +23,14 @@ struct PhotoViewerLayout {
     let expandedPreviewHeight: Double
     let expandedHandleHeight: Double
 
-    init(availableHeight: Double, safeBottom: Double, safeTop: Double = 0) {
+    init(availableHeight: Double, safeBottom: Double, safeTop: Double = 0, additionalCompactHeight: Double = 0) {
         let height = max(0, availableHeight.isFinite ? availableHeight : 0)
         let bottom = max(0, safeBottom.isFinite ? safeBottom : 0)
         let top = max(0, safeTop.isFinite ? safeTop : 0)
         self.height = height
         self.safeBottom = bottom
         self.safeTop = top
-        let content = min(142, height * 0.35)
+        let content = min(142, height * 0.35) + additionalCompactHeight
         let topClearance = min(60, height * 0.15)
         let bottomClearance = min(12, height * 0.03)
         photoTop = topClearance + min(height * 0.014, bottomClearance * 0.9)

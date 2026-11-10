@@ -25,16 +25,21 @@ enum PhotoViewerBackdropStyle {
 // A non-main actor serializes decoding/compositing without blocking scroll events.
 // Network awaits remain reentrant; identical consumers share one pending request.
 actor ImageCache {
+    private struct ImageRequest: Hashable, Sendable {
+        let url: URL
+        let size: Int
+    }
+
     static let shared = ImageCache()
     static let thumbnailMaxPixels = 1000
     private let images = NSCache<NSURL, UIImage>()
     private let framed = NSCache<NSString, UIImage>()
     private let artwork = NSCache<NSString, UIImage>()
-    private var pending: [String: Task<UIImage, Error>] = [:]
+    private let pendingImages = SharedImageRequests<ImageRequest, UIImage>()
     private var developmentHistory = FilmDevelopmentHistory()
     private var disk = DiskImageCache()
     private let downloads = ImageDownload()
-    private var pendingDownloads: [URL: Task<Data, Error>] = [:]
+    private let pendingDownloads = SharedImageRequests<URL, Data>()
     private let backdrops = NSCache<NSURL, UIImage>()
     private var processingContext: CIContext?
     init() {
@@ -77,35 +82,36 @@ actor ImageCache {
     }
 
     func load(_ url: URL, size: Int) async throws -> UIImage {
+        try Task.checkCancellation()
         let key = imageKey(url, size: size)
         if let value = images.object(forKey: key) { return value }
-        let requestKey = key.absoluteString ?? "\(url.absoluteString)#size=\(size)"
-        if let task = pending[requestKey] { return try await task.value }
-        let task = Task {
-            try decode(try await sourceData(for: url), size: size)
+        return try await pendingImages.value(for: ImageRequest(url: url, size: size)) {
+            try await self.loadAndCache(url, size: size)
         }
-        pending[requestKey] = task
-        defer { pending[requestKey] = nil }
-        let value = try await task.value
+    }
+
+    private func loadAndCache(_ url: URL, size: Int) async throws -> UIImage {
+        let key = imageKey(url, size: size)
+        if let value = images.object(forKey: key) { return value }
+        let data = try await pendingDownloads.value(for: url) { try await self.sourceData(for: url) }
+        try Task.checkCancellation()
+        let value = try decode(data, size: size)
+        try Task.checkCancellation()
         let cost = value.cgImage.map { $0.bytesPerRow * $0.height } ?? 0
         images.setObject(value, forKey: key, cost: cost)
         return value
     }
 
     private func sourceData(for url: URL) async throws -> Data {
-        if let pending = pendingDownloads[url] { return try await pending.value }
+        try Task.checkCancellation()
         let diskKey = SHA256.hash(data: Data(url.absoluteString.utf8))
             .map { String(format: "%02x", $0) }.joined()
         if let data = disk.data(forKey: diskKey, maxBytes: ImageDownload.maximumBytes),
            ImageDownload.validSource(data) != nil { return data }
-        let task = Task {
-            let (data, canStore) = try await downloads.fetch(url)
-            if canStore { disk.store(data, forKey: diskKey) }
-            return data
-        }
-        pendingDownloads[url] = task
-        defer { pendingDownloads[url] = nil }
-        return try await task.value
+        let (data, canStore) = try await downloads.fetch(url)
+        try Task.checkCancellation()
+        if canStore { disk.store(data, forKey: diskKey) }
+        return data
     }
 
     private func imageKey(_ url: URL, size: Int) -> NSURL {
@@ -142,6 +148,12 @@ actor ImageCache {
         } else { value = decoded }
         artwork.setObject(value, forKey: key, cost: value.cgImage.map { $0.bytesPerRow * $0.height } ?? 0)
         return value
+    }
+
+    func inlineBrandImage(_ value: String) -> UIImage? {
+        guard !Task.isCancelled, let comma = value.firstIndex(of: ","),
+              let data = Data(base64Encoded: String(value[value.index(after: comma)...])) else { return nil }
+        return (try? decode(data, size: 180)) ?? UIImage(data: data)
     }
 
     func shouldDevelop(photoID: String, session: UUID) -> Bool {
@@ -233,7 +245,6 @@ struct PhotoImage: View {
     // Nil for images outside the pager.
     var isSelectedPage: Bool? = nil
     var developmentID: UUID? = nil
-    var previewsDevelopment = false
     var cardFill = false
     var panelInteraction: PhotoPanelInteraction? = nil
     var transition: PhotoPreviewSession? = nil
@@ -247,7 +258,7 @@ struct PhotoImage: View {
     @State private var retry = 0
     @State private var negative: UIImage?
     @State private var generation = UUID()
-    private var preparesDevelopment: Bool { !reduceMotion && (developmentID != nil || previewsDevelopment) }
+    private var preparesDevelopment: Bool { !reduceMotion && developmentID != nil }
 
     var body: some View {
         Group {
@@ -328,15 +339,14 @@ struct PhotoImage: View {
                     guard !Task.isCancelled else { return }
                     let framed = await ImageCache.shared.withFrame(loaded, photo: photo, key: url.absoluteString)
                     guard !Task.isCancelled else { return }
-                    // Keep the exact decoded source bitmap until the shared element has settled.
-                    while let transition, !transition.isStable {
-                        if transition.phase == .finished { return }
-                        do { try await Task.sleep(for: .milliseconds(35)) } catch { return }
-                    }
                     let preparedNegative: UIImage?
                     if preparesDevelopment {
                         preparedNegative = await ImageCache.shared.filmNegative(loaded, photoID: photo.id, session: developmentID)
                     } else { preparedNegative = nil }
+                    // The session wakes this task when the source bitmap can be replaced.
+                    while let transition, !transition.isStable {
+                        guard await transition.waitUntilStable() else { return }
+                    }
                     guard !Task.isCancelled else { return }
                     negative = preparedNegative
                     image = framed

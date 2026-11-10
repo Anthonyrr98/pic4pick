@@ -66,13 +66,17 @@ struct ExploreDiscoveryChecks {
             photoIDs: ["low", "best", "tie", "private"])
         let empty = ExplorePlace(id: "empty", title: "空相册", subtitle: "", latitude: nil, longitude: nil, photoIDs: ["deleted"])
         let hidden = ExplorePlace(id: "hidden", title: "私有相册", subtitle: "", latitude: 1, longitude: 1, photoIDs: ["private"])
+        let landmark = ExplorePlace(id: "landmark", title: "北京景点", subtitle: "", latitude: 39.9, longitude: 116.4,
+            photoIDs: ["tie"])
         let index = ExploreDiscoveryIndex(places: [beijing, empty, hidden, beijing], photos: [
             try photo("low", rating: 4), try photo("best", rating: 9), try photo("tie", rating: 9),
-            try photo("private", rating: 10, hidden: true)])
+            try photo("private", rating: 10, hidden: true)], additionalSearchPlaces: [landmark, beijing])
         precondition(index.places.count == 3)
         precondition(index.cover(for: beijing)?.id == "best", "Choose a public cover and keep original order for tied ratings")
         precondition(index.featured.map(\.id) == ["bj"])
         precondition(index.results(for: "  beijing  华北 ").map(\.id) == ["bj"])
+        precondition(index.results(for: "北京").map(\.id) == ["bj", "landmark"])
+        precondition(index.cover(for: landmark)?.id == "tie")
         precondition(index.results(for: "北京 上海").isEmpty)
         precondition(index.results(for: "空相册").isEmpty)
         precondition(beijing.hasCoordinate && !empty.hasCoordinate)

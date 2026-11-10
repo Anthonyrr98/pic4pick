@@ -13,13 +13,17 @@ struct PhotoViewerPaging<Page: View>: View {
     @State private var gestureID: UUID?
 
     var body: some View {
+        let selectedIndex = photos.firstIndex { $0.id == selectedID }
         GeometryReader { geometry in
             let width = geometry.size.width
-            let center = photos.firstIndex { $0.id == selectedID } ?? 0
+            let center = selectedIndex ?? 0
+            let start = max(0, center - 2)
+            let end = min(photos.count, center + 3)
             let direction = layoutDirection == .rightToLeft ? -1.0 : 1.0
             let travel = PhotoPagingTransition.pageStep(width: width) * direction
             ZStack {
-                ForEach(Array(photos.enumerated()).filter { abs($0.offset - center) <= 2 }, id: \.element.id) { index, photo in
+                ForEach(Array(photos[start..<end].enumerated()), id: \.element.id) { offset, photo in
+                    let index = start + offset
                     let position = index - center
                     PhotoPagingPage(content: page(photo), motion: motion, id: photo.id,
                         index: index, center: center, travel: reduceMotion ? 0 : travel)
@@ -34,7 +38,7 @@ struct PhotoViewerPaging<Page: View>: View {
                 PhotoPagingGesture(session: session,
                     canBegin: { photos.count > 1 && session.canStartPaging },
                     handle: { state, sample in
-                        handle(state, sample: sample, width: width, direction: direction)
+                        handle(state, sample: sample, width: width, direction: direction, selectedIndex: selectedIndex)
                     })
                     .allowsHitTesting(false)
             }
@@ -47,14 +51,14 @@ struct PhotoViewerPaging<Page: View>: View {
         .accessibilityScrollAction { edge in
             let forward = layoutDirection == .rightToLeft ? edge == .trailing : edge == .leading
             guard edge == .leading || edge == .trailing else { return }
-            guard let destination = neighbor(forward ? 1 : -1), session.beginPaging() else { return }
+            guard let destination = neighbor(forward ? 1 : -1, from: selectedIndex), session.beginPaging() else { return }
             let id = UUID()
             gestureID = id
             settle(to: forward ? 1 : -1, destination: destination, id: id)
         }
     }
 
-    private func handle(_ state: UIGestureRecognizer.State, sample: PhotoPanSample, width: Double, direction: Double) {
+    private func handle(_ state: UIGestureRecognizer.State, sample: PhotoPanSample, width: Double, direction: Double, selectedIndex: Int?) {
         if state == .began {
             guard session.beginPaging() else { return }
             gestureID = UUID()
@@ -63,12 +67,12 @@ struct PhotoViewerPaging<Page: View>: View {
         switch state {
         case .began, .changed:
             let p = PhotoPagingTransition.progress(translation: -sample.translation.x * direction, width: width)
-            motion.move(to: neighbor(p > 0 ? 1 : -1) == nil ? 0 : p)
+            motion.move(to: neighbor(p > 0 ? 1 : -1, from: selectedIndex) == nil ? 0 : p)
         case .ended:
             let velocity = -sample.velocity.x * direction
             let offset = PhotoPagingTransition.destination(progress: motion.progress,
                 velocity: velocity, width: width)
-            let destination = neighbor(offset)
+            let destination = neighbor(offset, from: selectedIndex)
             settle(to: destination == nil ? 0 : offset, destination: destination, id: id,
                 velocity: velocity / PhotoPagingTransition.pageStep(width: width))
         case .cancelled, .failed:
@@ -77,9 +81,13 @@ struct PhotoViewerPaging<Page: View>: View {
         }
     }
 
-    private func neighbor(_ offset: Int) -> String? {
-        guard offset != 0, let current = photos.firstIndex(where: { $0.id == selectedID }),
-              photos.indices.contains(current + offset) else { return nil }
+    private func neighbor(_ offset: Int, from selectedIndex: Int?) -> String? {
+        guard offset != 0 else { return nil }
+        let id = selectedID
+        // A new selection can arrive before SwiftUI updates the gesture callbacks.
+        let current = selectedIndex.flatMap { photos[$0].id == id ? $0 : nil }
+            ?? photos.firstIndex { $0.id == id }
+        guard let current, photos.indices.contains(current + offset) else { return nil }
         return photos[current + offset].id
     }
 

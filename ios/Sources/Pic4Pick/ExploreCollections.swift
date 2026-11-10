@@ -23,7 +23,9 @@ struct CityCollectionsSheet: View {
                                 CollectionPhotosView(title: city.title, subtitle: province.title, photoIDs: city.photoIDs).onAppear { onFocus(city) }
                             } label: {
                                 HStack(spacing: 14) {
-                                    if let photo = store.photos.first(where: { $0.id == city.photoIDs.first }), let config = store.config { PhotoThumbnail(photo: photo, config: config) }
+                                    if let id = city.photoIDs.first, let photo = store.photo(withID: id), let config = store.config {
+                                        PhotoThumbnail(photo: photo, config: config)
+                                    }
                                     VStack(alignment: .leading, spacing: 5) {
                                         Text(city.title).font(.system(.headline, design: .serif))
                                         Text("\(city.photoIDs.count) 张作品").font(.caption).foregroundStyle(.secondary)
@@ -51,8 +53,7 @@ struct CollectionPhotosView: View {
     @State private var selected: PhotoSelection?
     @State private var sourceScope = UUID()
     private var photos: [Photo] {
-        let index = Dictionary(uniqueKeysWithValues: store.photos.map { ($0.id, $0) })
-        return photoIDs.compactMap { index[$0] }
+        photoIDs.compactMap { store.photo(withID: $0) }
     }
     var body: some View {
         ScrollView {
@@ -86,7 +87,7 @@ struct GalleryTile: View {
     let photo: Photo
     let filmMode: Bool
     let developmentID: UUID?
-    var previewsDevelopment = false
+    var canInteract = true
     var onOpen: () -> Void
     @EnvironmentObject private var store: GalleryStore
     @Environment(\.galleryAppearance) private var theme
@@ -102,6 +103,7 @@ struct GalleryTile: View {
     }
 
     private func open() {
+        guard canInteract else { return }
         PhotoPreviewDiagnostics.event("thumbnail tapped")
         PhotoTransitionSource.shared.activate(sourceToken)
         defer { PhotoTransitionSource.shared.deactivate(sourceToken) }
@@ -112,21 +114,21 @@ struct GalleryTile: View {
         // Film retains its complete composition and the stock-specific outer edges.
         Button(action: open) {
             PhotoImage(photo: photo, config: store.config, developmentID: developmentID,
-                previewsDevelopment: previewsDevelopment, sourceToken: sourceToken)
+                sourceToken: sourceToken)
                 .frame(maxWidth: .infinity).background(theme.surface)
-        }.buttonStyle(.plain).accessibilityLabel("打开\(photo.displayTitle)")
+        }.buttonStyle(GalleryPhotoButtonStyle()).accessibilityLabel("打开\(photo.displayTitle)")
     }
 
     private var photographicCard: some View {
         // Reserve the final size before image loading, so rows never jump in height.
-        Color.black
+        theme.surface
             .aspectRatio(PhotoPresentationPolicy.cardAspectRatio, contentMode: .fit)
             .overlay {
                 Button(action: open) {
                     PhotoImage(photo: photo, config: store.config, cardFill: true, sourceToken: sourceToken)
                         // Cropping only affects drawing; also bound the button's hit region.
                         .contentShape(Rectangle())
-                }.buttonStyle(.plain)
+                }.buttonStyle(GalleryPhotoButtonStyle())
                     .accessibilityLabel("打开\(photo.displayTitle)，\(photo.place)")
             }
             .overlay {
@@ -174,6 +176,7 @@ struct GalleryTile: View {
     private var likeButton: some View {
         let state = store.likeState(for: photo)
         return Button {
+            guard canInteract else { return }
             if store.toggleLike(photo)?.liked == true && !reduceMotion { likeBounce += 1 }
         } label: {
             HStack(spacing: 5) {
@@ -199,4 +202,10 @@ struct GalleryTile: View {
         .buttonStyle(.plain)
             .accessibilityLabel("\(state.liked ? "取消点赞" : "点赞")\(photo.displayTitle)，\(state.count) 次")
     }
+}
+
+// A pan can start over a photo. Keep the bitmap stable while the button waits
+// for the scroll recognizer to decide whether the touch is a tap or a swipe.
+private struct GalleryPhotoButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View { configuration.label }
 }

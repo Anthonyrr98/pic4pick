@@ -37,8 +37,6 @@ final class CategoryIndicatorView: UIView {
         isUserInteractionEnabled = false
         isAccessibilityElement = false
         layer.masksToBounds = true
-        pill.colors = [UIColor(red: 75 / 255, green: 88 / 255, blue: 85 / 255, alpha: 1).cgColor,
-                       UIColor(red: 32 / 255, green: 51 / 255, blue: 48 / 255, alpha: 1).cgColor]
         pill.startPoint = CGPoint(x: 0.5, y: 0)
         pill.endPoint = CGPoint(x: 0.5, y: 1)
         pill.borderColor = UIColor.white.withAlphaComponent(0.18).cgColor
@@ -82,8 +80,7 @@ final class CategoryIndicatorView: UIView {
                            highlightTint.withAlphaComponent(0.22).cgColor]
             pill.shadowOpacity = 0
         } else {
-            pill.colors = [UIColor(red: 75 / 255, green: 88 / 255, blue: 85 / 255, alpha: 1).cgColor,
-                           UIColor(red: 32 / 255, green: 51 / 255, blue: 48 / 255, alpha: 1).cgColor]
+            pill.colors = [highlightTint.cgColor, highlightTint.cgColor]
             pill.borderColor = UIColor.white.withAlphaComponent(0.18).cgColor
             pill.shadowOpacity = 0.16
         }

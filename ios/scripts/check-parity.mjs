@@ -36,6 +36,12 @@ const summary = JSON.parse(context.Pic4PickShared.details(fixtures[0]));
 assert.equal(summary.badge, '最新'); assert.ok(summary.shot.dateText.includes('2025'));
 const media = JSON.parse(context.Pic4PickShared.media({ ...fixtures[0], image_url: 'https://example.oss-cn-beijing.aliyuncs.com/ore/2026/photo.jpg', thumbnail_url: '' }, true));
 assert.ok(media.original.includes('/origin/2026/photo.jpg')); assert.ok(media.candidates.length > 1);
+for (const { image_url, thumbnail_url, ...fields } of [...fixtures, ...live]) {
+  for (const detail of [false, true]) {
+    assert.equal(context.Pic4PickShared.media({ image_url, thumbnail_url }, detail),
+      context.Pic4PickShared.media({ ...fields, image_url, thumbnail_url }, detail));
+  }
+}
 const presets = JSON.parse(await readFile(new URL('../Sources/Pic4Pick/Resources/AdminMapPresets.json', import.meta.url)));
 assert.equal(presets.length, 14);
 console.log('通过：城市归类、地点聚合、日期与标签共享规则及全部 14 种地图预设。');

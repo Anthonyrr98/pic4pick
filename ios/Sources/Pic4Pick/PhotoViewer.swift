@@ -1,6 +1,8 @@
 import SwiftUI
 import Photos
 import MapKit
+import ImageIO
+import UniformTypeIdentifiers
 
 struct PhotoViewer: View {
     @EnvironmentObject private var store: GalleryStore
@@ -8,6 +10,7 @@ struct PhotoViewer: View {
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.galleryAppearance) private var theme
+    @ScaledMetric(relativeTo: .subheadline) private var sectionTextSize: CGFloat = 15
     let photos: [Photo]
     let transition: PhotoPreviewSession?
     @State private var selectedID: String
@@ -15,7 +18,9 @@ struct PhotoViewer: View {
     @State private var infoSection: PhotoInfoSection = .geography
     @State private var motion: PhotoViewerMotion
     @State private var preparedPhotoID: String?
-    @State private var liveMapPhotoID: String?
+    @State private var prewarmedMapPhotoID: String?
+    @State private var activeMapPhotoID: String?
+    @State private var liveMetadataPhotoID: String?
     @State private var metadataTask: Task<Void, Never>?
     @State private var saving = false
     @State private var saveMessage: String?
@@ -27,21 +32,21 @@ struct PhotoViewer: View {
         _motion = State(initialValue: PhotoViewerMotion(native: transition != nil))
         _selectedID = State(initialValue: initialID)
     }
-    private var photo: Photo? { store.photos.first { $0.id == selectedID } }
+    private var photo: Photo? { store.photo(withID: selectedID) }
     private var previewScene: UIWindowScene? { transition?.controller?.viewIfLoaded?.window?.windowScene }
     private var isSceneActive: Bool {
         if let previewScene { return previewScene.activationState == .foregroundActive }
         return scenePhase == .active
     }
     private var visiblePhotos: [Photo] {
-        let publicIDs = Set(store.photos.map(\.id))
-        return photos.filter { publicIDs.contains($0.id) }
+        photos.filter { store.containsPhoto(withID: $0.id) }
     }
 
     var body: some View {
         GeometryReader { geometry in
+            let sectionControlHeight = max(44, ceil(sectionTextSize * 1.25) + 8)
             let layout = PhotoViewerLayout(availableHeight: Double(geometry.size.height), safeBottom: Double(geometry.safeAreaInsets.bottom),
-                safeTop: Double(geometry.safeAreaInsets.top))
+                safeTop: Double(geometry.safeAreaInsets.top), additionalCompactHeight: Double(sectionControlHeight - 44))
             ZStack(alignment: .bottom) {
                 PhotoViewerBackdrop(photo: photo)
                 // Cover the bare background too; controls and the photo's own
@@ -79,13 +84,9 @@ struct PhotoViewer: View {
                                 y: CGFloat(layout.expandedPreviewHeight / 2 - layout.safeTop))
                             .allowsHitTesting(infoExpanded).accessibilityHidden(true)
                     }
-                    PhotoViewerInfoPanel(photo: photo, section: $infoSection, expanded: $infoExpanded,
-                        motion: motion, layout: layout, prepared: preparedPhotoID == photo.id,
-                        liveMap: liveMapPhotoID == photo.id, interaction: photoPanelInteraction(layout: layout), session: transition) {
-                        moreActions(photo)
-                    }
-                    .padding(.bottom, -geometry.safeAreaInsets.bottom)
-                    .animation(panelAnimation, value: infoExpanded)
+                    infoPanel(photo, layout: layout, controlHeight: sectionControlHeight)
+                        .padding(.bottom, -geometry.safeAreaInsets.bottom)
+                        .animation(panelAnimation, value: infoExpanded)
                 }
                 if let transition {
                     PhotoPanelPictureBridge(layout: layout, expanded: infoExpanded, session: transition,
@@ -96,16 +97,7 @@ struct PhotoViewer: View {
             }
             .overlay(alignment: .topLeading) {
                 Button { close() } label: {
-                    Image(systemName: "chevron.left").font(.system(size: 13, weight: .regular))
-                        .frame(width: 28, height: 28)
-                        .background {
-                            Circle().fill(.ultraThinMaterial)
-                                .overlay { Circle().fill(.white.opacity(theme == .dark ? 0.06 : 0.23)) }
-                        }
-                        .overlay {
-                            Circle().strokeBorder(.white.opacity(theme == .dark ? 0.32 : 0.68), lineWidth: 0.75)
-                        }
-                        .frame(width: 44, height: 44).contentShape(Circle())
+                    FloatingGlassControl(symbol: "chevron.backward")
                 }.buttonStyle(.plain).accessibilityLabel("返回图库").padding(.leading, 4).padding(.top, 4)
                     .modifier(PhotoViewerMovingLayer(motion: motion, layout: layout, expanded: infoExpanded, role: .back))
                     .allowsHitTesting(!infoExpanded)
@@ -124,11 +116,19 @@ struct PhotoViewer: View {
             guard !Task.isCancelled, transition?.phase != .finished else { return }
             do { try await Task.sleep(for: .milliseconds(160)) } catch { return }
             guard !Task.isCancelled, photo?.id == id else { return }
-            preparedPhotoID = id // Warm only native cards, never WebKit/EXIF here.
+            preparedPhotoID = id
+            do { try await Task.sleep(for: .milliseconds(400)) } catch { return }
+            let power = ProcessInfo.processInfo
+            guard !Task.isCancelled, photo?.id == id, photo?.hasCoordinate == true,
+                  isSceneActive, !infoExpanded, motion.gesture.owner == nil,
+                  transition?.canStartPaging != false, !power.isLowPowerModeEnabled,
+                  power.thermalState != .serious, power.thermalState != .critical else { return }
+            prewarmedMapPhotoID = id // Only the local HTML; tiles wait until the panel opens.
         }
         .onChange(of: photo?.id) { _, _ in
             transition?.select(selectedID)
-            metadataTask?.cancel(); liveMapPhotoID = nil; preparedPhotoID = nil
+            metadataTask?.cancel(); activeMapPhotoID = nil; liveMetadataPhotoID = nil
+            preparedPhotoID = nil; prewarmedMapPhotoID = nil
             infoExpanded = false; motion.reset(); prepareSpatial()
         }
         .onChange(of: scenePhase) { _, phase in
@@ -207,6 +207,7 @@ struct PhotoViewer: View {
                     if !transition.isDragging { metadataTask?.cancel() }
                     if transition.drag(sample) { return }
                 }
+                guard !reduceMotion else { return }
                 if !motion.values.dragging { metadataTask?.cancel() }
                 if route == .dismissal { motion.update(infoDrag: 0, dismissDrag: translation) }
                 else {
@@ -220,7 +221,8 @@ struct PhotoViewer: View {
                 }
                 if let transition, transition.isDragging { transition.endDrag(sample); motion.reset(); scheduleMetadataActivity(); return }
                 let translation = sample.vertical, predicted = sample.predictedVertical
-                if motion.gesture.owner != .information && PhotoPanelPanPolicy.shouldDismiss(expanded: infoExpanded, translation: translation, predictedTranslation: predicted) {
+                if !infoExpanded && motion.gesture.owner != .information &&
+                    PhotoTransitionTuning.shouldDismiss(translation: translation, velocity: Double(sample.velocity.y)) {
                     spatial.stop()
                     close()
                 } else {
@@ -256,7 +258,8 @@ struct PhotoViewer: View {
         } else {
             transition?.cancelDrag()
             metadataTask?.cancel()
-            liveMapPhotoID = nil
+            activeMapPhotoID = nil
+            liveMetadataPhotoID = nil
             spatial.stop()
         }
     }
@@ -266,13 +269,26 @@ struct PhotoViewer: View {
         let expectedID = photo?.id
         let activate = infoExpanded && isSceneActive
         let targetID = activate ? expectedID : nil
-        guard liveMapPhotoID != targetID else { return }
-        // Leave a quiet interval after the closing spring before updating WebKit.
-        let delay = activate ? 0.45 : PhotoTransitionTuning.panelSettleDuration + 0.20
+        if !activate { activeMapPhotoID = nil }
+        guard liveMetadataPhotoID != targetID || activeMapPhotoID != targetID else { return }
+        // The engine and metadata queries must not compete with the panel spring.
+        let delay = activate ? (reduceMotion ? 0 : PhotoTransitionTuning.panelSettleDuration)
+            : PhotoTransitionTuning.panelSettleDuration + 0.20
         metadataTask = Task { @MainActor in
-            do { try await Task.sleep(for: .seconds(delay)) } catch { return }
+            do {
+                try await Task.sleep(for: .seconds(delay))
+                if activate, let transition {
+                    while !transition.isInformationSettled {
+                        guard transition.phase == .visible, infoExpanded, isSceneActive, photo?.id == expectedID else { return }
+                        try await Task.sleep(for: .milliseconds(16))
+                    }
+                    try await Task.sleep(for: .milliseconds(140))
+                    guard transition.isInformationSettled else { return }
+                }
+            } catch { return }
             guard !Task.isCancelled, photo?.id == expectedID, (infoExpanded && isSceneActive) == activate else { return }
-            liveMapPhotoID = targetID
+            activeMapPhotoID = targetID
+            liveMetadataPhotoID = targetID
         }
     }
 
@@ -296,21 +312,19 @@ struct PhotoViewer: View {
         spatial.select(photo?.id, client: store.spatialClient, prefetch: !reduceMotion && isSceneActive && !infoExpanded)
     }
 
+    private func infoPanel(_ photo: Photo, layout: PhotoViewerLayout, controlHeight: CGFloat) -> some View {
+        PhotoViewerInfoPanel(photo: photo, section: $infoSection, expanded: $infoExpanded,
+            motion: motion, layout: layout, prepared: preparedPhotoID == photo.id,
+            prewarmMap: prewarmedMapPhotoID == photo.id,
+            mapActive: activeMapPhotoID == photo.id, liveMetadata: liveMetadataPhotoID == photo.id,
+            interaction: photoPanelInteraction(layout: layout), session: transition,
+            sectionTextSize: sectionTextSize, sectionControlHeight: controlHeight) {
+            moreActions(photo)
+        }
+    }
+
     private func moreActions(_ photo: Photo) -> some View {
-        let like = store.likeState(for: photo)
-        return Menu {
-            if infoExpanded { Button("收起照片信息", systemImage: "chevron.down") { infoExpanded = false } }
-            Button { store.toggleLike(photo) } label: {
-                Label("\(like.liked ? "取消点赞" : "点赞") · \(like.count)",
-                    systemImage: like.liked ? "heart.fill" : "heart")
-            }.disabled(store.isUpdatingLike(photo))
-            Button { store.toggleFavorite(photo) } label: {
-                Label(store.favorites.contains(photo.id) ? "取消收藏" : "收藏",
-                    systemImage: store.favorites.contains(photo.id) ? "bookmark.fill" : "bookmark")
-            }
-            if let url = store.config?.mediaURL(GalleryCatalogEngine.media(photo, detail: true).original) {
-                ShareLink(item: url, subject: Text(photo.displayTitle)) { Label("分享原图链接", systemImage: "square.and.arrow.up") }
-            }
+        Menu {
             Button { Task { await save(photo) } } label: {
                 Label(saving ? "正在保存…" : "保存原图到相册", systemImage: "arrow.down.to.line")
             }.disabled(saving)
@@ -321,13 +335,13 @@ struct PhotoViewer: View {
             } label: {
                 Label(spatial.loading ? "取消加载" : spatial.content != nil ? "关闭空间场景" : "空间场景", systemImage: "square.3.layers.3d")
             }.disabled(reduceMotion)
-            if spatial.content != nil {
+            if !infoExpanded, spatial.content != nil {
                 Button(spatial.tiltEnabled ? "关闭倾斜控制" : "开启倾斜控制", systemImage: "iphone.radiowaves.left.and.right") { spatial.tiltEnabled.toggle() }
                 Button("重新校准", systemImage: "scope") { spatial.recenter() }
                 Button("上一张", systemImage: "chevron.left") { movePhoto(-1) }.disabled(selectedIndex <= 0)
                 Button("下一张", systemImage: "chevron.right") { movePhoto(1) }.disabled(selectedIndex >= visiblePhotos.count - 1)
             }
-        } label: { Image(systemName: "ellipsis").font(.system(size: 16, weight: .medium)).frame(width: 44, height: 44) }
+        } label: { FloatingGlassControl(symbol: "ellipsis") }
             .accessibilityLabel("更多照片操作")
     }
     private func isNearSelection(_ id: String) -> Bool {
@@ -337,7 +351,11 @@ struct PhotoViewer: View {
     }
 
     private func save(_ photo: Photo) async {
-        guard !saving, let url = store.config?.mediaURL(GalleryCatalogEngine.media(photo, detail: true).original) else { return }
+        guard !saving else { return }
+        guard let url = store.config?.mediaURL(GalleryCatalogEngine.media(photo, detail: true).original) else {
+            saveMessage = "找不到这张照片的原图。"
+            return
+        }
         saving = true
         defer { saving = false }
         do {
@@ -347,18 +365,39 @@ struct PhotoViewer: View {
             }
             // Download to disk instead of decoding a potentially 100 MB original into memory.
             let (temporary, response) = try await URLSession.shared.download(from: url)
+            defer { try? FileManager.default.removeItem(at: temporary) }
             guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
                 throw ClientError.message("原图下载失败，请稍后重试。")
             }
-            defer { try? FileManager.default.removeItem(at: temporary) }
+            guard let source = CGImageSourceCreateWithURL(temporary as CFURL, nil),
+                  CGImageSourceGetStatus(source) == .statusComplete,
+                  let identifier = CGImageSourceGetType(source) as String?,
+                  let type = UTType(identifier), type.conforms(to: .image),
+                  let fileExtension = type.preferredFilenameExtension else {
+                throw ClientError.message("下载的原图无法读取，请稍后重试。")
+            }
+
+            let imageFile = temporary.appendingPathExtension(fileExtension)
+            try FileManager.default.moveItem(at: temporary, to: imageFile)
+            defer { try? FileManager.default.removeItem(at: imageFile) }
+            let originalFilename = url.deletingPathExtension().lastPathComponent + "." + fileExtension
             try await PHPhotoLibrary.shared().performChanges {
                 let request = PHAssetCreationRequest.forAsset()
                 let options = PHAssetResourceCreationOptions()
-                options.originalFilename = url.lastPathComponent
-                request.addResource(with: .photo, fileURL: temporary, options: options)
+                options.originalFilename = originalFilename
+                if #available(iOS 26.0, *) {
+                    options.contentType = type
+                } else {
+                    options.uniformTypeIdentifier = identifier
+                }
+                request.addResource(with: .photo, fileURL: imageFile, options: options)
             }
             saveMessage = "原图已保存到相册。"
-        } catch { saveMessage = error.localizedDescription }
+        } catch let error as PHPhotosError where error.code == .invalidResource {
+            saveMessage = "系统相册无法导入这张原图。"
+        } catch {
+            saveMessage = error.localizedDescription
+        }
     }
 }
 

@@ -84,13 +84,13 @@ const errors = [];
 try {
   if (artifacts) await mkdir(artifacts, { recursive: true });
   const logo = await readFile('public/loa-cropped.png');
-  const setup = async (options = {}, preset = 'js_whitesmoke') => {
+  const setup = async (options = {}, preset = 'js_whitesmoke', mapboxToken = 'disabled') => {
     const context = await browser.newContext({ viewport: { width: 1146, height: 956 }, ...options });
-    await context.addInitScript(preset => {
+    await context.addInitScript(({ preset, mapboxToken }) => {
       sessionStorage.setItem('pic4pick_intro_seen', '1');
       localStorage.setItem('pic4pick_env_overrides', JSON.stringify({ VITE_MAP_STYLE_PRESET: preset,
-        VITE_AMAP_WEB_KEY: 'test-key', VITE_AMAP_SECURITY_JS_CODE: 'test-code' }));
-    }, preset);
+        VITE_AMAP_WEB_KEY: 'test-key', VITE_AMAP_SECURITY_JS_CODE: 'test-code', VITE_MAPBOX_PUBLIC_TOKEN: mapboxToken }));
+    }, { preset, mapboxToken });
     await context.route('**/rest/v1/photos?**', route => route.fulfill({ json: photos }));
     await context.route('https://map-test.invalid/**', route => route.fulfill({ body: logo, contentType: 'image/png' }));
     const page = await context.newPage();
@@ -493,8 +493,48 @@ try {
   await fallback.page.locator('.photo-details-sheet').waitFor({ state: 'detached' });
   assert.equal(await fallback.page.locator('.photo-map-marker-target').count(), 0);
   await fallback.context.close();
+
+  const mapbox = await setup({ reducedMotion: 'reduce' }, 'street', 'pk.fixture');
+  await mapbox.context.route('https://api.mapbox.com/**', route => {
+    const path = new URL(route.request().url()).pathname;
+    if (path === '/styles/v1/mapbox/light-v10') return route.fulfill({ json: {
+      version: 8,
+      sources: { fixture: { type: 'vector', attribution: '© Mapbox fixture',
+        tiles: ['https://api.mapbox.com/test-tiles/{z}/{x}/{y}.pbf'] } },
+      layers: [{ id: 'land', type: 'fill', source: 'fixture', 'source-layer': 'land' }],
+    } });
+    return route.fulfill({ contentType: 'application/x-protobuf', body: '' });
+  });
+  await mapbox.context.route('https://events.mapbox.com/**', route => route.fulfill({ status: 204 }));
+  await mapbox.page.goto(baseUrl, { waitUntil: 'networkidle' });
+  // Photo details can load MapLibre before Discover loads Mapbox in the same window.
+  await mapbox.page.locator('.photo-card').first().click();
+  await mapbox.page.getByRole('button', { name: '基本参数', exact: true }).click();
+  await mapbox.page.locator('.photo-location-map .maplibregl-marker').first().waitFor();
+  await mapbox.page.getByRole('button', { name: '收起照片详情', exact: true }).click();
+  await mapbox.page.keyboard.press('Escape');
+  const tile = mapbox.page.waitForResponse(response => response.url().includes('/test-tiles/') && response.ok());
+  await mapbox.page.getByRole('button', { name: '发现', exact: true }).click();
+  await tile;
+  await mapbox.page.locator('#mapCanvas .mapboxgl-ctrl-logo').waitFor();
+  const mapboxMarker = mapbox.page.locator('#mapCanvas .mapboxgl-marker.explore-marker-target').first();
+  await mapboxMarker.press('Enter');
+  await mapbox.page.locator('.location-panel-title').waitFor();
+  await mapbox.context.close();
+
+  const mapboxFallback = await setup({}, 'js_whitesmoke', 'pk.fixture');
+  await mapboxFallback.context.route('https://api.mapbox.com/**', route => route.abort());
+  await mapboxFallback.context.route('https://webapi.amap.com/**', route => route.fulfill({
+    contentType: 'application/javascript', body: `(${installMockAmap.toString()})();`,
+  }));
+  await mapboxFallback.page.goto(baseUrl, { waitUntil: 'networkidle' });
+  await mapboxFallback.page.getByRole('button', { name: '发现', exact: true }).click();
+  await mapboxFallback.page.waitForFunction(() => window.mapChecks?.markers.length > 0);
+  assert.equal(await mapboxFallback.page.locator('#mapCanvas .mapboxgl-canvas').count(), 0);
+  await mapboxFallback.context.close();
+
   assert.deepEqual(errors, []);
-  console.log('Map checks passed: complete city photo grids, lightbox and return navigation, location search, retained camera, enlarged marker targets, mobile sheet gestures, horizontal cards, fixed search, keyboard dismissal, animation, reduced motion, cleanup and real MapLibre fallback.');
+  console.log('Map checks passed: city search and navigation, markers, motion, Mapbox vector tiles after MapLibre, and Gaode fallback.');
 } finally {
   await browser.close();
 }

@@ -29,6 +29,14 @@ import Foundation
             let moved = full.dragged(translation: CGPoint(x: translation.x + velocity.x * dt, y: translation.y + velocity.y * dt), anchor: anchor)
             for i in state.values.indices { near((moved.values[i] - state.values[i]) / dt, speeds[i], tolerance: 0.001) }
             let target = PhotoTransitionState(clip: cell, image: cropped, corner: 20, backdrop: 0)
+            let inFlight = target.interpolated(to: full, progress: 0.35)
+            let touchAnchor = CGPoint(x: 12, y: 28)
+            precondition(inFlight.dragged(translation: .zero, anchor: touchAnchor).values == inFlight.values)
+            let grabbed = inFlight.dragged(translation: CGPoint(x: 8, y: 32), anchor: touchAnchor)
+            let grabbedScale = grabbed.clip.width / inFlight.clip.width
+            near(grabbed.clip.midY + touchAnchor.y * grabbedScale, inFlight.clip.midY + touchAnchor.y + 32)
+            near(grabbed.inner.minX, inFlight.inner.minX * grabbedScale)
+            near(grabbed.inner.minY, inFlight.inner.minY * grabbedScale)
             let far = full.dragged(translation: CGPoint(x: 0, y: 600), anchor: .zero)
             near(far.values[8], PhotoTransitionTuning.interactiveBackgroundFloor)
             near(full.dragVelocity(translation: CGPoint(x: 0, y: 600), velocity: CGPoint(x: 0, y: 1000), anchor: .zero)[8], 0)
@@ -65,13 +73,31 @@ import Foundation
                 }
             }
         }
-        precondition(!PhotoTransitionTuning.shouldDismiss(translation: 50, velocity: 200))
-        precondition(PhotoTransitionTuning.shouldDismiss(translation: 135, velocity: 0))
-        precondition(PhotoTransitionTuning.shouldDismiss(translation: 25, velocity: 1100))
+        precondition(!PhotoTransitionTuning.shouldDismiss(translation: 17, velocity: 0))
+        precondition(PhotoTransitionTuning.shouldDismiss(translation: 18, velocity: 0))
+        precondition(PhotoTransitionTuning.shouldDismiss(translation: 20, velocity: 250))
+        precondition(!PhotoTransitionTuning.shouldDismiss(translation: -22, velocity: 250))
         precondition(!PhotoTransitionTuning.shouldDismiss(translation: 5, velocity: 1500))
         precondition(!PhotoTransitionTuning.shouldDismiss(translation: 180, velocity: -700))
         precondition(!PhotoTransitionTuning.shouldDismiss(translation: .nan, velocity: 1000))
         precondition(PhotoTransitionTuning.duration(distance: 600, velocity: 2000) < PhotoTransitionTuning.duration(distance: 600, velocity: 0))
+        let panelDuration = PhotoTransitionTuning.panelSettleDuration
+        for origin in [0.0, 0.4, 0.96] {
+            for speed in [-2.0, 0, 1, 12] {
+                var previous = origin
+                for frame in 0...120 {
+                    let time = panelDuration * Double(frame) / 120
+                    let progress = PhotoTransitionSpring.panelOpeningProgress(from: origin, velocity: speed,
+                        time: time, duration: panelDuration)
+                    precondition(progress >= previous && progress <= 1, "Opening must not overshoot or rebound")
+                    previous = progress
+                }
+                near(previous, 1)
+                let almostDone = PhotoTransitionSpring.panelOpeningProgress(from: origin, velocity: speed,
+                    time: panelDuration - 0.00001, duration: panelDuration)
+                near((1 - almostDone) / 0.00001, 0, tolerance: 0.001)
+            }
+        }
         var gesture = PhotoPreviewGestureState()
         precondition(gesture.claim(expanded: false, vertical: 0, returning: false) == nil)
         precondition(gesture.owner == nil, "A zero-translation begin must not be locked to dismissal")

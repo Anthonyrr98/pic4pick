@@ -4,12 +4,17 @@ import UIKit
 // Attach to the vertical scroll view so it can reject horizontal pans before scrolling.
 struct HorizontalScrollSwipe: UIViewRepresentable {
     enum Direction: Int { case previous = -1, next = 1 }
+    enum DragEvent {
+        case began(CGFloat)
+        case changed(CGFloat)
+        case ended(translation: CGFloat, velocity: CGFloat, commit: Bool, screen: UIScreen?)
+        case cancelled(UIScreen?)
+    }
 
     @Environment(\.layoutDirection) private var layoutDirection
     let canSwipe: (Direction) -> Bool
     let onSwipe: (Direction) -> Void
-    var onDrag: ((Direction, CGFloat) -> Void)? = nil
-    var onCancel: () -> Void = {}
+    var onDrag: ((Direction, DragEvent) -> Void)? = nil
     var onPullRefresh: (() -> Void)? = nil
 
     func makeUIView(context: Context) -> Anchor {
@@ -23,7 +28,6 @@ struct HorizontalScrollSwipe: UIViewRepresentable {
         view.canSwipe = canSwipe
         view.onSwipe = onSwipe
         view.onDrag = onDrag
-        view.onCancel = onCancel
         view.onPullRefresh = onPullRefresh
         view.attach()
     }
@@ -34,8 +38,7 @@ struct HorizontalScrollSwipe: UIViewRepresentable {
         var rightToLeft = false
         var canSwipe: (Direction) -> Bool = { _ in false }
         var onSwipe: (Direction) -> Void = { _ in }
-        var onDrag: ((Direction, CGFloat) -> Void)?
-        var onCancel: () -> Void = {}
+        var onDrag: ((Direction, DragEvent) -> Void)?
         var onPullRefresh: (() -> Void)?
         private var dragDirection: Direction?
         private var pullStartedAtTop = false
@@ -107,19 +110,20 @@ struct HorizontalScrollSwipe: UIViewRepresentable {
             let window = recognizer.view?.window
             let translation = recognizer.translation(in: window)
             let velocity = recognizer.velocity(in: window)
+            let screen = window?.windowScene?.screen
             switch recognizer.state {
             case .began:
                 if let onDrag {
                     let direction = direction(for: velocity.x)
                     dragDirection = direction
-                    onDrag(direction, translation.x)
+                    onDrag(direction, .began(translation.x))
                 }
                 return
             case .changed:
-                if let dragDirection { onDrag?(dragDirection, translation.x) }
+                if let dragDirection { onDrag?(dragDirection, .changed(translation.x)) }
                 return
             case .cancelled, .failed:
-                if dragDirection != nil { onCancel() }
+                if let dragDirection { onDrag?(dragDirection, .cancelled(screen)) }
                 dragDirection = nil
                 return
             case .ended: break
@@ -129,13 +133,13 @@ struct HorizontalScrollSwipe: UIViewRepresentable {
             let travel = abs(translation.x)
             let speed = velocity.x * (translation.x < 0 ? -1 : 1)
             let destination = direction(for: translation.x)
-            guard travel > abs(translation.y) * 1.5,
-                  travel >= 72 || (travel >= 40 && speed >= 480), canSwipe(destination),
-                  dragDirection == nil || dragDirection == destination else {
-                if dragDirection != nil { onCancel() }
-                return
+            let committed = travel > abs(translation.y) * 1.5 && (travel >= 72 || (travel >= 40 && speed >= 480))
+            if let dragDirection {
+                onDrag?(dragDirection, .ended(translation: translation.x, velocity: velocity.x,
+                    commit: committed && dragDirection == destination, screen: screen))
+            } else if committed && canSwipe(destination) {
+                onSwipe(destination)
             }
-            onSwipe(destination)
         }
 
         private func direction(for horizontal: CGFloat) -> Direction {

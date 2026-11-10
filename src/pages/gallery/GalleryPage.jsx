@@ -22,6 +22,7 @@ import { filterAndSortPhotos } from './utils/photoFilterUtils';
 import { usePhotoData, useLikePhoto } from './hooks/usePhotoData';
 import { useExifData, useBrowserLocation, useAltitudeFromCoords } from './hooks/useExifAndLocation';
 import { preloadConfiguredMap } from '../../utils/amapLoader';
+import { getDiscoveryMapboxToken, loadMapbox } from '../../utils/mapboxLoader';
 import { PhotoDetailsSheet } from './components/PhotoDetailsSheet';
 import { usePhotoAddress } from './hooks/usePhotoAddress';
 import {
@@ -341,7 +342,8 @@ export function GalleryPage() {
   const handleExploreIntent = useCallback(() => {
     if (!hasVisitedExplore) {
       preloadExploreView();
-      preloadConfiguredMap();
+      if (getDiscoveryMapboxToken()) void loadMapbox().catch(() => {});
+      else preloadConfiguredMap();
     }
   }, [hasVisitedExplore]);
 

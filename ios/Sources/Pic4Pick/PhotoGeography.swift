@@ -17,10 +17,27 @@ struct PhotoCoordinate: Sendable {
 actor PhotoGeoReader {
     static let shared = PhotoGeoReader()
     private var cache: [(String, PhotoCoordinate)] = []
+    private let pending = SharedImageRequests<String, PhotoCoordinate?>()
+
     func read(_ url: URL) async throws -> PhotoCoordinate? {
-        if let index = cache.firstIndex(where: { $0.0 == url.absoluteString }) {
-            let entry = cache.remove(at: index); cache.append(entry); return entry.1
+        try Task.checkCancellation()
+        let key = url.absoluteString
+        if let cached = cachedCoordinate(for: key) { return cached }
+        return try await pending.value(for: key) {
+            try await self.load(url, key: key)
         }
+    }
+
+    private func cachedCoordinate(for key: String) -> PhotoCoordinate? {
+        guard let index = cache.firstIndex(where: { $0.0 == key }) else { return nil }
+        let entry = cache.remove(at: index)
+        cache.append(entry)
+        return entry.1
+    }
+
+    private func load(_ url: URL, key: String) async throws -> PhotoCoordinate? {
+        try Task.checkCancellation()
+        if let cached = cachedCoordinate(for: key) { return cached }
         var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 20)
         // JPEG EXIF lives in the header. Avoid downloading a 100 MB original just for GPS.
         request.setValue("bytes=0-524287", forHTTPHeaderField: "Range")
@@ -40,7 +57,8 @@ actor PhotoGeoReader {
             $0.doubleValue * ((gps[kCGImagePropertyGPSAltitudeRef as String] as? NSNumber)?.intValue == 1 ? -1 : 1)
         }
         let value = PhotoCoordinate(latitude: latitude, longitude: longitude, altitude: altitude, gps: true)
-        cache.append((url.absoluteString, value)); if cache.count > 3 { cache.removeFirst() }
+        try Task.checkCancellation()
+        cache.append((key, value)); if cache.count > 3 { cache.removeFirst() }
         return value
     }
 }
@@ -63,21 +81,24 @@ final class PhotoGeography: ObservableObject {
         altitude = photo.altitude; altitudeSource = photo.altitude == nil ? "" : "作品记录"
     }
     func load(config: ClientConfig?) async {
-        if let url = config?.mediaURL(GalleryCatalogEngine.media(photo, detail: true).original), let exif = try? await PhotoGeoReader.shared.read(url), !Task.isCancelled {
+        if coordinate?.gps != true, let url = config?.mediaURL(GalleryCatalogEngine.media(photo, detail: true).original),
+           let exif = try? await PhotoGeoReader.shared.read(url), !Task.isCancelled {
             coordinate = exif
             mapCoordinate = nil
             if let value = exif.altitude { altitude = value; altitudeSource = "照片 EXIF" }
         }
         guard !Task.isCancelled, let coordinate else { return }
         async let terrain: Void = loadTerrain(coordinate)
-        do {
-            let marks = try await geocoder.reverseGeocodeLocation(CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude))
-            if !Task.isCancelled, address.isEmpty, let mark = marks.first {
-                address = [mark.country, mark.administrativeArea, mark.locality, mark.subLocality, mark.thoroughfare, mark.subThoroughfare]
-                    .compactMap { $0 }.reduce(into: [String]()) { if !$0.contains($1) { $0.append($1) } }.joined()
-                place = [mark.thoroughfare, mark.subThoroughfare].compactMap { $0 }.joined()
-            }
-        } catch { }
+        if address.isEmpty {
+            do {
+                let marks = try await geocoder.reverseGeocodeLocation(CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude))
+                if !Task.isCancelled, address.isEmpty, let mark = marks.first {
+                    address = [mark.country, mark.administrativeArea, mark.locality, mark.subLocality, mark.thoroughfare, mark.subThoroughfare]
+                        .compactMap { $0 }.reduce(into: [String]()) { if !$0.contains($1) { $0.append($1) } }.joined()
+                    place = [mark.thoroughfare, mark.subThoroughfare].compactMap { $0 }.joined()
+                }
+            } catch { }
+        }
         await terrain
     }
     private func loadTerrain(_ coordinate: PhotoCoordinate) async {

@@ -1,17 +1,41 @@
 /**
- * 共用地图初始化：按当前预设选择高德 JS 或 MapLibre，SDK 不可用时回退栅格底图。
+ * 共用地图初始化：发现页可优先用 Mapbox，其余场景沿用高德预设。
  */
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import type { Map as MapLibreMap } from 'maplibre-gl';
+import type { Map as MapboxMap } from 'mapbox-gl';
 import { getEnvValue } from '../../../utils/envConfig';
 import { handleError, ErrorType } from '../../../utils/errorHandler';
 import { loadMapLibre } from '../../../utils/maplibreLoader';
+import { getDiscoveryMapboxToken, loadMapbox } from '../../../utils/mapboxLoader';
 import { ensureAMapLoaded } from '../../../utils/amapLoader';
 import { getActiveMapStylePreset, getDefaultMaplibreStyle } from '../../../utils/gaodeMapStyle';
 import { createCityFlight, cityFlightEasing, getCityFocusOffset } from '../utils/cityFlight';
 
 const AMAP_READY_TIMEOUT_MS = 10000;
+type MapProvider = 'amap' | 'maplibre' | 'mapbox';
+type WebGLMap = MapLibreMap | MapboxMap;
+
+function waitForMapboxReady(map: MapboxMap, signal: AbortSignal) {
+  return new Promise<void>((resolve, reject) => {
+    const finish = (error?: Error) => {
+      window.clearTimeout(timer);
+      map.off('load', onLoad);
+      map.off('error', onError);
+      signal.removeEventListener('abort', onAbort);
+      if (error) reject(error);
+      else resolve();
+    };
+    const onLoad = () => finish();
+    const onError = ({ error }: { error: Error }) => finish(error);
+    const onAbort = () => finish(new Error('地图初始化已取消'));
+    const timer = window.setTimeout(() => finish(new Error('Mapbox 地图初始化超时')), 8000);
+    map.on('load', onLoad);
+    map.on('error', onError);
+    signal.addEventListener('abort', onAbort, { once: true });
+  });
+}
 
 function waitForAmapMapReady(
   map: { on: (event: string, cb: () => void) => void; off: (event: string, cb: () => void) => void },
@@ -34,20 +58,25 @@ function waitForAmapMapReady(
   });
 }
 
-export const useGaodeMapInit = (
+export const useMapInit = (
   containerRef: React.RefObject<HTMLDivElement>,
   activeView: string,
-  { center = [105, 35], zoom = 3.2 }: { center?: [number, number]; zoom?: number } = {}
+  { center = [105, 35], zoom = 3.2, preferMapbox = false }:
+    { center?: [number, number]; zoom?: number; preferMapbox?: boolean } = {}
 ) => {
   const [centerLongitude, centerLatitude] = center;
   const mapInstance = useRef<any>(null);
   const maplibreInstance = useRef<MapLibreMap | null>(null);
+  const mapboxInstance = useRef<MapboxMap | null>(null);
   const [isMapReady, setIsMapReady] = useState(false);
-  const [mapProvider, setMapProvider] = useState<'amap' | 'maplibre' | null>(null);
+  const [mapProvider, setMapProvider] = useState<MapProvider | null>(null);
   const [mapConfigRevision, setMapConfigRevision] = useState(0);
+  const mapboxToken = preferMapbox ? getDiscoveryMapboxToken() : '';
 
   useEffect(() => {
-    const onMapConfigChanged = () => setMapConfigRevision((v) => v + 1);
+    const onMapConfigChanged = () => {
+      if (!mapboxInstance.current) setMapConfigRevision((v) => v + 1);
+    };
     window.addEventListener('pic4pick:map-config-changed', onMapConfigChanged);
     return () => window.removeEventListener('pic4pick:map-config-changed', onMapConfigChanged);
   }, []);
@@ -63,22 +92,29 @@ export const useGaodeMapInit = (
     maplibreInstance.current = null;
   }, []);
 
+  const destroyMapbox = useCallback(() => {
+    mapboxInstance.current?.remove();
+    mapboxInstance.current = null;
+  }, []);
+
   const resizeMap = useCallback(() => {
     mapInstance.current?.resize?.();
     maplibreInstance.current?.resize?.();
+    mapboxInstance.current?.resize();
   }, []);
 
   useEffect(() => {
     if (activeView !== 'explore-view') {
       destroyAMap();
       destroyMapLibre();
+      destroyMapbox();
       setIsMapReady(false);
       setMapProvider(null);
       return;
     }
 
     if (!containerRef.current) return;
-    if (mapInstance.current || maplibreInstance.current) return;
+    if (mapInstance.current || maplibreInstance.current || mapboxInstance.current) return;
 
     let cancelled = false;
     const controller = new AbortController();
@@ -112,6 +148,37 @@ export const useGaodeMapInit = (
     };
 
     const initMap = async () => {
+      if (mapboxToken) {
+        try {
+          const mapbox = await loadMapbox();
+          if (cancelled || !containerRef.current) return;
+          const map = new mapbox.Map({
+            container: containerRef.current,
+            accessToken: mapboxToken,
+            style: 'mapbox://styles/mapbox/light-v10',
+            language: 'zh-Hans',
+            logoPosition: 'top-right',
+            attributionControl: false,
+            center: [centerLongitude, centerLatitude],
+            zoom: zoom - 1,
+            maxPitch: 0,
+            dragRotate: false,
+            touchPitch: false,
+          });
+          mapboxInstance.current = map;
+          map.addControl(new mapbox.AttributionControl(), 'top-right');
+          await waitForMapboxReady(map, controller.signal);
+          if (cancelled) return;
+          setMapProvider('mapbox');
+          setIsMapReady(true);
+          map.resize();
+          return;
+        } catch {
+          if (cancelled) return;
+          destroyMapbox();
+        }
+      }
+
       const amapKey = getEnvValue('VITE_AMAP_WEB_KEY', getEnvValue('VITE_AMAP_KEY', ''));
       const securityJsCode = getEnvValue('VITE_AMAP_SECURITY_JS_CODE', '');
       const mapPreset = getActiveMapStylePreset();
@@ -176,16 +243,17 @@ export const useGaodeMapInit = (
       setMapProvider(null);
       destroyAMap();
       destroyMapLibre();
+      destroyMapbox();
     };
-  }, [activeView, mapConfigRevision, containerRef, destroyAMap, destroyMapLibre, centerLongitude, centerLatitude, zoom]);
+  }, [activeView, mapConfigRevision, mapboxToken, containerRef, destroyAMap, destroyMapLibre, destroyMapbox, centerLongitude, centerLatitude, zoom]);
 
-  return { mapInstance, maplibreInstance, isMapReady, mapProvider, resizeMap };
+  return { mapInstance, maplibreInstance, mapboxInstance, isMapReady, mapProvider, resizeMap };
 };
 
 export const useFocusMapOnCity = (
   mapInstance: React.MutableRefObject<any>,
-  maplibreInstance: React.MutableRefObject<MapLibreMap | null>,
-  mapProvider: 'amap' | 'maplibre' | null,
+  webGLInstance: React.RefObject<WebGLMap | null>,
+  mapProvider: MapProvider | null,
   isMapReady: boolean,
   sectionRef: React.RefObject<HTMLElement>,
   containerRef: React.RefObject<HTMLDivElement>,
@@ -216,7 +284,7 @@ export const useFocusMapOnCity = (
   return useCallback(
     (lng: number, lat: number) => {
       if (!isMapReady || !isActive || !Number.isFinite(lng) || !Number.isFinite(lat)) return;
-      const map = mapProvider === 'amap' ? mapInstance.current : maplibreInstance.current;
+      const map = mapProvider === 'amap' ? mapInstance.current : webGLInstance.current;
       const container = containerRef.current;
       const section = sectionRef.current;
       if (!map || !container || !section) return;
@@ -231,14 +299,14 @@ export const useFocusMapOnCity = (
         ? { width: panelRect.width, height: panelRect.height, right: panelRect.right, top: Number(focusTop) }
         : panelRect;
       const offset = getCityFocusOffset(rect, focusRect);
-      // MapLibre's 512px world tiles use one less zoom level for the same city scale.
+      // The WebGL engines use one less zoom level for the same city scale.
       const targetZoom = mapProvider === 'amap' ? 10.2 : 9.2;
       const flight = createCityFlight({ from: [center.lng, center.lat], to: [lng, lat],
         zoom: map.getZoom(), targetZoom, width: rect.width, height: rect.height, offset,
         tileSize: mapProvider === 'amap' ? 256 : 512 });
       const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
       const duration = reducedMotion ? 0 : flight.duration;
-      if (mapProvider === 'maplibre') {
+      if (mapProvider !== 'amap') {
         if (!duration) map.jumpTo({ center: flight.destination, zoom: targetZoom });
         else map.flyTo({ center: flight.destination, zoom: targetZoom, duration,
           curve: 1.42, easing: cityFlightEasing });
@@ -268,21 +336,21 @@ export const useFocusMapOnCity = (
       };
       frame = requestAnimationFrame(animate);
     },
-    [isMapReady, isActive, mapProvider, mapInstance, maplibreInstance, sectionRef, containerRef]
+    [isMapReady, isActive, mapProvider, mapInstance, webGLInstance, sectionRef, containerRef]
   );
 };
 
 export const useMapMotion = (
   sectionRef: React.RefObject<HTMLElement>,
   mapInstance: React.MutableRefObject<any>,
-  maplibreInstance: React.MutableRefObject<MapLibreMap | null>,
-  mapProvider: 'amap' | 'maplibre' | null,
+  webGLInstance: React.RefObject<WebGLMap | null>,
+  mapProvider: MapProvider | null,
   isMapReady: boolean,
   isActive: boolean
 ) => {
   useEffect(() => {
     const section = sectionRef.current;
-    const map = mapProvider === 'amap' ? mapInstance.current : maplibreInstance.current;
+    const map = mapProvider === 'amap' ? mapInstance.current : webGLInstance.current;
     if (!section || !map || !isMapReady || !isActive) return;
     let restoreTimer: ReturnType<typeof setTimeout>;
     const motions = new Set<string>();
@@ -319,5 +387,5 @@ export const useMapMotion = (
       });
       section.classList.remove('map-in-motion');
     };
-  }, [sectionRef, mapInstance, maplibreInstance, mapProvider, isMapReady, isActive]);
+  }, [sectionRef, mapInstance, webGLInstance, mapProvider, isMapReady, isActive]);
 };
